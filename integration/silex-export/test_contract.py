@@ -115,6 +115,14 @@ class SourceChecks(unittest.TestCase):
         self.assertFalse(manifest['runtime_accepted'])
         self.assertFalse(manifest['network_published'])
         self.assertFalse(manifest['browser']['download_fallback'])
+        edit = manifest['text_edit_source_evidence']
+        self.assertEqual(edit['silex_commit'], manifest['silex']['commit'])
+        grapes = manifest['render_source_evidence']['packages'][0]
+        self.assertEqual(edit['grapesjs_version'], grapes['version'])
+        self.assertEqual(edit['archive_sha256'], grapes['archive_sha256'])
+        for path, short in (('dom_components/view/ComponentTextView.ts', 'ComponentTextView.ts'),
+                            ('rich_text_editor/model/RichTextEditor.ts', 'RichTextEditor.ts')):
+            self.assertEqual(edit['sources_content_sha256'][path], grapes['sources_content_sha256'][short])
 
     def test_drag_observer_cannot_modify_input_flow_or_read_payloads(self):
         driver = (ROOT / 'browser-export.mjs').read_text()

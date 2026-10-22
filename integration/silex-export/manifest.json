@@ -126,5 +126,24 @@
     "grapesjs_archive_files_sha256": {
       "package/dist/css/grapes.min.css": "fb55e939b3349c280d68c0617dc87e56baa3eab55ea56a1855db9f5efcc7268d"
     }
+  },
+  "text_edit_source_evidence": {
+    "purpose": "normal top-document UI commit and DOM disabled-editing precondition; source contract, not historical cause or runtime acceptance",
+    "silex_commit": "672efed69dda04c0a1e968859239e042f00d9538",
+    "silex_files_sha256": {
+      "editor/grapesjs/keymaps.ts": "760b3131b07acaacaebbddbaad23fa9c7d5781fe808eb80d076880205e30a17b",
+      "editor/css/design-system.scss": "00dc2ee9b4c085d8ada2630d54db3e6f27a800809b550c06e88734fa5771795f"
+    },
+    "grapesjs_version": "0.23.2",
+    "archive_sha256": "fe257a456a8ef95ab1f61994e14bb434f116cc82c8f4d5ccf0db50b484593d19",
+    "source_map": "package/dist/grapes.min.js.map",
+    "sources_content_sha256": {
+      "dom_components/view/ComponentTextView.ts": "fb223672f6f32a3dbf9fe44d445d0cb87078695205979b64b36706a8b4ec4a27",
+      "keymaps/index.ts": "74d663f40f74fc017d1f5a094d2d457b64fc8e44e6601de8e6cd5b4276f7b7c1",
+      "panels/config/config.ts": "c77b695351dd1285c9c9dbe3c3e4125e61ed6f7994c5f9eb93dcf00939e7af5a",
+      "panels/view/ButtonView.ts": "b55ad531f9476144cb4e4d444556eb338e4ea8f11621ba402bb78934ac98ec78",
+      "rich_text_editor/model/RichTextEditor.ts": "b28472f3893bf899e5d9d22faaa48c4b977066820284f20b1b098f78afeafba3",
+      "rich_text_editor/index.ts": "b24f44e545ba4ab982c72414c663a0e5a67495139aa88140ff4a21810a25a975"
+    }
   }
 }

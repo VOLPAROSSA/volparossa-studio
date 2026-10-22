@@ -161,9 +161,36 @@ placeholder and CSS hashes; archive pins and integrity values are unchanged.
 
 The existing style assertions now report distinct failure stages:
 `manual_style_text_verify` checks the edited marker, then
-`manual_style_font_verify` checks the computed `37px` font size. Browser actions,
-assertions, timeouts and preview verification are unchanged; the stage alone
-identifies which invariant failed without establishing its cause.
+`manual_style_font_verify` checks the computed `37px` font size. These two stage labels preserve
+their associated assertions and identify which invariant failed without
+establishing its cause. The text commit correction below adds earlier checks.
+
+The text-edit commit now follows the pinned RTE contract. `ComponentTextView`
+listens for document mousedown to disable editing and synchronize changed content,
+but deliberately stops mousedown propagation on the edited text itself. Its
+builtin `RichTextEditor` keydown handles Enter, not Escape. Silex's Escape listener
+returns while `editor.getEditing()` is active, and GrapesJS keymap dispatch gates
+shortcuts on `!em.isEditing()` and no focused input. Consequently Escape followed
+by clicking the same text does not establish a completed editing boundary before
+sending the ordinary `r` key. This demonstrates an invalid commit assumption;
+it does not establish what changed the marker in a historical run.
+
+After native Ctrl+A/insertText, `manual_text_edit_verify` checks the exact marker.
+`manual_text_commit` then clicks the real top-document Style Manager button
+(`.gjs-pn-btn.fa-paint-brush`) and waits for the fixture text DOM to have
+`contenteditable="false"`. The default panel binds this button to `open-sm` and
+makes an active button non-togglable; Silex styles it as a visible 20px control.
+This ordinary outside mousedown leaves RTE editing without sending another
+printable key to its still-focused content. `manual_text_commit_verify` checks
+marker preservation before the original font-size input actions. These checks
+observe DOM results; they do not read the editor model or prove model persistence.
+The final exact marker/37px assertions and preview checks remain intact. Existing
+timeouts, pins, diagnostic privacy, browser isolation and cleanup are unchanged.
+
+`text_edit_source_evidence` records exact Silex keymap/CSS and GrapesJS
+ComponentTextView/RTE/keymap/panel/button hashes from the existing pinned source
+archives. Source and inert checks are not runtime editing acceptance; a reviewed
+hosted trial must prove focus, commit preservation, style, preview and export.
 
 A best-effort, failure-only closed `drag_diagnostics` record now distinguishes
 **pre-drag** hit tests sampled before mouse input from **post-drag** hit tests

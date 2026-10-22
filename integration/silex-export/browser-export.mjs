@@ -247,11 +247,16 @@ try {
   stage = 'manual_text_edit';
   await page.keyboard.press('Control+a');
   await page.keyboard.insertText(marker);
-  await page.keyboard.press('Escape');
+  stage = 'manual_text_edit_verify';
+  assert.equal(await text.innerText(), marker);
   stage = 'manual_text_commit';
-  await text.click();
+  // Same-text mousedown is deliberately isolated by ComponentTextView. Use
+  // the real top-document Style Manager button to leave and commit RTE editing.
+  await page.locator('.gjs-pn-btn.fa-paint-brush').click();
+  await frame.locator('[data-gjs-type="text"].silex-default-text[contenteditable="false"]').first().waitFor();
+  stage = 'manual_text_commit_verify';
+  assert.equal(await text.innerText(), marker);
   stage = 'manual_style';
-  await page.keyboard.press('r');
   const typography = page.locator('.gjs-sm-sector').filter({ hasText: 'Typography' });
   const fontSize = typography.locator('.gjs-sm-property__font-size input').first();
   if (!await fontSize.isVisible()) await typography.locator('.gjs-sm-sector-title').click();
