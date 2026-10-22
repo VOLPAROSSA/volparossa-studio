@@ -33,9 +33,14 @@ try {
   });
   const page = await context.newPage();
   page.setDefaultTimeout(12000);
-  stage = 'editor_load';
+  stage = 'editor_navigation';
   await page.goto('http://127.0.0.1:6805/?id=default&connectorId=fs-storage&lang=en');
-  await page.locator('.silex-loading').waitFor({ state: 'detached' });
+  stage = 'editor_ready';
+  // Pinned editor/index.ts loaded() hides the loader and reveals #gjs. The
+  // body class silex-loading remains present in this release, even when ready.
+  await page.locator('.silex-loader').waitFor({ state: 'hidden' });
+  await page.locator('#gjs:not(.silex-dialog-hide)').waitFor({ state: 'visible' });
+  stage = 'editor_frame';
   await page.locator('.gjs-frame').first().waitFor();
   stage = 'create_page';
   await page.keyboard.press('Control+Alt+n');

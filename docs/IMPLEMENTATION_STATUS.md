@@ -45,9 +45,9 @@ is implied by these candidate names.
   guard tests; Core workflow YAML, shell syntax,
   ShellCheck and standalone Rust formatting. These are synthetic/parser/source
   checks and establish no editor/export or real sandbox/network cleanup acceptance.
-- Pending: independent source review, frozen dependency/build compatibility, actual
-  sandboxed installed-Chrome/UI selectors, real export/Core decoder result and
-  normal/failure/cancellation cleanup on one separately selected hosted trial.
+- Pending after the first failed hosted trial: independent review of the narrow
+  readiness/shell corrections, actual editor readiness/manual edit/preview/export,
+  actual Core CLI/decoder result and broader normal/cancellation cleanup cases.
 - Initial independent review found the successful userns probe deterministically
   maps UID 0, incompatible with sandboxed Chrome. Corrected source adds the fixed
   Studio-only nonroot command option to the existing Core namespace wrapper,
@@ -74,6 +74,52 @@ is implied by these candidate names.
   packaging only. All fifteen complete acceptance cases remain open; no signing,
   network publication, public hosting, independent peer rendering, private shared
   AI, publisher-offline availability or dynamic execution is established.
+
+### First hosted export trial — failed, retained
+
+[Original run 39846266494](https://github.com/VOLPAROSSA/volparossa/actions/runs/39846266494)
+bound Core `c15791672e9932edcb24b0fedbdf1090b975d058` (tree
+`087a58925beaf8c68f6174a450220c81c4be44d7`), Studio
+`024a478bcef20650197651b15f253133894fb06a` (tree
+`cdb2326707ada5164345f1bc1a363cca770e18d5`), and unchanged Silex
+`672efed69dda04c0a1e968859239e042f00d9538`.
+
+- Opt-in job `120060244063` passed source acquisition/binding, inert tests, pinned
+  Silex build and Core pack-proof compilation. Actual sandboxed Chrome
+  `155.0.8059.39` launched, but its receipt records `TimeoutError` at `editor_load`.
+  No page creation/edit/preview/ZIP export or actual pack/decode passed.
+- Its original artifact `12454998636` is 773 bytes, SHA-256
+  `d4b033946c42353a4275861fc910032e30725c4e64917bbb3c1dd9fb3ce12eba`.
+  Retained locally under Core `.git/ci-evidence/studio-export-39846266494/`.
+  Receipt observations: server joined, server/browser driver groups drained,
+  isolated network namespace, nonroot UID, cleared capabilities and temporary
+  outputs removed. This is cleanup evidence for this failure path, not completion
+  of cancellation/crash or full Studio/network acceptance.
+- Source tracing identified an impossible readiness wait: `.silex-loading` is a
+  permanent body class in this pinned release. `editor/index.ts` `loaded()` instead
+  hides `.silex-loader` and reveals `#gjs`. The candidate now waits for those real
+  states, with all existing time limits and manual controls preserved. This fixes
+  the deterministic selector mismatch without claiming the failed browser had
+  otherwise completed initialization.
+- The original combined `editor_load` stage cannot identify the exact failing
+  await. The candidate reports separate closed navigation/readiness/frame stages;
+  it adds no URL, raw DOM, asset or private project-log diagnostics.
+- Ordinary Quality job `120060244414` failed `scripts/check-shell.sh`: full
+  ShellCheck reported SC2015 at wrapper lines 55, 66 and 67. The earlier warning
+  threshold omitted information-level diagnostics. Cargo formatting completed
+  successfully before the shell check ran. Original public job log was fetched
+  and retained as `quality-job-120060244414.log`, 87,725 bytes, SHA-256
+  `a1915f6fca020e555a50099e351186fa2de319f9b261192b6787551e87da1109`.
+  The three guards now use explicit `if` statements; the opt-in wrapper source
+  check uses full ShellCheck severity. Ordinary Quality steps remain unchanged.
+
+These corrections need independent source review. No rerun, publication or new
+runtime acceptance accompanies this diagnosis; the original failure stays retained.
+Post-diagnosis checks pass: seven inert wrapper rejection tests, twelve existing
+contract/parser checks, wrapper shell syntax and full-severity ShellCheck,
+workflow YAML/Bash/ShellCheck and whitespace checks. Pinned source inspection
+confirmed the actual readiness hook and editor route; no browser or Rust build
+was executed locally to validate the correction.
 
 All fifteen cases in amendment section 8 remain open for this integration:
 create/import; edit/preview; explicit authorization; Core signed publication;

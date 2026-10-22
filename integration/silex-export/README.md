@@ -1,7 +1,8 @@
 # Real Silex export to offline Core site pack
 
 This is a synthetic, explicitly selected hosted integration fixture. Source and
-inert safety checks are implemented; **no runtime acceptance has been obtained**.
+inert safety checks are implemented; **the first hosted trial failed before editor
+readiness, and no export/pack acceptance has been obtained**.
 It is not a product frontend, public hosting service or model/AI implementation.
 
 The existing Core `Quality` workflow has an optional `studio_export_pack` manual
@@ -10,6 +11,32 @@ input. A reviewer supplies complete lowercase 40-hex `core_revision` and
 Silex commit is `672efed69dda04c0a1e968859239e042f00d9538` (v3.9.0).
 Dispatch is a separate principal action after review; adding these sources does
 not start a trial. Ordinary Quality checks retain their normal triggers and steps.
+
+The original [run 39846266494](https://github.com/VOLPAROSSA/volparossa/actions/runs/39846266494)
+is retained as failure evidence. It bound Core
+`c15791672e9932edcb24b0fedbdf1090b975d058`, Studio
+`024a478bcef20650197651b15f253133894fb06a`, and the fixed Silex revision.
+Acquisition, inert checks, pinned Silex build and Core proof compilation passed;
+the actual browser returned `TimeoutError` at `editor_load`. No edits, preview,
+ZIP export or actual Core pack/decode were verified. Its receipt reports joined
+server/browser groups, isolation, nonroot/capability checks and temporary output
+removal. Chrome 155.0.8059.39 is an observed runner identity, not an immutable pin.
+
+Source diagnosis found the fixture waited for `.silex-loading` to detach, although
+the pinned HTML assigns that class to the body and never removes it. Pinned
+`editor/index.ts` `loaded()` hides `.silex-loader` and reveals `#gjs` instead.
+The correction waits for those actual visibility states without increasing a
+deadline or changing editor behavior. This deterministic bad wait does not prove
+that the original editor otherwise finished initialization; its combined stage
+does not identify which navigation/readiness await raised. The candidate now
+reports those separate closed stages, plus frame readiness, without URLs or DOM
+content. A later reviewed trial must establish readiness and subsequent behavior.
+
+The same run's ordinary Quality job failed full ShellCheck with SC2015 information
+diagnostics on three Studio-only wrapper guards; Cargo formatting had passed.
+Those guards now use explicit `if` statements, and the opt-in source check uses
+full ShellCheck severity, matching the ordinary gate. Corrections are unexecuted
+runtime candidates pending independent source review and principal dispatch.
 
 The hosted job acquires exact source and builds the actual Node Silex application,
 using its frozen upstream lockfile and the exact app filter. Dependency install
