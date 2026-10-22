@@ -67,13 +67,15 @@ DRAG_COUNTS = frozenset(('source_dragstart', 'source_dragend', 'wrapper_dragente
                         'wrapper_dragover', 'wrapper_drop'))
 DRAG_FLAGS = frozenset(('source_draggable', 'source_point_in_block',
                        'target_main_hit_is_frame', 'target_frame_hit_in_wrapper'))
+NATIVE_HANDLER_FLAGS = frozenset(('cancelable', 'default_prevented', 'hit_is_wrapper', 'hit_in_wrapper'))
+NATIVE_HANDLER_STATES = frozenset(('not_observed', 'captured', 'unavailable'))
 SNAPSHOT_STATES = frozenset(('not_attempted', 'captured', 'unavailable'))
 
 
 def validate_drag_diagnostics(value):
-    if type(value) is not dict or set(value) != {'schema', 'observer', 'pre_drag', 'post_drag', 'events'}:
+    if type(value) is not dict or set(value) != {'schema', 'observer', 'pre_drag', 'post_drag', 'events', 'native_handlers'}:
         raise ValueError('closed drag diagnostic schema required')
-    if type(value['schema']) is not int or value['schema'] != 1 or type(value['observer']) is not str or value['observer'] not in SNAPSHOT_STATES:
+    if type(value['schema']) is not int or value['schema'] != 2 or type(value['observer']) is not str or value['observer'] not in SNAPSHOT_STATES:
         raise ValueError('closed drag observation status required')
     for key in ('pre_drag', 'post_drag'):
         phase = value[key]
@@ -91,6 +93,27 @@ def validate_drag_diagnostics(value):
         raise ValueError('closed trusted drag event inventory required')
     if any(type(item) is not int or not 0 <= item <= 32 for item in events.values()):
         raise ValueError('bounded trusted drag counters required')
+
+    handlers = value['native_handlers']
+    if type(handlers) is not dict or set(handlers) != {'dragover', 'drop'}:
+        raise ValueError('closed native handler inventory required')
+    for kind in ('dragover', 'drop'):
+        sample = handlers[kind]
+        flags = NATIVE_HANDLER_FLAGS | ({'source_dragend_seen'} if kind == 'drop' else set())
+        if type(sample) is not dict or set(sample) != flags | {'count', 'observation'}:
+            raise ValueError('closed native handler sample required')
+        if type(sample['count']) is not int or not 0 <= sample['count'] <= 32:
+            raise ValueError('bounded native handler count required')
+        status = sample['observation']
+        if type(status) is not str or status not in NATIVE_HANDLER_STATES:
+            raise ValueError('closed native handler observation status required')
+        if status == 'captured':
+            if sample['count'] == 0 or any(type(sample[key]) is not bool for key in flags):
+                raise ValueError('observed native handler booleans required')
+        elif any(sample[key] is not None for key in flags):
+            raise ValueError('unobserved native handler fields must be null')
+        if status == 'not_observed' and sample['count'] != 0:
+            raise ValueError('unobserved native handler count must be zero')
 
 
 def read_browser_receipt(path):

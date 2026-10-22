@@ -13,7 +13,7 @@ import warnings
 import zipfile
 
 import extract as extractor
-from run import COMPONENT_COUNTS, DRAG_COUNTS, DRAG_FLAGS, validate_drag_diagnostics, DIAGNOSTIC_COUNTS, DIAGNOSTIC_FLAGS, DOM_FLAGS, INTERACTION_COUNTS, INTERACTION_FLAGS, read_browser_receipt, validate_startup_diagnostics
+from run import NATIVE_HANDLER_FLAGS, COMPONENT_COUNTS, DRAG_COUNTS, DRAG_FLAGS, validate_drag_diagnostics, DIAGNOSTIC_COUNTS, DIAGNOSTIC_FLAGS, DOM_FLAGS, INTERACTION_COUNTS, INTERACTION_FLAGS, read_browser_receipt, validate_startup_diagnostics
 
 ROOT = Path(__file__).resolve().parent
 
@@ -128,6 +128,22 @@ class SourceChecks(unittest.TestCase):
                           'setAttribute', 'appendChild', 'window.silex'):
             self.assertNotIn(forbidden, observer)
 
+    def test_native_handler_observation_is_passive_trusted_and_coordinate_only(self):
+        driver = (ROOT / 'browser-export.mjs').read_text()
+        observer = driver.split('const observeNativeHandler =', 1)[1].split('const stop =', 1)[0]
+        self.assertIn('if (!event.isTrusted) return;', observer)
+        self.assertIn('Math.min(32,', observer)
+        self.assertIn('doc.elementFromPoint(event.clientX, event.clientY)', observer)
+        self.assertIn('default_prevented: event.defaultPrevented', observer)
+        self.assertIn('source_dragend_seen: state.events.source_dragend > 0', observer)
+        self.assertIn('{ capture: false, passive: true }', observer)
+        self.assertIn('listeners.push([wrapper, type, listener, false])', observer)
+        self.assertIn('root.removeEventListener(type, listener, capture)', driver)
+        self.assertIn("observeNativeHandler('dragover', false)", driver)
+        self.assertIn("observeNativeHandler('drop', true)", driver)
+        self.assertNotIn('setTimeout', observer)
+        self.assertNotIn('await ', observer)
+
     def test_component_observation_uses_independent_fixed_dom_selectors(self):
         driver = (ROOT / 'browser-export.mjs').read_text()
         observer = driver.split('const components = () => ({', 1)[1].split('const probe =', 1)[0]
@@ -229,8 +245,12 @@ class DragDiagnosticTests(unittest.TestCase):
     def value(self):
         phase = dict({key: False for key in DRAG_FLAGS}, snapshot='captured',
             components={key: 0 for key in COMPONENT_COUNTS})
-        return dict(schema=1, observer='captured', pre_drag=copy.deepcopy(phase),
-            post_drag=copy.deepcopy(phase), events={key: 0 for key in DRAG_COUNTS})
+        return dict(schema=2, observer='captured', pre_drag=copy.deepcopy(phase),
+            post_drag=copy.deepcopy(phase), events={key: 0 for key in DRAG_COUNTS},
+            native_handlers={kind: dict(count=0, observation='not_observed',
+                **{key: None for key in NATIVE_HANDLER_FLAGS},
+                **({'source_dragend_seen': None} if kind == 'drop' else {}))
+                for kind in ('dragover', 'drop')})
 
     def test_closed_drag_phases_and_trusted_counts_validate(self):
         value = self.value()
@@ -247,6 +267,69 @@ class DragDiagnosticTests(unittest.TestCase):
             path.write_text(json.dumps(receipt))
             self.assertLess(path.stat().st_size, 4096)
             self.assertEqual(read_browser_receipt(path), receipt)
+
+    def test_native_handler_states_and_complete_receipt_bound(self):
+        value = self.value()
+        validate_drag_diagnostics(value)
+        for count in (0, 32):
+            for sample in value['native_handlers'].values():
+                sample.update(observation='unavailable', count=count)
+            validate_drag_diagnostics(value)
+        for sample in value['native_handlers'].values():
+            sample.update({key: True for key in sample if key not in ('count', 'observation')})
+            sample.update(observation='captured', count=32)
+        validate_drag_diagnostics(value)
+        receipt = dict(schema=1, status='failed', stage='manual_text_ready',
+            synthetic_only=True, network_published=False, public_hosting_accepted=False,
+            shared_ai_accepted=False, error_type='TimeoutError', browser_version='123.123.123.123',
+            startup_diagnostics=DiagnosticTests().value(), drag_diagnostics=value)
+        for phase in ('pre_drag', 'post_drag'):
+            value[phase]['components'].update({key: 32 for key in COMPONENT_COUNTS})
+        value['events'].update({key: 32 for key in DRAG_COUNTS})
+        receipt['startup_diagnostics']['interaction'].update({key: 32 for key in INTERACTION_COUNTS})
+        receipt['startup_diagnostics'].update({key: 32 for key in DIAGNOSTIC_COUNTS})
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'receipt.json'
+            path.write_text(json.dumps(receipt))
+            self.assertLess(path.stat().st_size, 4096)
+            self.assertEqual(read_browser_receipt(path), receipt)
+
+    def test_native_handler_schema_rejects_private_wrong_and_inconsistent_values(self):
+        invalid = []
+        for kind in ('dragover', 'drop'):
+            baseline = self.value()['native_handlers'][kind]
+            for key in baseline:
+                value = self.value()
+                del value['native_handlers'][kind][key]
+                invalid.append(value)
+            for key, item in (('count', True), ('count', 33), ('count', -1), ('count', 1.5),
+                              ('count', 1), ('observation', []), ('observation', 'SYNTHETIC_PRIVATE_TEXT'),
+                              ('observation', 'captured'), ('payload', 'SYNTHETIC_PRIVATE_TEXT')):
+                value = self.value()
+                value['native_handlers'][kind][key] = item
+                invalid.append(value)
+            for field in baseline.keys() - {'count', 'observation'}:
+                value = self.value()
+                value['native_handlers'][kind][field] = False
+                invalid.append(value)
+                for item in (None, 0, 1, [], 'SYNTHETIC_PRIVATE_TEXT'):
+                    value = self.value()
+                    sample = value['native_handlers'][kind]
+                    sample.update({key: False for key in baseline.keys() - {'count', 'observation'}})
+                    sample.update(observation='captured', count=1)
+                    sample[field] = item
+                    invalid.append(value)
+        for handlers in (None, [], {}, {'payload': 'SYNTHETIC_PRIVATE_TEXT'}):
+            value = self.value()
+            value['native_handlers'] = handlers
+            invalid.append(value)
+        value = self.value()
+        value['schema'] = 1
+        invalid.append(value)  # Historical schema-1 artifacts are not revalidated as schema 2.
+        for value in invalid:
+            with self.assertRaises(ValueError) as caught:
+                validate_drag_diagnostics(value)
+            self.assertNotIn('SYNTHETIC_PRIVATE_TEXT', str(caught.exception))
 
     def test_independent_selector_counts_do_not_require_combined_matches(self):
         value = self.value()

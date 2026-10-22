@@ -160,6 +160,27 @@ they do not identify components or prove model insertion. No text, HTML, payload
 model or additional API reads are introduced. Gestures, selectors used for actual
 editing, observation budgets, pins and success criteria are unchanged.
 
+The new `drag_diagnostics` schema is **2**; historical schema-1 artifacts remain
+immutable historical evidence and are not validated by the new schema-2 parser.
+Its closed `native_handlers` inventory has `dragover` and `drop` records, sampled
+only by trusted-event passive **bubble-phase** wrapper listeners. Each retains a
+`count` capped at 32, `observation`, and the latest trusted event's `cancelable`,
+`default_prevented`, `hit_is_wrapper` and `hit_in_wrapper` booleans. Hit tests use
+`doc.elementFromPoint(event.clientX, event.clientY)` transiently, without retaining
+coordinates. The drop record additionally reports whether the existing captured
+`source_dragend` counter was already nonzero (`source_dragend_seen`). This records
+observed source-end ordering, not internal editor source availability.
+
+An initialized listener with no trusted bubble event has `not_observed`, count
+zero and null booleans. A failed/unavailable observation has `unavailable` and
+null booleans; its count may be nonzero if a trusted event was counted before
+sampling failed. Successful samples use `captured`, positive counts and boolean
+fields. Repeated events replace the sample, preserving only the capped count and
+latest observation. A bubble sample cannot prove that every earlier handler ran;
+`default_prevented` reports cancellation, not handler acceptance or insertion.
+No event payload, editor model/API, arbitrary event strings or timing transcript
+is read or retained; no delay or input changes are introduced.
+
 Listeners never prevent defaults, stop propagation, return false, dispatch events
 or change DOM/models. They detach immediately after the post-drag snapshot; partial
 setup and failed-gesture paths also remove them, with browser teardown as the

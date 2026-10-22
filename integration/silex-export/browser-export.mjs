@@ -14,9 +14,21 @@ const emptyComponentCounts = () => ({ wrapper_descendants: 0, bare_texts: 0,
   default_texts: 0, texts: 0, editable_texts: 0 });
 const emptyDragPhase = () => ({ components: emptyComponentCounts(), snapshot: 'not_attempted', source_draggable: false,
   source_point_in_block: false, target_main_hit_is_frame: false, target_frame_hit_in_wrapper: false });
-const drag = { schema: 1, observer: 'not_attempted', pre_drag: emptyDragPhase(),
+const emptyNativeHandler = drop => ({ count: 0, observation: 'not_observed',
+  cancelable: null, default_prevented: null, hit_is_wrapper: null, hit_in_wrapper: null,
+  ...(drop ? { source_dragend_seen: null } : {}) });
+const drag = { schema: 2, native_handlers: { dragover: emptyNativeHandler(false),
+  drop: emptyNativeHandler(true) }, observer: 'not_attempted', pre_drag: emptyDragPhase(),
   post_drag: emptyDragPhase(), events: { source_dragstart: 0, source_dragend: 0,
     wrapper_dragenter: 0, wrapper_dragover: 0, wrapper_drop: 0 } };
+const unavailableNativeHandlers = () => {
+  for (const sample of Object.values(drag.native_handlers)) {
+    sample.observation = 'unavailable';
+    for (const key of Object.keys(sample)) {
+      if (key !== 'count' && key !== 'observation') sample[key] = null;
+    }
+  }
+};
 let blocked = 0;
 let localRequests = 0;
 const startup = { schema: 1, page_errors: 0, console_errors: 0,
@@ -131,7 +143,11 @@ try {
           target_main_hit_is_frame: document.elementFromPoint(targetPoint.x, targetPoint.y) === frame,
           target_frame_hit_in_wrapper: contains(wrapper, doc.elementFromPoint(localX, localY)) };
       };
-      const state = { schema: 1, observer: 'captured', pre_drag: probe(),
+      const emptyNativeHandler = drop => ({ count: 0, observation: 'not_observed',
+        cancelable: null, default_prevented: null, hit_is_wrapper: null, hit_in_wrapper: null,
+        ...(drop ? { source_dragend_seen: null } : {}) });
+      const state = { schema: 2, native_handlers: { dragover: emptyNativeHandler(false),
+        drop: emptyNativeHandler(true) }, observer: 'captured', pre_drag: probe(),
         post_drag: { components: { wrapper_descendants: 0, bare_texts: 0,
           default_texts: 0, texts: 0, editable_texts: 0 }, snapshot: 'not_attempted', source_draggable: false,
           source_point_in_block: false, target_main_hit_is_frame: false, target_frame_hit_in_wrapper: false },
@@ -143,10 +159,30 @@ try {
           if (event.isTrusted) state.events[key] = Math.min(32, state.events[key] + 1);
         };
         root.addEventListener(type, listener, { capture: true, passive: true });
-        listeners.push([root, type, listener]);
+        listeners.push([root, type, listener, true]);
+      };
+      const observeNativeHandler = (type, drop) => {
+        const listener = event => {
+          if (!event.isTrusted) return;
+          const count = Math.min(32, state.native_handlers[type].count + 1);
+          // Last trusted bubble sample only; coordinates never leave this call.
+          const sample = emptyNativeHandler(drop);
+          sample.count = count;
+          sample.observation = 'unavailable';
+          try {
+            const hit = doc.elementFromPoint(event.clientX, event.clientY);
+            Object.assign(sample, { observation: 'captured', cancelable: event.cancelable,
+              default_prevented: event.defaultPrevented, hit_is_wrapper: hit === wrapper,
+              hit_in_wrapper: contains(wrapper, hit),
+              ...(drop ? { source_dragend_seen: state.events.source_dragend > 0 } : {}) });
+          } catch { /* Keep explicit unavailable/null fields, never error text. */ }
+          state.native_handlers[type] = sample;
+        };
+        wrapper.addEventListener(type, listener, { capture: false, passive: true });
+        listeners.push([wrapper, type, listener, false]);
       };
       const stop = () => {
-        for (const [root, type, listener] of listeners) root.removeEventListener(type, listener, true);
+        for (const [root, type, listener, capture] of listeners) root.removeEventListener(type, listener, capture);
         return state;
       };
       try {
@@ -155,6 +191,8 @@ try {
         observe(wrapper, 'dragenter', 'wrapper_dragenter');
         observe(wrapper, 'dragover', 'wrapper_dragover');
         observe(wrapper, 'drop', 'wrapper_drop');
+        observeNativeHandler('dragover', false);
+        observeNativeHandler('drop', true);
       } catch (error) {
         stop();
         throw error;
@@ -166,6 +204,7 @@ try {
     }, { sourcePoint, targetPoint });
   } catch {
     drag.observer = 'unavailable';
+    unavailableNativeHandlers();
   }
   stage = 'manual_drag';
   await page.mouse.move(sourcePoint.x, sourcePoint.y);
@@ -175,7 +214,8 @@ try {
   // This phase is sampled immediately after mouse-up, before component waiting.
   if (dragObserver) {
     try { Object.assign(drag, await dragObserver.evaluate(observer => observer.finish())); }
-    catch { drag.observer = 'unavailable'; drag.post_drag.snapshot = 'unavailable'; }
+    catch { drag.observer = 'unavailable'; drag.post_drag.snapshot = 'unavailable';
+      unavailableNativeHandlers(); }
   }
   stage = 'manual_text_ready';
   // ComponentView renders this attribute; Silex also adds silex-default-text.
@@ -281,7 +321,7 @@ try {
           // stop() only returns already sampled phases; it cannot relabel a
           // late failure snapshot as an immediate post-drag observation.
           Object.assign(drag, value);
-        }).catch(() => { drag.observer = 'unavailable'; }) : Promise.resolve()]),
+        }).catch(() => { drag.observer = 'unavailable'; unavailableNativeHandlers(); }) : Promise.resolve()]),
         new Promise((_, reject) => { timer = setTimeout(() => reject(new Error()), 500); }),
       ]);
       startup.dom = observation.dom;
