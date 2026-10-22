@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "source": "https://github.com/silexlabs/Silex",
+  "release": "v3.9.0",
+  "commit": "672efed69dda04c0a1e968859239e042f00d9538",
+  "release_published_at": "2026-07-26T23:11:22Z",
+  "observed_main": "1fe592fbf7d06ec242c97be53e32cfb30884704d",
+  "reviewed_at": "2026-10-22",
+  "review_scope": "source interfaces and component license notices only; no build, dependency acceptance or runtime",
+  "license_notices": {
+    "editor_and_servers": "AGPL-3.0-or-later",
+    "desktop_wrapper": "GPL-3.0-or-later",
+    "root_package_shorthand": "AGPL-3.0"
+  },
+  "inspected_git_blobs": {
+    "README.md": "b268399247649248b2c5b055e6164c27d976c195",
+    "package.json": "5017e5a24d0e32c8daacb64f73214cd49ee57993",
+    "desktop/README.md": "6b86753dc35b390ca26f07feb9385ba315ab1a88",
+    "desktop/package.json": "d0e4038d066734d6c5a1f8d4cc8082fac4be8d92",
+    "desktop/LICENSE": "699270cfe6f0130287aac96fe8a702d460abfb73",
+    "common/silex-plugins/plugin.ts": "1592d349d07f83ede55b3fedd6e8a8bd934abf77",
+    "common/silex-plugins/config.ts": "4a92fffcb9c449b4ded3f2c454f76831f67a2b98",
+    "server/api/publicationApi.ts": "9a1d733673cd34fdb375a7691201665393de331f",
+    "server-rust/Cargo.toml": "a3dc309de75ad0c3262d658bcd52d091d7c55a82",
+    "server-rust/src/connectors/traits.rs": "d789e76774b40353263a6c116b7d611b55caf05f",
+    "server-rust/src/routes/publication.rs": "d57bd0f91ee6d8825fd2a938842a629252157b48",
+    "desktop/src-tauri/src/mcp.rs": "881d699bd4a18d47795cdabcf9f0aef810f37f4c",
+    "desktop/src-tauri/src/main.rs": "e4bf7832d22ded5125b0a713113efb254e75a1d4",
+    "LICENSE": "be3f7b28e564e7dd05eaf59d64adba1a4065ac0e"
+  },
+  "runtime_accepted": false,
+  "local_patches": [],
+  "vendored_code": false
+}
