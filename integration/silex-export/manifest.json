@@ -93,7 +93,7 @@
     "silex_blocks_sha256": "d627694a4746df8c50f9e74f1b9177ea4a4ce7ad6e7f9fbf6b564551220ca936"
   },
   "native_drag_source_evidence": {
-    "purpose": "read-only locked native drag path audit; diagnostic listeners only; no change to gesture or browser policy",
+    "purpose": "read-only locked native drag path audit and DOM placer readiness precondition; no runtime acceptance or browser policy change",
     "silex_commit": "672efed69dda04c0a1e968859239e042f00d9538",
     "silex_files_sha256": {
       "editor/grapesjs/index.ts": "f655648194f8cd6c5b24bedbd5c0ffbd3721044f880526e594badc47ba5f9750"
@@ -104,7 +104,11 @@
       "block_manager-index.ts": "7aa50d3c9f9e76d3eb91d546b0fd3b99028c292bf850290d4b85c29773f938c0",
       "Droppable.ts": "190cd329ccebc289037f3634b6a6480a3f86f6dbbb01b16a3cd0dc802ce3b038",
       "FrameView.ts": "92b668c2c173865e0fbaa9a518b64c1bc10499cfa0374828b4d3a0cc3c73a039",
-      "mixins.ts": "84df5c5ec04e38facd273aec3d31861d5be23a27b5e4689b3029187b11a8de90"
+      "mixins.ts": "84df5c5ec04e38facd273aec3d31861d5be23a27b5e4689b3029187b11a8de90",
+      "ComponentSorter.ts": "149c41b3a4ec9a48f82cf316f4b3dbedefd23cc0a3a1818d9c9f07abf49a113e",
+      "DropLocationDeterminer.ts": "0b446a8620fd720e64e72f062209e0c948dda88ec1d45238c364cd317dbbbbfe",
+      "PlaceholderClass.ts": "81257e35c8fd7225ccc3aad0a1e461086c573e8951bd6046bfaf2d04c188a629",
+      "CanvasView.ts": "306540ab7a9c3ac4f4e721f944af47d42bb2a659c55b0c2b12e3723f3d877427"
     },
     "playwright_core": {
       "version": "1.56.1",
@@ -118,6 +122,9 @@
         "package/lib/server/input.js": "715c3c8cec7f9a6a9d72a63f3dfcceea25dccdfeb99be2adf823da62f3224006",
         "package/lib/server/frames.js": "d87bb39dc8ff2c7efd7b925bab405e70f925fdc6e666880ef8dee41a31502e47"
       }
+    },
+    "grapesjs_archive_files_sha256": {
+      "package/dist/css/grapes.min.css": "fb55e939b3349c280d68c0617dc87e56baa3eab55ea56a1855db9f5efcc7268d"
     }
   }
 }

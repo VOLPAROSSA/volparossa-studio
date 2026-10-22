@@ -206,10 +206,29 @@ try {
     drag.observer = 'unavailable';
     unavailableNativeHandlers();
   }
+  stage = 'manual_drop_idle';
+  // CanvasView's real top-document placer, excluding any block drag ghost.
+  const dropIndicator = page.locator('#gjs .gjs-cv-canvas > [data-tools] > .gjs-tools-gl > .gjs-placeholder');
+  await dropIndicator.waitFor({ state: 'attached' });
+  assert.equal(await dropIndicator.count(), 1);
+  await dropIndicator.waitFor({ state: 'hidden' });
+  assert.equal(await dropIndicator.count(), 1);
   stage = 'manual_drag';
   await page.mouse.move(sourcePoint.x, sourcePoint.y);
   await page.mouse.down();
   await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 20 });
+  stage = 'manual_drop_ready';
+  try {
+    // ComponentSorter reveals this placer only after accepting a drop target.
+    // Use the existing default action timeout; no fixed delay or injected input.
+    await dropIndicator.waitFor({ state: 'visible' });
+    assert.equal(await dropIndicator.count(), 1);
+  } catch (error) {
+    // Escape cancels Playwright's native drag. Preserve the readiness failure
+    // even if cancellation fails; never dispatch mouse-up on this path.
+    try { await page.keyboard.press('Escape'); } catch { /* Browser teardown remains mandatory. */ }
+    throw error;
+  }
   await page.mouse.up();
   // This phase is sampled immediately after mouse-up, before component waiting.
   if (dragObserver) {

@@ -118,7 +118,7 @@ class SourceChecks(unittest.TestCase):
 
     def test_drag_observer_cannot_modify_input_flow_or_read_payloads(self):
         driver = (ROOT / 'browser-export.mjs').read_text()
-        observer = driver.split('dragObserver = await page.evaluateHandle', 1)[1].split("stage = 'manual_drag';", 1)[0]
+        observer = driver.split('dragObserver = await page.evaluateHandle', 1)[1].split("stage = 'manual_drop_idle';", 1)[0]
         self.assertIn('event.isTrusted', observer)
         self.assertIn('passive: true', observer)
         self.assertIn('Math.min(32,', observer)
@@ -127,6 +127,52 @@ class SourceChecks(unittest.TestCase):
                           'dataTransfer', 'getData(', 'innerHTML', 'innerText', 'textContent',
                           'setAttribute', 'appendChild', 'window.silex'):
             self.assertNotIn(forbidden, observer)
+
+    def test_drop_readiness_requires_unique_idle_and_ready_top_document_placer(self):
+        driver = (ROOT / 'browser-export.mjs').read_text()
+        readiness = driver.split("stage = 'manual_drop_idle';", 1)[1].split('// This phase is sampled', 1)[0]
+        selector = '#gjs .gjs-cv-canvas > [data-tools] > .gjs-tools-gl > .gjs-placeholder'
+        self.assertIn(f"const dropIndicator = page.locator('{selector}');", readiness)
+        idle, after_down = readiness.split('await page.mouse.down();', 1)
+        self.assertIn("await dropIndicator.waitFor({ state: 'attached' });", idle)
+        self.assertIn("await dropIndicator.waitFor({ state: 'hidden' });", idle)
+        self.assertEqual(idle.count('assert.equal(await dropIndicator.count(), 1);'), 2)
+        self.assertEqual(driver.count('await page.mouse.up();'), 1)
+        move, waiting = after_down.split("stage = 'manual_drop_ready';", 1)
+        self.assertEqual(move.strip(), 'await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 20 });')
+        required = """try {
+    // ComponentSorter reveals this placer only after accepting a drop target.
+    // Use the existing default action timeout; no fixed delay or injected input.
+    await dropIndicator.waitFor({ state: 'visible' });
+    assert.equal(await dropIndicator.count(), 1);
+  } catch (error) {
+    // Escape cancels Playwright's native drag. Preserve the readiness failure
+    // even if cancellation fails; never dispatch mouse-up on this path.
+    try { await page.keyboard.press('Escape'); } catch { /* Browser teardown remains mandatory. */ }
+    throw error;
+  }
+  await page.mouse.up();"""
+        self.assertEqual(waiting.strip(), required)
+        for forbidden in ('timeout:', 'setTimeout', 'waitForTimeout', 'dispatchEvent',
+                          'window.silex', 'dataTransfer', '.first()', 'frame.locator', 'force:'):
+            self.assertNotIn(forbidden, readiness)
+        self.assertIn('page.setDefaultTimeout(12000);', driver)
+
+    def test_readiness_provenance_is_bound_to_existing_locked_native_sources(self):
+        manifest = json.loads((ROOT / 'manifest.json').read_text())
+        contract = manifest['native_drag_source_evidence']
+        self.assertEqual(contract['silex_commit'], manifest['silex']['commit'])
+        self.assertEqual(contract['grapesjs_version'], '0.23.2')
+        self.assertEqual(contract['grapesjs_sources_content_sha256']['CanvasView.ts'],
+            '306540ab7a9c3ac4f4e721f944af47d42bb2a659c55b0c2b12e3723f3d877427')
+        self.assertEqual(contract['grapesjs_sources_content_sha256']['ComponentSorter.ts'],
+            '149c41b3a4ec9a48f82cf316f4b3dbedefd23cc0a3a1818d9c9f07abf49a113e')
+        self.assertEqual(contract['grapesjs_sources_content_sha256']['DropLocationDeterminer.ts'],
+            '0b446a8620fd720e64e72f062209e0c948dda88ec1d45238c364cd317dbbbbfe')
+        self.assertEqual(contract['grapesjs_sources_content_sha256']['PlaceholderClass.ts'],
+            '81257e35c8fd7225ccc3aad0a1e461086c573e8951bd6046bfaf2d04c188a629')
+        self.assertEqual(contract['grapesjs_archive_files_sha256'], {
+            'package/dist/css/grapes.min.css': 'fb55e939b3349c280d68c0617dc87e56baa3eab55ea56a1855db9f5efcc7268d'})
 
     def test_native_handler_observation_is_passive_trusted_and_coordinate_only(self):
         driver = (ROOT / 'browser-export.mjs').read_text()

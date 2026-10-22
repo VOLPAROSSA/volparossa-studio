@@ -133,7 +133,31 @@ Pinned Playwright 1.56.1 `crInput`/`crDragDrop` already intercept native drags f
 ordinary mouse moves and forward enter/over/drop. Its `dragAndDrop` command uses
 the same mouse mechanism. These contracts do not establish why this drag failed;
 changing gesture style or selecting the mouse-sorter path would be speculative.
-The candidate therefore leaves the real mouse/keyboard sequence unchanged.
+The earlier diagnostic candidate preserved the real mouse/keyboard sequence.
+
+The functional readiness precondition uses the pinned editor's real top-document
+placer: `#gjs .gjs-cv-canvas > [data-tools] > .gjs-tools-gl > .gjs-placeholder`.
+`CanvasView` creates it, `Droppable` passes it to `ComponentSorter`, and
+`DropLocationDeterminer` computes an accepted target before `ComponentSorter`
+shows the placer. `PlaceholderClass` toggles display; pinned CSS defaults it to
+hidden. This exact canvas-tools selector excludes a block drag ghost. In the
+empty-wrapper branch its visibility is an available DOM readiness signal.
+
+Before mouse-down, `manual_drop_idle` waits for the indicator to exist, requires
+exactly one match, waits for it to be hidden, and checks uniqueness again. Source
+and target coordinates and the 20-step mouse movement are unchanged. The new
+`manual_drop_ready` stage waits for that same unique indicator to become visible
+before mouse-up, using the existing 12-second action timeout. There is no fixed
+delay, injected event, editor-model/API access or deadline increase. On readiness
+failure the browser attempts a real Escape, then rethrows the original readiness
+error even if Escape fails. It never dispatches mouse-up on that failure path;
+browser teardown and the existing owned-group cleanup remain required.
+
+This is a source-backed precondition, not an established explanation of any
+historical failure. No local runtime trial was performed. A reviewed hosted run
+must still prove real component insertion, manual editing/export and cleanup.
+The manifest extends existing locked native-source provenance with sorter,
+placeholder and CSS hashes; archive pins and integrity values are unchanged.
 
 A best-effort, failure-only closed `drag_diagnostics` record now distinguishes
 **pre-drag** hit tests sampled before mouse input from **post-drag** hit tests
@@ -157,8 +181,9 @@ The late failure `interaction` inventory gains the first three counts alongside
 its existing combined/editable counts. These independent counts distinguish a
 combined-selector mismatch from an absence of observed matching DOM elements;
 they do not identify components or prove model insertion. No text, HTML, payload,
-model or additional API reads are introduced. Gestures, selectors used for actual
-editing, observation budgets, pins and success criteria are unchanged.
+model or additional API reads are introduced by these diagnostics. The readiness
+precondition above changes when mouse-up is allowed; diagnostic observation
+budgets, editing selectors, pins and success criteria remain unchanged.
 
 The new `drag_diagnostics` schema is **2**; historical schema-1 artifacts remain
 immutable historical evidence and are not validated by the new schema-2 parser.
@@ -179,7 +204,8 @@ fields. Repeated events replace the sample, preserving only the capped count and
 latest observation. A bubble sample cannot prove that every earlier handler ran;
 `default_prevented` reports cancellation, not handler acceptance or insertion.
 No event payload, editor model/API, arbitrary event strings or timing transcript
-is read or retained; no delay or input changes are introduced.
+is read or retained by these passive diagnostics; they introduce no delay or
+input changes.
 
 Listeners never prevent defaults, stop propagation, return false, dispatch events
 or change DOM/models. They detach immediately after the post-drag snapshot; partial
