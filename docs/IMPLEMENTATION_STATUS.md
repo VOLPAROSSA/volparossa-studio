@@ -1,6 +1,6 @@
 # Studio implementation status
 
-Updated 2026-10-22. Requirements are the complete permanent
+Updated 2026-10-23. Requirements are the complete permanent
 [Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/STUDIO_HOSTING_REQUIREMENTS.md),
 incorporated by the full Core goal. This file records Studio evidence and next
 work, without replacing that scope or the shared Core execution ledger.
@@ -20,9 +20,45 @@ work, without replacing that scope or the shared Core execution ledger.
   static viewer and public custody/owner-driven retention. Historical source-scoped
   tests are recorded in the Core content guide; none is Studio end-to-end acceptance.
 
+## Current bounded export and Core-pack acceptance — 2026-10-23
+
+Actual hosted run `39869460125` succeeds on Core
+`dfa6f3434bb9f7fe07c4fff2bacfc0042780faa7` and Studio
+`eaf9e336e003b7cab8f384271560b182aee464ae`, with pinned Silex
+`672efed69dda04c0a1e968859239e042f00d9538` unchanged. The real browser created
+a page, edited text and 37px styling, previewed it, and downloaded an actual
+1,477-byte ZIP. The actual Core CLI and production `SiteBundle` decoder then
+verified all four assets, hashes, lengths, HTML/CSS marker content and rejection
+of overwrite. This accepts bounded browser edit/preview/export and offline Core
+pack/decode for this fixture.
+
+Independent High review confirms page-model serialization, not saved-project
+reload or durability. Forty-four focused checks pass. Owned fixture and temporary
+cleanup reports success; a full host-absence audit was not performed. Artifact
+`12465313602` is 929 bytes, SHA-256
+`240587795f7f55b11e5cadc6e3fcf2bdcec1f93804ae635069c47bdb9804776c`; raw job log
+is 119,355 bytes, SHA-256
+`1e8949cd247faed208e1c364aa8b3e478bfeae8655645da577a0e640bbf93d22`, retained
+under Core `.git/ci-evidence/studio-export-39869460125/`.
+
+Core PR330 is merged as `18b96ff3ab5021c6974278433651ce1bfbf28017`, tree
+`b18c489730cb32c56b3e7bbbdb6fcb80ffa5533a`; composition was inspected, with
+post-merge checks recorded separately. Studio PR2 is merged as
+`bb89a781d56ff4a26d6babb624b7704a72cf9134` with exact tree
+`789143a59ebe03dec13486061f6e3a2bc3fefce3`.
+
+This bounded result does not close any of the fifteen complete acceptance cases.
+There is no acceptance for saved-project reload/durability, signing, network
+publication, independent hosting, shared AI, dynamic execution or a desktop
+publication adapter. The next publishing work is untrusted export preparation,
+separate trusted native review, offline Core signing, and separately authorized
+contribution. The editor/MCP window cannot authorize signing. Core expected-
+publisher guard PR337 is merged as `b1555912`; its actual CLI tests pass, but no
+native adapter or end-to-end publication authority is implemented.
+
 ## Implementation and acceptance still required
 
-### Export-to-Core fixture candidate — 2026-10-22
+### Export-to-Core fixture candidate — 2026-10-22 (historical pre-acceptance snapshot)
 
 Source bases: Studio `0268d2488cbbda7edbb95071221deb504fb3ace3`, Core
 `c730617af48bf2d1771b24bc91fd450afb140db4`, Silex
@@ -45,7 +81,8 @@ is implied by these candidate names.
   guard tests; Core workflow YAML, shell syntax,
   ShellCheck and standalone Rust formatting. These are synthetic/parser/source
   checks and establish no editor/export or real sandbox/network cleanup acceptance.
-- Pending after the first failed hosted trial: independent review of the narrow
+- At this historical candidate checkpoint after the first failed hosted trial:
+  independent review of the narrow
   readiness/shell corrections, actual editor readiness/manual edit/preview/export,
   actual Core CLI/decoder result and broader normal/cancellation cleanup cases.
 - Initial independent review found the successful userns probe deterministically
@@ -70,8 +107,9 @@ is implied by these candidate names.
   nested descendants. Reset-environment tests exercise the fixed data handoff
   only; actual sudo/sandbox/network cleanup still requires another independent
   source review and the separately selected hosted trial.
-- A future passing narrow receipt would prove synthetic local editor/export/offline
-  packaging only. All fifteen complete acceptance cases remain open; no signing,
+- A future passing narrow receipt at this historical checkpoint was expected to
+  prove synthetic local editor/export/offline packaging only. All fifteen complete
+  acceptance cases remain open; no signing,
   network publication, public hosting, independent peer rendering, private shared
   AI, publisher-offline availability or dynamic execution is established.
 
@@ -156,7 +194,9 @@ hash contract pass locally. No Node, browser, build, privileged/runtime/network
 namespace or new hosted trial was executed for this correction. Another independent
 source review is required before principal dispatch; no Core source was changed.
 
-All fifteen cases in amendment section 8 remain open for this integration:
+All fifteen complete cases in amendment section 8 remain open for this integration.
+The bounded fixture acceptance above supplies evidence for part of edit/preview
+and portable export, but does not satisfy those cases' full criteria:
 create/import; edit/preview; explicit authorization; Core signed publication;
 independent complete browser rendering; documented publisher-offline availability;
 atomic updates; rejection of unauthorized/stale/forged revisions; failed-deployment
@@ -168,25 +208,23 @@ resistance, public HTTPS or confidential execution claim is established.
 
 ## Active execution order
 
-1. Review the selected Silex build/dependency/license boundary on approved hosted
-   runners; preserve normal manual editing and portable preview/export.
-2. Implement the scoped Silex export/hosting-connector-to-Core publication contract
-   using existing site/named/custody interfaces and explicit signing authority.
-3. Exercise real editor, publisher, independent identities/peers and browser rendering;
+1. Build the native desktop publication adapter: untrusted export preparation,
+   separate trusted native review, offline Core signing and separately authorized
+   contribution. Never authorize signing from the editor or MCP window.
+2. Exercise real editor, publisher, independent identities/peers and browser rendering;
    prove complete asset retrieval after the publisher goes offline under stated bounds.
-4. Complete updates/retention repair/rollback/withdrawal and honest availability status;
+3. Complete updates/retention repair/rollback/withdrawal and honest availability status;
    retain original expiry, anti-replay floors and participant resource budgets.
-5. Integrate shared Core AI and Code/OpenCode through permission-scoped supported MCP
+4. Integrate shared Core AI and Code/OpenCode through permission-scoped supported MCP
    tools, private processing protections and independently reviewed changes.
-6. Add useful Browser/Cloud/Code/Image/Mail/DPS/Map/other application paths; extend
+5. Add useful Browser/Cloud/Code/Image/Mail/DPS/Map/other application paths; extend
    dynamic hosting when authorized execution and durable state are ready.
 
 This order is adaptable. Existing critical Core Storage, protected Compute, network
 and DPS integrations stay active and must not be discarded or needlessly restarted.
 Do not install Silex or change the development host to satisfy these acceptance cases.
-Present evidence includes source/inert checks, pinned hosted builds and two failed
-browser startup trials with their scoped cleanup receipts. Actual manual editing,
-preview/export/Core packaging acceptance and the full requirements remain incomplete.
+Current evidence includes the bounded successful fixture above and the retained
+failed trials below. Full Studio/hosting acceptance remains incomplete.
 
 ### Third hosted export trial — manual interaction failed, retained
 
