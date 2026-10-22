@@ -4,11 +4,15 @@ A Silex-based visual website editor with shared VOLPAROSSA publishing, hosting
 and AI assistance. The target is to create, preview, explicitly publish, update
 and maintain portable websites using the cooperative DICN infrastructure.
 
-**Development status:** source-audited Silex baseline and an implemented
-[editor/export-to-Core hosted fixture](integration/silex-export/README.md).
-Two hosted trials built pinned Silex and launched sandboxed Chrome, then
-failed at editor startup/readiness. Edit/preview/export and actual Core pack/decode remain
-unverified, as do shared AI and decentralized website deployment.
+**Development status:** the pinned Silex editor has passed a bounded hosted
+edit/preview/export-to-Core acceptance: a real page and text were edited at
+37px, previewed, exported as an actual ZIP, and decoded by the production Core
+`SiteBundle` path with all four assets and overwrite rejection verified. This
+does not prove saved-project reload or durability. The fixture and its earlier
+startup, readiness and interaction failures remain documented in
+[implementation status](docs/IMPLEMENTATION_STATUS.md). All fifteen complete
+Studio/hosting acceptance cases remain open; shared AI, independent hosting,
+signing/publication and dynamic execution are not accepted.
 
 The complete [permanent Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/STUDIO_HOSTING_REQUIREMENTS.md)
 is part of the [full VOLPAROSSA goal](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md),
@@ -47,6 +51,11 @@ The repository's existing [GPLv3 license](LICENSE) is unchanged and does not rep
 upstream terms. See [third-party provenance](THIRD_PARTY_LICENSES.md). No Silex code
 or binary is vendored. The opt-in fixture acquires exact upstream sources and
 locked tools only on the approved disposable hosted runner.
+
+The next publishing slice is untrusted export preparation, separate trusted
+native review, offline Core signing, then separately authorized contribution.
+The editor/MCP window cannot authorize signing. The Core expected-publisher guard
+is merged and its CLI tests pass, but no native publication adapter is accepted.
 
 Read [AGENTS.md](AGENTS.md) before development. Actual runtime trials belong on
 approved disposable hosted runners, without modifying the developer's host.
