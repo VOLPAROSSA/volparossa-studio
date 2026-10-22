@@ -4,9 +4,11 @@ A Silex-based visual website editor with shared VOLPAROSSA publishing, hosting
 and AI assistance. The target is to create, preview, explicitly publish, update
 and maintain portable websites using the cooperative DICN infrastructure.
 
-**Development status:** requirements and an upstream source/interface audit only.
-There is no integrated Silex editor, publishing adapter, shared AI workflow or
-verified decentralized website deployment in this repository yet.
+**Development status:** source-audited Silex baseline and an implemented
+[editor/export-to-Core hosted fixture](integration/silex-export/README.md).
+Two hosted trials built pinned Silex and launched sandboxed Chrome, then
+failed at editor startup/readiness. Edit/preview/export and actual Core pack/decode remain
+unverified, as do shared AI and decentralized website deployment.
 
 The complete [permanent Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/STUDIO_HOSTING_REQUIREMENTS.md)
 is part of the [full VOLPAROSSA goal](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md),
@@ -43,7 +45,8 @@ Silex is developed by Silex Labs and its contributors. Its editor/server compone
 carry AGPL-3.0-or-later notices; the desktop wrapper carries GPL-3.0-or-later notices.
 The repository's existing [GPLv3 license](LICENSE) is unchanged and does not replace
 upstream terms. See [third-party provenance](THIRD_PARTY_LICENSES.md). No Silex code
-or binary is vendored by this documentation change.
+or binary is vendored. The opt-in fixture acquires exact upstream sources and
+locked tools only on the approved disposable hosted runner.
 
 Read [AGENTS.md](AGENTS.md) before development. Actual runtime trials belong on
 approved disposable hosted runners, without modifying the developer's host.

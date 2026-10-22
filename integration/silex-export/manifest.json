@@ -1,0 +1,149 @@
+{
+  "schema": 1,
+  "scope": "real-editor-local-download-then-offline-core-site-pack",
+  "silex": {
+    "commit": "672efed69dda04c0a1e968859239e042f00d9538",
+    "source": "https://github.com/silexlabs/Silex",
+    "lock_sha256": "02bb3b4a2db54b4a708b73c37318161163eaf160d610ae37c25db8f9b0dc64c1"
+  },
+  "node": {
+    "version": "24.19.0",
+    "url": "https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-x64.tar.xz",
+    "bytes": 31633904,
+    "sha256": "14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647",
+    "files": {
+      "bin/node": {
+        "bytes": 125989464,
+        "sha256": "bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12"
+      },
+      "LICENSE": {
+        "bytes": 157606,
+        "sha256": "148eacf7863ef4329224a29398623077200a27194aa075569faf4a0a85566ca5"
+      }
+    }
+  },
+  "pnpm": {
+    "version": "10.34.4",
+    "url": "https://registry.npmjs.org/pnpm/-/pnpm-10.34.4.tgz",
+    "integrity": "sha512-h2i+VSAK4/Iia2Un/Momh+FLxOXxLXchoPJdo99HkVF3BYZI20F3uvNIEg+guidS2NjZP2vq8f5krhjajelhrw==",
+    "maximum_download_bytes": 8000000,
+    "license": "MIT"
+  },
+  "browser_driver": {
+    "name": "playwright-core",
+    "version": "1.56.1",
+    "source": "https://github.com/microsoft/playwright/tree/v1.56.1",
+    "registry": "https://registry.npmjs.org/playwright-core/1.56.1",
+    "license": "Apache-2.0",
+    "integrity": "sha512-hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ=="
+  },
+  "browser": {
+    "acquisition": "preinstalled-github-hosted-google-chrome-only",
+    "download_fallback": false,
+    "identity": "record-realpath-sha256-and-version-at-runtime"
+  },
+  "runtime_accepted": false,
+  "network_published": false,
+  "font_plugin_contract": {
+    "silex_commit": "672efed69dda04c0a1e968859239e042f00d9538",
+    "synthetic_token": "VOLPAROSSA_SYNTHETIC_OFFLINE_FONT_TOKEN",
+    "reason": "pinned fonts plugin rejects empty api_key synchronously during GrapesJS initialization; no service credential or font-service access",
+    "files_sha256": {
+      "editor/grapesjs/index.ts": "f655648194f8cd6c5b24bedbd5c0ffbd3721044f880526e594badc47ba5f9750",
+      "grapesjs-plugins/grapesjs-fonts/src/index.js": "cf42cf7bcee27840e1c9cf3219650f28c32101d5a14dadbed0a5e07117cb5cdb",
+      "grapesjs-plugins/grapesjs-fonts/src/fonts.js": "3176f94f94843d60889c221c50df93740d55cb2b40f4913259db148fcaea148b"
+    }
+  },
+  "render_source_evidence": {
+    "silex_commit": "672efed69dda04c0a1e968859239e042f00d9538",
+    "purpose": "read-only pinned dependency render and activation audit; no new runtime dependency or runtime acceptance",
+    "packages": [
+      {
+        "name": "grapesjs",
+        "version": "0.23.2",
+        "registry": "https://registry.npmjs.org/grapesjs/0.23.2",
+        "registry_git_head": "a46b6eaf2651540e42bad5bc3832191d219db792",
+        "license": "BSD-3-Clause",
+        "integrity": "sha512-Td2eitWTlrmVRmzrQ1oysY3vqPT0XRuKqYAAog84rKJrHoG7sGOXWwPlPsq0tPLgXYnmL3GPCRy4dYxWp18n4Q==",
+        "archive_sha256": "fe257a456a8ef95ab1f61994e14bb434f116cc82c8f4d5ccf0db50b484593d19",
+        "source_map": "package/dist/grapes.mjs.map",
+        "sources_content_sha256": {
+          "BlockView.ts": "61a62878822633ec34f55405d2975987ced1959f90a2b4579ec28531f7d6596a",
+          "ComponentView.ts": "01b7301aa0e57693a8ca6c1805e3bf4dc50c097d22f6579c0fe1d20aedd8a528",
+          "ComponentTextView.ts": "fb223672f6f32a3dbf9fe44d445d0cb87078695205979b64b36706a8b4ec4a27",
+          "FrameView.ts": "92b668c2c173865e0fbaa9a518b64c1bc10499cfa0374828b4d3a0cc3c73a039",
+          "Droppable.ts": "190cd329ccebc289037f3634b6a6480a3f86f6dbbb01b16a3cd0dc802ce3b038",
+          "RichTextEditor.ts": "b28472f3893bf899e5d9d22faaa48c4b977066820284f20b1b098f78afeafba3"
+        }
+      },
+      {
+        "name": "grapesjs-blocks-basic",
+        "version": "1.0.2",
+        "registry": "https://registry.npmjs.org/grapesjs-blocks-basic/1.0.2",
+        "registry_git_head": "1296fe9c767e925a336c120522cfdb09e0bc7915",
+        "license": "BSD-3-Clause",
+        "integrity": "sha512-SsPKf/CvQkZ+kABOsN01auAPHXh/2J20g0AWYF7fHR3Gw3TZLtdIxT1mk90Qzi76u/7sUYi3CTI+i3ZaTtXHRA==",
+        "archive_sha256": "7deeb4d5289e472abe6f0225e5375cb9321c12ba62d0d620c28a66b6c91d96ec",
+        "source_map": "package/dist/index.js.map",
+        "sources_content_sha256": {
+          "blocks.ts": "0d0ad709548c7b0b3838ebdd6144d71375129beae30e2cff22dcc45e4bf65e3a"
+        }
+      }
+    ],
+    "silex_blocks_sha256": "d627694a4746df8c50f9e74f1b9177ea4a4ce7ad6e7f9fbf6b564551220ca936"
+  },
+  "native_drag_source_evidence": {
+    "purpose": "read-only locked native drag path audit and DOM placer readiness precondition; no runtime acceptance or browser policy change",
+    "silex_commit": "672efed69dda04c0a1e968859239e042f00d9538",
+    "silex_files_sha256": {
+      "editor/grapesjs/index.ts": "f655648194f8cd6c5b24bedbd5c0ffbd3721044f880526e594badc47ba5f9750"
+    },
+    "grapesjs_version": "0.23.2",
+    "grapesjs_sources_content_sha256": {
+      "BlockView.ts": "61a62878822633ec34f55405d2975987ced1959f90a2b4579ec28531f7d6596a",
+      "block_manager-index.ts": "7aa50d3c9f9e76d3eb91d546b0fd3b99028c292bf850290d4b85c29773f938c0",
+      "Droppable.ts": "190cd329ccebc289037f3634b6a6480a3f86f6dbbb01b16a3cd0dc802ce3b038",
+      "FrameView.ts": "92b668c2c173865e0fbaa9a518b64c1bc10499cfa0374828b4d3a0cc3c73a039",
+      "mixins.ts": "84df5c5ec04e38facd273aec3d31861d5be23a27b5e4689b3029187b11a8de90",
+      "ComponentSorter.ts": "149c41b3a4ec9a48f82cf316f4b3dbedefd23cc0a3a1818d9c9f07abf49a113e",
+      "DropLocationDeterminer.ts": "0b446a8620fd720e64e72f062209e0c948dda88ec1d45238c364cd317dbbbbfe",
+      "PlaceholderClass.ts": "81257e35c8fd7225ccc3aad0a1e461086c573e8951bd6046bfaf2d04c188a629",
+      "CanvasView.ts": "306540ab7a9c3ac4f4e721f944af47d42bb2a659c55b0c2b12e3723f3d877427"
+    },
+    "playwright_core": {
+      "version": "1.56.1",
+      "integrity": "sha512-hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ==",
+      "source": "https://github.com/microsoft/playwright/tree/v1.56.1",
+      "archive_sha256": "fa648e5442796d4160c68dcfc3914ed5224f147852264993e6376e29f0228238",
+      "license": "Apache-2.0",
+      "archive_files_sha256": {
+        "package/lib/server/chromium/crDragDrop.js": "4920b5cc049666f56dc0a9d75ad59b1e9000b62af97dec92cd3908d7a93570cc",
+        "package/lib/server/chromium/crInput.js": "3dcad19b8f52f3f1f9787c5fff350607e242cd0d0c6911223c9d44bed9a75432",
+        "package/lib/server/input.js": "715c3c8cec7f9a6a9d72a63f3dfcceea25dccdfeb99be2adf823da62f3224006",
+        "package/lib/server/frames.js": "d87bb39dc8ff2c7efd7b925bab405e70f925fdc6e666880ef8dee41a31502e47"
+      }
+    },
+    "grapesjs_archive_files_sha256": {
+      "package/dist/css/grapes.min.css": "fb55e939b3349c280d68c0617dc87e56baa3eab55ea56a1855db9f5efcc7268d"
+    }
+  },
+  "text_edit_source_evidence": {
+    "purpose": "normal top-document UI commit and DOM disabled-editing precondition; source contract, not historical cause or runtime acceptance",
+    "silex_commit": "672efed69dda04c0a1e968859239e042f00d9538",
+    "silex_files_sha256": {
+      "editor/grapesjs/keymaps.ts": "760b3131b07acaacaebbddbaad23fa9c7d5781fe808eb80d076880205e30a17b",
+      "editor/css/design-system.scss": "00dc2ee9b4c085d8ada2630d54db3e6f27a800809b550c06e88734fa5771795f"
+    },
+    "grapesjs_version": "0.23.2",
+    "archive_sha256": "fe257a456a8ef95ab1f61994e14bb434f116cc82c8f4d5ccf0db50b484593d19",
+    "source_map": "package/dist/grapes.min.js.map",
+    "sources_content_sha256": {
+      "dom_components/view/ComponentTextView.ts": "fb223672f6f32a3dbf9fe44d445d0cb87078695205979b64b36706a8b4ec4a27",
+      "keymaps/index.ts": "74d663f40f74fc017d1f5a094d2d457b64fc8e44e6601de8e6cd5b4276f7b7c1",
+      "panels/config/config.ts": "c77b695351dd1285c9c9dbe3c3e4125e61ed6f7994c5f9eb93dcf00939e7af5a",
+      "panels/view/ButtonView.ts": "b55ad531f9476144cb4e4d444556eb338e4ea8f11621ba402bb78934ac98ec78",
+      "rich_text_editor/model/RichTextEditor.ts": "b28472f3893bf899e5d9d22faaa48c4b977066820284f20b1b098f78afeafba3",
+      "rich_text_editor/index.ts": "b24f44e545ba4ab982c72414c663a0e5a67495139aa88140ff4a21810a25a975"
+    }
+  }
+}
