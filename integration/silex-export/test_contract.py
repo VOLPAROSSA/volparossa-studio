@@ -13,7 +13,7 @@ import warnings
 import zipfile
 
 import extract as extractor
-from run import DIAGNOSTIC_COUNTS, DIAGNOSTIC_FLAGS, DOM_FLAGS, INTERACTION_COUNTS, INTERACTION_FLAGS, read_browser_receipt, validate_startup_diagnostics
+from run import DRAG_COUNTS, DRAG_FLAGS, validate_drag_diagnostics, DIAGNOSTIC_COUNTS, DIAGNOSTIC_FLAGS, DOM_FLAGS, INTERACTION_COUNTS, INTERACTION_FLAGS, read_browser_receipt, validate_startup_diagnostics
 
 ROOT = Path(__file__).resolve().parent
 
@@ -116,6 +116,18 @@ class SourceChecks(unittest.TestCase):
         self.assertFalse(manifest['network_published'])
         self.assertFalse(manifest['browser']['download_fallback'])
 
+    def test_drag_observer_cannot_modify_input_flow_or_read_payloads(self):
+        driver = (ROOT / 'browser-export.mjs').read_text()
+        observer = driver.split('dragObserver = await page.evaluateHandle', 1)[1].split("stage = 'manual_drag';", 1)[0]
+        self.assertIn('event.isTrusted', observer)
+        self.assertIn('passive: true', observer)
+        self.assertIn('Math.min(32,', observer)
+        self.assertIn('removeEventListener', observer)
+        for forbidden in ('preventDefault', 'stopPropagation', 'return false', 'dispatchEvent',
+                          'dataTransfer', 'getData(', 'innerHTML', 'innerText', 'textContent',
+                          'setAttribute', 'appendChild', 'window.silex'):
+            self.assertNotIn(forbidden, observer)
+
     def test_synthetic_font_contract_remains_pinned_and_loopback_only(self):
         manifest = json.loads((ROOT / 'manifest.json').read_text())
         contract = manifest['font_plugin_contract']
@@ -184,6 +196,63 @@ class DiagnosticTests(unittest.TestCase):
                 with self.assertRaises(ValueError) as caught:
                     validate_startup_diagnostics(copy.deepcopy(value))
                 self.assertNotIn('SYNTHETIC_PRIVATE_TEXT', str(caught.exception))
+
+
+class DragDiagnosticTests(unittest.TestCase):
+    def value(self):
+        phase = dict({key: False for key in DRAG_FLAGS}, snapshot='captured')
+        return dict(schema=1, observer='captured', pre_drag=copy.deepcopy(phase),
+            post_drag=copy.deepcopy(phase), events={key: 0 for key in DRAG_COUNTS})
+
+    def test_closed_drag_phases_and_trusted_counts_validate(self):
+        value = self.value()
+        value['events'].update({key: 32 for key in DRAG_COUNTS})
+        value['pre_drag'].update({key: True for key in DRAG_FLAGS})
+        value['post_drag']['snapshot'] = 'unavailable'
+        validate_drag_diagnostics(value)
+        # The complete new receipt still fits the existing, unchanged limit.
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'receipt.json'
+            receipt = dict(schema=1, startup_diagnostics=DiagnosticTests().value(), drag_diagnostics=value)
+            path.write_text(json.dumps(receipt))
+            self.assertLess(path.stat().st_size, 4096)
+            self.assertEqual(read_browser_receipt(path), receipt)
+
+    def test_private_unbounded_and_wrong_phase_types_are_rejected(self):
+        invalid = []
+        for key, item in (('source_dragstart', 33), ('source_dragstart', -1),
+                          ('source_dragstart', True), ('payload', 'SYNTHETIC_PRIVATE_TEXT')):
+            value = self.value()
+            value['events'][key] = item
+            invalid.append(value)
+        for phase in ('pre_drag', 'post_drag'):
+            for key, item in (('snapshot', []), ('snapshot', 'SYNTHETIC_PRIVATE_TEXT'),
+                              ('source_draggable', 'SYNTHETIC_PRIVATE_TEXT'),
+                              ('target_id', 'SYNTHETIC_PRIVATE_TEXT')):
+                value = self.value()
+                value[phase][key] = item
+                invalid.append(value)
+        for key, item in (('schema', True), ('observer', []), ('observer', 'SYNTHETIC_PRIVATE_TEXT'),
+                          ('url', 'SYNTHETIC_PRIVATE_TEXT')):
+            value = self.value()
+            value[key] = item
+            invalid.append(value)
+        value = self.value()
+        del value['post_drag']
+        invalid.append(value)
+        for value in invalid:
+            with self.assertRaises(ValueError) as caught:
+                validate_drag_diagnostics(value)
+            self.assertNotIn('SYNTHETIC_PRIVATE_TEXT', str(caught.exception))
+
+    def test_invalid_drag_receipt_is_rejected_before_retention(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'receipt.json'
+            value = self.value()
+            value['events']['source_dragstart'] = 'SYNTHETIC_PRIVATE_TEXT'
+            path.write_text(json.dumps(dict(drag_diagnostics=value)))
+            with self.assertRaises(ValueError):
+                read_browser_receipt(path)
 
 
 if __name__ == '__main__':

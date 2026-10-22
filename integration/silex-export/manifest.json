@@ -91,5 +91,33 @@
       }
     ],
     "silex_blocks_sha256": "d627694a4746df8c50f9e74f1b9177ea4a4ce7ad6e7f9fbf6b564551220ca936"
+  },
+  "native_drag_source_evidence": {
+    "purpose": "read-only locked native drag path audit; diagnostic listeners only; no change to gesture or browser policy",
+    "silex_commit": "672efed69dda04c0a1e968859239e042f00d9538",
+    "silex_files_sha256": {
+      "editor/grapesjs/index.ts": "f655648194f8cd6c5b24bedbd5c0ffbd3721044f880526e594badc47ba5f9750"
+    },
+    "grapesjs_version": "0.23.2",
+    "grapesjs_sources_content_sha256": {
+      "BlockView.ts": "61a62878822633ec34f55405d2975987ced1959f90a2b4579ec28531f7d6596a",
+      "block_manager-index.ts": "7aa50d3c9f9e76d3eb91d546b0fd3b99028c292bf850290d4b85c29773f938c0",
+      "Droppable.ts": "190cd329ccebc289037f3634b6a6480a3f86f6dbbb01b16a3cd0dc802ce3b038",
+      "FrameView.ts": "92b668c2c173865e0fbaa9a518b64c1bc10499cfa0374828b4d3a0cc3c73a039",
+      "mixins.ts": "84df5c5ec04e38facd273aec3d31861d5be23a27b5e4689b3029187b11a8de90"
+    },
+    "playwright_core": {
+      "version": "1.56.1",
+      "integrity": "sha512-hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ==",
+      "source": "https://github.com/microsoft/playwright/tree/v1.56.1",
+      "archive_sha256": "fa648e5442796d4160c68dcfc3914ed5224f147852264993e6376e29f0228238",
+      "license": "Apache-2.0",
+      "archive_files_sha256": {
+        "package/lib/server/chromium/crDragDrop.js": "4920b5cc049666f56dc0a9d75ad59b1e9000b62af97dec92cd3908d7a93570cc",
+        "package/lib/server/chromium/crInput.js": "3dcad19b8f52f3f1f9787c5fff350607e242cd0d0c6911223c9d44bed9a75432",
+        "package/lib/server/input.js": "715c3c8cec7f9a6a9d72a63f3dfcceea25dccdfeb99be2adf823da62f3224006",
+        "package/lib/server/frames.js": "d87bb39dc8ff2c7efd7b925bab405e70f925fdc6e666880ef8dee41a31502e47"
+      }
+    }
   }
 }

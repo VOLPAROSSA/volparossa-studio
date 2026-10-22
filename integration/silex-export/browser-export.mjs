@@ -9,6 +9,12 @@ const marker = 'VOLPAROSSA Studio manual export 20261022';
 let stage = 'browser_start';
 let browser;
 let page;
+let dragObserver;
+const emptyDragPhase = () => ({ snapshot: 'not_attempted', source_draggable: false,
+  source_point_in_block: false, target_main_hit_is_frame: false, target_frame_hit_in_wrapper: false });
+const drag = { schema: 1, observer: 'not_attempted', pre_drag: emptyDragPhase(),
+  post_drag: emptyDragPhase(), events: { source_dragstart: 0, source_dragend: 0,
+    wrapper_dragenter: 0, wrapper_dragover: 0, wrapper_drop: 0 } };
 let blocked = 0;
 let localRequests = 0;
 const startup = { schema: 1, page_errors: 0, console_errors: 0,
@@ -94,11 +100,72 @@ try {
   assert.ok(box.width > 0 && box.height > 0);
   const from = await block.boundingBox();
   assert.ok(from);
+  // Observe only trusted native events and fixed hit-test booleans. These
+  // listeners never read payloads, change DOM/models or alter event propagation.
+  const sourcePoint = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
+  const targetPoint = { x: box.x + box.width / 2, y: box.y + Math.min(70, box.height / 2) };
+  try {
+    dragObserver = await page.evaluateHandle(({ sourcePoint, targetPoint }) => {
+      // BlockView renders title from the same English Text label used above.
+      const source = document.querySelector('.gjs-block[title="Text"]');
+      const frame = document.querySelector('.gjs-frame');
+      const doc = frame.contentDocument;
+      const wrapper = doc.querySelector('[data-gjs-type="wrapper"]');
+      const contains = (root, hit) => Boolean(root && hit && root.contains(hit));
+      const probe = () => {
+        const rect = frame.getBoundingClientRect();
+        const localX = (targetPoint.x - rect.left) * frame.offsetWidth / rect.width - frame.clientLeft;
+        const localY = (targetPoint.y - rect.top) * frame.offsetHeight / rect.height - frame.clientTop;
+        return { snapshot: 'captured', source_draggable: source.draggable === true,
+          source_point_in_block: contains(source, document.elementFromPoint(sourcePoint.x, sourcePoint.y)),
+          target_main_hit_is_frame: document.elementFromPoint(targetPoint.x, targetPoint.y) === frame,
+          target_frame_hit_in_wrapper: contains(wrapper, doc.elementFromPoint(localX, localY)) };
+      };
+      const state = { schema: 1, observer: 'captured', pre_drag: probe(),
+        post_drag: { snapshot: 'not_attempted', source_draggable: false,
+          source_point_in_block: false, target_main_hit_is_frame: false, target_frame_hit_in_wrapper: false },
+        events: { source_dragstart: 0, source_dragend: 0,
+          wrapper_dragenter: 0, wrapper_dragover: 0, wrapper_drop: 0 } };
+      const listeners = [];
+      const observe = (root, type, key) => {
+        const listener = event => {
+          if (event.isTrusted) state.events[key] = Math.min(32, state.events[key] + 1);
+        };
+        root.addEventListener(type, listener, { capture: true, passive: true });
+        listeners.push([root, type, listener]);
+      };
+      const stop = () => {
+        for (const [root, type, listener] of listeners) root.removeEventListener(type, listener, true);
+        return state;
+      };
+      try {
+        observe(source, 'dragstart', 'source_dragstart');
+        observe(source, 'dragend', 'source_dragend');
+        observe(wrapper, 'dragenter', 'wrapper_dragenter');
+        observe(wrapper, 'dragover', 'wrapper_dragover');
+        observe(wrapper, 'drop', 'wrapper_drop');
+      } catch (error) {
+        stop();
+        throw error;
+      }
+      return { stop, finish: () => {
+        try { state.post_drag = probe(); } catch { state.post_drag.snapshot = 'unavailable'; }
+        return stop();
+      } };
+    }, { sourcePoint, targetPoint });
+  } catch {
+    drag.observer = 'unavailable';
+  }
   stage = 'manual_drag';
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.move(sourcePoint.x, sourcePoint.y);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2, box.y + Math.min(70, box.height / 2), { steps: 20 });
+  await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 20 });
   await page.mouse.up();
+  // This phase is sampled immediately after mouse-up, before component waiting.
+  if (dragObserver) {
+    try { Object.assign(drag, await dragObserver.evaluate(observer => observer.finish())); }
+    catch { drag.observer = 'unavailable'; drag.post_drag.snapshot = 'unavailable'; }
+  }
   stage = 'manual_text_ready';
   // ComponentView renders this attribute; Silex also adds silex-default-text.
   const text = frame.locator('[data-gjs-type="text"].silex-default-text').first();
@@ -170,8 +237,8 @@ try {
     try {
       // Read only fixed DOM/API booleans and capped counts. No text, HTML, URLs, keys,
       // project data or exception messages cross this observation boundary.
-      const observation = await Promise.race([
-        page.evaluate(() => {
+      const [observation] = await Promise.race([
+        Promise.all([page.evaluate(() => {
           const root = document.getElementById('gjs');
           const loader = document.querySelector('.silex-loader');
           const visible = el => Boolean(el && getComputedStyle(el).visibility !== 'hidden');
@@ -196,7 +263,11 @@ try {
               texts: count(doc, '[data-gjs-type="text"].silex-default-text'),
               editable_texts: count(doc, '[data-gjs-type="text"].silex-default-text[contenteditable="true"]'),
               wrapper_visible: boxVisible(wrapper), text_visible: boxVisible(text) } };
-        }),
+        }), dragObserver ? dragObserver.evaluate(observer => observer.stop()).then(value => {
+          // stop() only returns already sampled phases; it cannot relabel a
+          // late failure snapshot as an immediate post-drag observation.
+          Object.assign(drag, value);
+        }).catch(() => { drag.observer = 'unavailable'; }) : Promise.resolve()]),
         new Promise((_, reject) => { timer = setTimeout(() => reject(new Error()), 500); }),
       ]);
       startup.dom = observation.dom;
@@ -210,6 +281,7 @@ try {
   }
   // Snapshot before teardown so shutdown request failures do not change it.
   receipt.startup_diagnostics = structuredClone(startup);
+  receipt.drag_diagnostics = structuredClone(drag);
   process.exitCode = 1;
 } finally {
   if (browser) await browser.close();

@@ -223,3 +223,44 @@ exact upstream archive SRI/lock/source-map hash checks, fixed selector/activatio
 source contracts, unchanged pin/config/deadline comparisons and whitespace checks.
 The paired Core-only test correction passed standalone rustfmt/source checks.
 No local Node/browser/Rust build or hosted rerun was executed for this candidate.
+
+### Fourth hosted export trial — drag returned, insertion unverified
+
+[Run 39853696060](https://github.com/VOLPAROSSA/volparossa/actions/runs/39853696060)
+bound Studio `da7c5cd10fae2e57666fc7f826c2493ed1bae0f3` and Core
+`4458ea4d2e15c5c1d7d812a4cfaa34fe70da4c19`. It failed `manual_text_ready` with
+`TimeoutError` after the real drag returned. Failure DOM counts were blocks 14,
+Text blocks 1, frames 1, wrappers 1/visible, fixture text 0, editable fixture text 0;
+startup error counts were zero. All reported cleanup passed. Component insertion,
+manual text/style editing, preview, export and actual Core packaging are unverified.
+Original artifact `12458772476`, 1013 bytes, SHA-256
+`07c36bc9add2888752fb49a8e8adacf8fb56beace0464c53e460d986ea7be4fb`,
+is retained under Core `.git/ci-evidence/studio-export-39853696060/`.
+
+Source tracing establishes Chrome's native HTML5 path, the block's intentional
+mouse-sorter bypass, native dragstart/source initialization and wrapper native
+enter/over/drop handling. Pinned Playwright already forwards native drag events
+for ordinary mouse moves; swapping gesture helpers would not establish a fix.
+The failure has no drag-event or hit-test evidence, so its cause remains unknown.
+The diagnostic-only candidate preserves the gesture, selectors, pins, deadlines,
+sandbox, network/publication authority and all success criteria.
+
+The candidate adds fixed pre-input/post-mouse-up hit-test/native-draggable
+booleans, explicit observation statuses and five trusted native event counters
+capped at 32. No payload, raw DOM/error text, coordinates, identifiers or project
+data cross the diagnostic boundary. Listeners do not modify input flow or DOM;
+normal, partial-setup and failed-input paths detach them. Late failure capture
+returns stored phases inside the same existing budget, without relabeling a late
+sample as post-drag. Closed controller validation rejects unknown/private fields,
+invalid types/statuses and unbounded counters. Source hashes and provenance are
+recorded in the manifest; see the fixture [README](../integration/silex-export/README.md).
+Independent review remains required before a new hosted trial. This source/inert
+candidate supplies no new editor/export or complete Studio acceptance evidence.
+
+Candidate checks passed: 20 inert Python contract/parser tests, including closed
+pre/post drag schema/privacy/bounds checks, receipt validation and a source guard
+against payload reads or input-flow changes. Source checks verified exact native
+path archive/SRI/source hashes and license retention, identical mouse gesture and
+timeouts, unchanged runtime/config/dependency pins and whitespace. No local
+Node/browser/native build or runtime trial was executed; JavaScript behavior and
+actual trusted-event delivery remain unverified until the reviewed hosted trial.

@@ -1,8 +1,9 @@
 # Real Silex export to offline Core site pack
 
 This is a synthetic, explicitly selected hosted integration fixture. Source and
-inert safety checks are implemented; **three hosted trials failed, most recently
-at manual text interaction, and no export/pack acceptance has been obtained**.
+inert safety checks are implemented; **four hosted trials failed, most recently
+after the drag returned with no matching text component visible; no export/pack
+acceptance has been obtained**.
 It is not a product frontend, public hosting service or model/AI implementation.
 
 The existing Core `Quality` workflow has an optional `studio_export_pack` manual
@@ -111,6 +112,52 @@ budget applies; the controller rejects unknown fields, out-of-range counts,
 boolean-as-count and nonboolean flags. No DOM text, HTML, URLs, IDs, project data
 or raw error is retained. Independent review and a paired reviewed Core/Studio
 hosted trial remain necessary; no successful interaction is claimed here.
+
+The fourth [run 39853696060](https://github.com/VOLPAROSSA/volparossa/actions/runs/39853696060)
+bound Studio `da7c5cd10fae2e57666fc7f826c2493ed1bae0f3` and Core
+`4458ea4d2e15c5c1d7d812a4cfaa34fe70da4c19`. The real mouse drag returned, then
+`manual_text_ready` timed out. The closed failure snapshot counted 14 blocks,
+one Text block, one frame and one visible wrapper; no component matching the
+fixture text selector or editable fixture text was observed. Startup error
+counts were zero and all reported cleanup passed. A returned drag is not proof
+of component insertion. The original artifact `12458772476` (1013 bytes), SHA-256
+`07c36bc9add2888752fb49a8e8adacf8fb56beace0464c53e460d986ea7be4fb`,
+is retained under Core `.git/ci-evidence/studio-export-39853696060/`.
+
+Pinned Silex `needsDragPatch()` leaves Chrome on native HTML5 drag-and-drop; its
+`draggable=false` mouse-sorter workaround applies to non-Chrome WebKit/Tauri.
+GrapesJS `BlockView.startDrag()` intentionally skips the mouse sorter when the
+block is native-draggable. Its native `dragstart` initializes BlockManager's
+source; wrapper `dragenter`, `dragover` and `drop` then drive `Droppable`.
+Pinned Playwright 1.56.1 `crInput`/`crDragDrop` already intercept native drags from
+ordinary mouse moves and forward enter/over/drop. Its `dragAndDrop` command uses
+the same mouse mechanism. These contracts do not establish why this drag failed;
+changing gesture style or selecting the mouse-sorter path would be speculative.
+The candidate therefore leaves the real mouse/keyboard sequence unchanged.
+
+A best-effort, failure-only closed `drag_diagnostics` record now distinguishes
+**pre-drag** hit tests sampled before mouse input from **post-drag** hit tests
+sampled immediately after mouse-up and before waiting for the text component.
+Each phase has a fixed snapshot status and booleans for native draggable state,
+source-point containment, the main-document target hitting the iframe, and the
+frame-local target hitting the wrapper. Coordinates are used transiently for the
+hit tests and are never retained. Five counters, each capped at 32, observe only
+trusted native source dragstart/dragend and wrapper dragenter/dragover/drop during
+that gesture. No event data, target identifiers, text, HTML, URLs or project data
+are read or retained. Counts are observations, not causal or insertion proof.
+
+Listeners never prevent defaults, stop propagation, return false, dispatch events
+or change DOM/models. They detach immediately after the post-drag snapshot; partial
+setup and failed-gesture paths also remove them, with browser teardown as the
+existing final resource boundary. Missing observations retain explicit statuses.
+Late failure collection returns stored phases without resampling/relabeling them.
+It shares the existing 500 ms failure-probe budget; UI, runtime and receipt-size
+limits remain unchanged. The controller validates the fixed schema, statuses,
+boolean types and capped integer counts before retaining the record. The manifest
+records exact Silex/GrapesJS and pinned Playwright archive/file hashes used for
+this source audit, without adding a runtime dependency or browser download.
+Independent source review and a later principal-selected hosted trial must precede
+any runtime conclusion about these diagnostics or a drag correction.
 
 The hosted job acquires exact source and builds the actual Node Silex application,
 using its frozen upstream lockfile and the exact app filter. Dependency install

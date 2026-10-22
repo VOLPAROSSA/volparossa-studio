@@ -62,12 +62,39 @@ def validate_startup_diagnostics(value):
         raise ValueError('read-only interaction flags must be booleans')
 
 
+DRAG_COUNTS = frozenset(('source_dragstart', 'source_dragend', 'wrapper_dragenter',
+                        'wrapper_dragover', 'wrapper_drop'))
+DRAG_FLAGS = frozenset(('source_draggable', 'source_point_in_block',
+                       'target_main_hit_is_frame', 'target_frame_hit_in_wrapper'))
+SNAPSHOT_STATES = frozenset(('not_attempted', 'captured', 'unavailable'))
+
+
+def validate_drag_diagnostics(value):
+    if type(value) is not dict or set(value) != {'schema', 'observer', 'pre_drag', 'post_drag', 'events'}:
+        raise ValueError('closed drag diagnostic schema required')
+    if type(value['schema']) is not int or value['schema'] != 1 or type(value['observer']) is not str or value['observer'] not in SNAPSHOT_STATES:
+        raise ValueError('closed drag observation status required')
+    for key in ('pre_drag', 'post_drag'):
+        phase = value[key]
+        if type(phase) is not dict or set(phase) != DRAG_FLAGS | {'snapshot'}:
+            raise ValueError('closed drag phase inventory required')
+        if type(phase['snapshot']) is not str or phase['snapshot'] not in SNAPSHOT_STATES or any(type(phase[key]) is not bool for key in DRAG_FLAGS):
+            raise ValueError('read-only drag phase booleans required')
+    events = value['events']
+    if type(events) is not dict or set(events) != DRAG_COUNTS:
+        raise ValueError('closed trusted drag event inventory required')
+    if any(type(item) is not int or not 0 <= item <= 32 for item in events.values()):
+        raise ValueError('bounded trusted drag counters required')
+
+
 def read_browser_receipt(path):
     if path.stat().st_size > 4096:
         raise ValueError('browser receipt bound')
     receipt = json.loads(path.read_text())
     if 'startup_diagnostics' in receipt:
         validate_startup_diagnostics(receipt['startup_diagnostics'])
+    if 'drag_diagnostics' in receipt:
+        validate_drag_diagnostics(receipt['drag_diagnostics'])
     return receipt
 
 
