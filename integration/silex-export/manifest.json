@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "scope": "real-editor-local-download-then-offline-core-site-pack",
+  "silex": {
+    "commit": "672efed69dda04c0a1e968859239e042f00d9538",
+    "source": "https://github.com/silexlabs/Silex",
+    "lock_sha256": "02bb3b4a2db54b4a708b73c37318161163eaf160d610ae37c25db8f9b0dc64c1"
+  },
+  "node": {
+    "version": "24.19.0",
+    "url": "https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-x64.tar.xz",
+    "bytes": 31633904,
+    "sha256": "14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647",
+    "files": {
+      "bin/node": {
+        "bytes": 125989464,
+        "sha256": "bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12"
+      },
+      "LICENSE": {
+        "bytes": 157606,
+        "sha256": "148eacf7863ef4329224a29398623077200a27194aa075569faf4a0a85566ca5"
+      }
+    }
+  },
+  "pnpm": {
+    "version": "10.34.4",
+    "url": "https://registry.npmjs.org/pnpm/-/pnpm-10.34.4.tgz",
+    "integrity": "sha512-h2i+VSAK4/Iia2Un/Momh+FLxOXxLXchoPJdo99HkVF3BYZI20F3uvNIEg+guidS2NjZP2vq8f5krhjajelhrw==",
+    "maximum_download_bytes": 8000000,
+    "license": "MIT"
+  },
+  "browser_driver": {
+    "name": "playwright-core",
+    "version": "1.56.1",
+    "source": "https://github.com/microsoft/playwright/tree/v1.56.1",
+    "registry": "https://registry.npmjs.org/playwright-core/1.56.1",
+    "license": "Apache-2.0",
+    "integrity": "sha512-hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ=="
+  },
+  "browser": {
+    "acquisition": "preinstalled-github-hosted-google-chrome-only",
+    "download_fallback": false,
+    "identity": "record-realpath-sha256-and-version-at-runtime"
+  },
+  "runtime_accepted": false,
+  "network_published": false
+}

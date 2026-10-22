@@ -1,0 +1,8 @@
+{
+  "name": "volparossa-studio-offline-export-fixture",
+  "private": true,
+  "version": "0.0.0",
+  "license": "GPL-3.0-only",
+  "packageManager": "pnpm@10.34.4",
+  "dependencies": { "playwright-core": "1.56.1" }
+}
