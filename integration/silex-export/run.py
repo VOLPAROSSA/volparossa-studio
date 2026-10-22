@@ -26,6 +26,53 @@ OPERATIONS = frozenset(('install-silex', 'install-driver', 'build-client', 'buil
                         'build-public', 'runtime', 'core-pack'))
 FAILURES = frozenset(('exit_nonzero', 'signal_terminated', 'deadline_exceeded',
                       'output_limit_exceeded', 'spawn_failed', 'cleanup_failed', 'cancelled'))
+DIAGNOSTIC_COUNTS = frozenset(('page_errors', 'console_errors', 'failed_requests',
+                              'bad_responses', 'blocked_external_requests'))
+DIAGNOSTIC_FLAGS = frozenset(('missing_font_api_key_error', 'navigation_completed'))
+DOM_FLAGS = frozenset(('editor_root_present', 'loader_present', 'loader_hidden',
+    'editor_root_visible', 'frame_present', 'silex_api_present', 'client_config_present',
+    'fonts_api_key_empty'))
+
+
+def validate_startup_diagnostics(value):
+    keys = DIAGNOSTIC_COUNTS | DIAGNOSTIC_FLAGS | {'schema', 'first_page_error', 'dom_snapshot', 'dom'}
+    if type(value) is not dict or set(value) != keys or type(value['schema']) is not int or value['schema'] != 1:
+        raise ValueError('closed startup diagnostic schema required')
+    if any(type(value[key]) is not int or not 0 <= value[key] <= 32 for key in DIAGNOSTIC_COUNTS):
+        raise ValueError('bounded startup counters required')
+    if any(type(value[key]) is not bool for key in DIAGNOSTIC_FLAGS):
+        raise ValueError('startup flags must be booleans')
+    if value['first_page_error'] not in ('none', 'Error', 'TypeError', 'ReferenceError', 'SyntaxError', 'RangeError', 'other'):
+        raise ValueError('closed startup error category required')
+    if value['dom_snapshot'] not in ('not_attempted', 'captured', 'unavailable'):
+        raise ValueError('closed DOM observation status required')
+    dom = value['dom']
+    if type(dom) is not dict or set(dom) != DOM_FLAGS or any(type(item) is not bool for item in dom.values()):
+        raise ValueError('read-only DOM boolean inventory required')
+
+
+def read_browser_receipt(path):
+    if path.stat().st_size > 4096:
+        raise ValueError('browser receipt bound')
+    receipt = json.loads(path.read_text())
+    if 'startup_diagnostics' in receipt:
+        validate_startup_diagnostics(receipt['startup_diagnostics'])
+    return receipt
+
+
+def check_font_source_contract(source):
+    contract = PINS['font_plugin_contract']
+    if contract['silex_commit'] != PINS['silex']['commit']:
+        raise ValueError('font source contract revision mismatch')
+    for relative, expected in contract['files_sha256'].items():
+        if hashlib.sha256((source / relative).read_bytes()).hexdigest() != expected:
+            raise ValueError('pinned font dependency contract changed')
+    client = (FIXTURE / 'client-config.js').read_text()
+    if "config.fontsApiKey = '" + contract['synthetic_token'] + "';" not in client:
+        raise ValueError('synthetic fixture token contract changed')
+    for key in ('fontsServerUrl', 'fontsApiUrl'):
+        if "config." + key + " = 'http://127.0.0.1:6805/disabled-fonts';" not in client:
+            raise ValueError('loopback-only font service boundary changed')
 
 
 class OperationFailure(Exception):
@@ -176,6 +223,7 @@ def main():
             or revision(source) != PINS['silex']['commit']
             or hashlib.sha256((source / 'pnpm-lock.yaml').read_bytes()).hexdigest() != PINS['silex']['lock_sha256']):
         raise ValueError('exact source binding')
+    check_font_source_contract(source)
     receipt = dict(schema=1, status='failed', stage='prepare', **refs,
                    silex_revision=PINS['silex']['commit'], network_published=False,
                    full_studio_acceptance=False, synthetic_only=True)
@@ -239,7 +287,7 @@ def main():
         run([core / 'scripts/run-isolated-test.sh', '--studio-nonroot-command', '/usr/bin/python3',
              'studio_export', 'VOLPAROSSA_HANDOFF_TEST_PARENT_NETNS', 'loopback', '-B', runtime_fixture / 'runtime.py'],
             temporary, env, 'runtime', timeout=125)
-        receipt['browser_export'] = json.loads((temporary / 'browser.json').read_text())
+        receipt['browser_export'] = read_browser_receipt(temporary / 'browser.json')
         if receipt['browser_export']['status'] != 'passed':
             raise ValueError('browser receipt')
         receipt['runtime_cleanup'] = json.loads((temporary / 'runtime-cleanup.json').read_text())
@@ -265,7 +313,7 @@ def main():
         # browser, Cargo, project files, download URLs or environment dumps.
         browser_receipt = temporary / 'browser.json'
         if browser_receipt.is_file() and browser_receipt.stat().st_size <= 4096:
-            receipt['browser_export'] = json.loads(browser_receipt.read_text())
+            receipt['browser_export'] = read_browser_receipt(browser_receipt)
         raise
     finally:
         cleanup = temporary / 'runtime-cleanup.json'

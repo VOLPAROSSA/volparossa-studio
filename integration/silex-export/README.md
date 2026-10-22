@@ -1,7 +1,7 @@
 # Real Silex export to offline Core site pack
 
 This is a synthetic, explicitly selected hosted integration fixture. Source and
-inert safety checks are implemented; **the first hosted trial failed before editor
+inert safety checks are implemented; **two hosted trials failed before editor
 readiness, and no export/pack acceptance has been obtained**.
 It is not a product frontend, public hosting service or model/AI implementation.
 
@@ -37,6 +37,36 @@ diagnostics on three Studio-only wrapper guards; Cargo formatting had passed.
 Those guards now use explicit `if` statements, and the opt-in source check uses
 full ShellCheck severity, matching the ordinary gate. Corrections are unexecuted
 runtime candidates pending independent source review and principal dispatch.
+
+The follow-up [run 39848640073](https://github.com/VOLPAROSSA/volparossa/actions/runs/39848640073)
+also failed, at `editor_ready`, against Core
+`721e867dc5f54b390283191cc0b7de21cbe91c3b` and Studio
+`06dca77af8e98ee06956ccc56dc43a3ce41547d6`. Its retained receipt again reports
+successful failure-path cleanup, with no manual edit/preview/export or pack/decode.
+It contains no page-error evidence identifying the exact initialization failure.
+
+Targeted source inspection found a second deterministic fixture problem:
+`editor/grapesjs/index.ts` passes `config.fontsApiKey` into the always-initialized
+fonts plugin; `grapesjs-fonts/src/fonts.js` synchronously throws on an empty
+`api_key`. The old fixture explicitly selected that empty value. The corrected
+configuration uses `VOLPAROSSA_SYNTHETIC_OFFLINE_FONT_TOKEN`, visibly a placeholder
+with no service credential or authority. Both font service URLs remain the same
+loopback-only disabled endpoints, and the trial selects system fonts. The normal
+fonts plugin and manual controls remain present; remote font-service availability
+is outside this fixture. This source-supported blocker is consistent with the
+failure, but the retained receipt cannot prove it was the original exception.
+
+The manifest records hashes of the exact pinned plugin registration, constructor
+and configuration mapping. The controller checks them as an inert source contract
+before any acquisition/execution and verifies the synthetic token and unchanged
+loopback URLs. The next candidate retains fixed page-error categories, one known
+missing-font-key boolean, capped counts (0–32), navigation completion and a fixed
+inventory of read-only DOM/API-presence booleans. Its DOM probe has a 500 ms limit
+inside the existing execution envelope; no existing deadline is increased. The
+controller validates the diagnostic schema/types/bounds before retaining it.
+No raw browser/server error text, logs, URLs, request IDs, HTML, assets or project
+data are added to the receipt. Diagnostics are observations, not editor actions
+or startup acceptance. Independent review is required before another hosted run.
 
 The hosted job acquires exact source and builds the actual Node Silex application,
 using its frozen upstream lockfile and the exact app filter. Dependency install
@@ -116,8 +146,9 @@ prefix comparison excludes equal-depth sibling PID namespaces that reuse the sam
 inner IDs, while accepting nested descendants of the owned group. Inert parser
 tests cover both cases without starting namespaces. The namespace wrapper provides a second kernel
 cleanup boundary for server/browser descendants. GitHub runner destruction remains
-the final cleanup boundary for uncatchable termination. Cleanup observations and
-forced cancellation behavior still require hosted verification.
+the final cleanup boundary for uncatchable termination. The two failed startup
+trials retain scoped cleanup observations; forced cancellation/crash and later
+successful-runtime cleanup cases still require hosted verification.
 
 Inert verification, allowed on the development host:
 

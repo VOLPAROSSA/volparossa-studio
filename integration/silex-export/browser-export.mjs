@@ -8,8 +8,17 @@ import assert from 'node:assert/strict';
 const marker = 'VOLPAROSSA Studio manual export 20261022';
 let stage = 'browser_start';
 let browser;
+let page;
 let blocked = 0;
 let localRequests = 0;
+const startup = { schema: 1, page_errors: 0, console_errors: 0,
+  failed_requests: 0, bad_responses: 0, blocked_external_requests: 0,
+  first_page_error: 'none', missing_font_api_key_error: false,
+  navigation_completed: false, dom_snapshot: 'not_attempted',
+  dom: { editor_root_present: false, loader_present: false, loader_hidden: false,
+    editor_root_visible: false, frame_present: false, silex_api_present: false,
+    client_config_present: false, fonts_api_key_empty: false } };
+const bump = key => { startup[key] = Math.min(32, startup[key] + 1); };
 const receipt = { schema: 1, status: 'failed', stage, synthetic_only: true,
   network_published: false, public_hosting_accepted: false, shared_ai_accepted: false };
 try {
@@ -31,10 +40,25 @@ try {
       await route.abort('blockedbyclient');
     }
   });
-  const page = await context.newPage();
+  page = await context.newPage();
+  page.on('pageerror', error => {
+    bump('page_errors');
+    if (startup.first_page_error === 'none') {
+      const allowed = ['Error', 'TypeError', 'ReferenceError', 'SyntaxError', 'RangeError'];
+      startup.first_page_error = allowed.includes(error.name) ? error.name : 'other';
+    }
+    // Match only this fixed upstream guard; raw error text is never retained.
+    if (error.message.includes('You must provide Google font api key')) {
+      startup.missing_font_api_key_error = true;
+    }
+  });
+  page.on('console', message => { if (message.type() === 'error') bump('console_errors'); });
+  page.on('requestfailed', () => bump('failed_requests'));
+  page.on('response', response => { if (response.status() >= 400) bump('bad_responses'); });
   page.setDefaultTimeout(12000);
   stage = 'editor_navigation';
   await page.goto('http://127.0.0.1:6805/?id=default&connectorId=fs-storage&lang=en');
+  startup.navigation_completed = true;
   stage = 'editor_ready';
   // Pinned editor/index.ts loaded() hides the loader and reveals #gjs. The
   // body class silex-loading remains present in this release, even when ready.
@@ -116,6 +140,36 @@ try {
 } catch (error) {
   receipt.stage = stage;
   receipt.error_type = error.constructor.name;
+  startup.blocked_external_requests = Math.min(32, blocked);
+  if (page && !page.isClosed()) {
+    let timer;
+    try {
+      // Read only fixed DOM/API-presence booleans. No text, HTML, URLs, keys,
+      // project data or exception messages cross this observation boundary.
+      startup.dom = await Promise.race([
+        page.evaluate(() => {
+          const root = document.getElementById('gjs');
+          const loader = document.querySelector('.silex-loader');
+          const visible = el => Boolean(el && getComputedStyle(el).visibility !== 'hidden');
+          const api = window.silex;
+          return { editor_root_present: Boolean(root), loader_present: Boolean(loader),
+            loader_hidden: Boolean(loader && !visible(loader)), editor_root_visible: visible(root),
+            frame_present: Boolean(document.querySelector('.gjs-frame')),
+            silex_api_present: typeof api?.start === 'function',
+            client_config_present: typeof api?.config === 'object' && api.config !== null,
+            fonts_api_key_empty: api?.config?.fontsApiKey === '' };
+        }),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error()), 500); }),
+      ]);
+      startup.dom_snapshot = 'captured';
+    } catch {
+      startup.dom_snapshot = 'unavailable';
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  // Snapshot before teardown so shutdown request failures do not change it.
+  receipt.startup_diagnostics = structuredClone(startup);
   process.exitCode = 1;
 } finally {
   if (browser) await browser.close();

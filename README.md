@@ -6,8 +6,8 @@ and maintain portable websites using the cooperative DICN infrastructure.
 
 **Development status:** source-audited Silex baseline and an implemented
 [editor/export-to-Core hosted fixture](integration/silex-export/README.md).
-The first hosted trial built pinned Silex and launched sandboxed Chrome, then
-failed at editor readiness. Edit/preview/export and actual Core pack/decode remain
+Two hosted trials built pinned Silex and launched sandboxed Chrome, then
+failed at editor startup/readiness. Edit/preview/export and actual Core pack/decode remain
 unverified, as do shared AI and decentralized website deployment.
 
 The complete [permanent Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/STUDIO_HOSTING_REQUIREMENTS.md)

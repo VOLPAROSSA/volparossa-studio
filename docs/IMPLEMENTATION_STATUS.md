@@ -121,6 +121,41 @@ workflow YAML/Bash/ShellCheck and whitespace checks. Pinned source inspection
 confirmed the actual readiness hook and editor route; no browser or Rust build
 was executed locally to validate the correction.
 
+### Follow-up hosted export trial — failed, retained
+
+[Run 39848640073](https://github.com/VOLPAROSSA/volparossa/actions/runs/39848640073),
+job `120068576367`, bound Core `721e867dc5f54b390283191cc0b7de21cbe91c3b` and
+Studio `06dca77af8e98ee06956ccc56dc43a3ce41547d6`, with the same pinned Silex.
+The actual browser failed `TimeoutError` at `editor_ready`. No manual page edit,
+preview, ZIP export or actual Core pack/decode was verified. Cleanup fields again
+report joined/drained groups, isolation, nonroot/capability checks, no cleanup
+error and temporary output removal; this remains one failure-path observation.
+Original artifact `12455893482`, 773 bytes, SHA-256
+`18ecd38d8ae48f189acee81cd6e0b6fb6b0e3fbfc10d9bedb7956988a1f1a15c`, stays
+under Core `.git/ci-evidence/studio-export-39848640073/` without replacement.
+
+Targeted source diagnosis found the fixture selected an empty `fontsApiKey`,
+which is passed to the pinned fonts plugin's `api_key`. That plugin is always
+initialized and synchronously throws if the value is empty, before editor load
+can complete. The candidate uses the explicit synthetic offline token while both
+existing service URLs stay loopback-only; it adds no real key, remote service,
+fallback, timeout change or altered manual editing. Manifest source hashes bind
+the registration/constructor/configuration dependency and its inert contract.
+The failure receipt lacks page-error evidence, so this source-supported blocker
+must not be represented as a confirmed original runtime exception or a verified
+startup fix.
+
+The candidate adds closed startup diagnostics: fixed error categories, one known
+missing-font-key classification boolean, capped counts, navigation completion and
+read-only DOM/API-presence booleans only. There are no raw error messages/logs,
+URLs, request identifiers, HTML, assets or project payloads. A bounded DOM probe
+runs inside the existing execution envelope; controller validation rejects wrong
+types, fields, categories and count limits before receipt retention.
+Fifteen inert parser/contract/diagnostic checks and the actual pinned font source
+hash contract pass locally. No Node, browser, build, privileged/runtime/network
+namespace or new hosted trial was executed for this correction. Another independent
+source review is required before principal dispatch; no Core source was changed.
+
 All fifteen cases in amendment section 8 remain open for this integration:
 create/import; edit/preview; explicit authorization; Core signed publication;
 independent complete browser rendering; documented publisher-offline availability;
@@ -149,6 +184,6 @@ resistance, public HTTPS or confidential execution claim is established.
 This order is adaptable. Existing critical Core Storage, protected Compute, network
 and DPS integrations stay active and must not be discarded or needlessly restarted.
 Do not install Silex or change the development host to satisfy these acceptance cases.
-The present evidence is source and inert parser/configuration checks. The hosted
-fixture is implemented source awaiting execution; product integration acceptance
-and the full requirements remain incomplete.
+Present evidence includes source/inert checks, pinned hosted builds and two failed
+browser startup trials with their scoped cleanup receipts. Actual manual editing,
+preview/export/Core packaging acceptance and the full requirements remain incomplete.

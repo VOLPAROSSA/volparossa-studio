@@ -43,5 +43,15 @@
     "identity": "record-realpath-sha256-and-version-at-runtime"
   },
   "runtime_accepted": false,
-  "network_published": false
+  "network_published": false,
+  "font_plugin_contract": {
+    "silex_commit": "672efed69dda04c0a1e968859239e042f00d9538",
+    "synthetic_token": "VOLPAROSSA_SYNTHETIC_OFFLINE_FONT_TOKEN",
+    "reason": "pinned fonts plugin rejects empty api_key synchronously during GrapesJS initialization; no service credential or font-service access",
+    "files_sha256": {
+      "editor/grapesjs/index.ts": "f655648194f8cd6c5b24bedbd5c0ffbd3721044f880526e594badc47ba5f9750",
+      "grapesjs-plugins/grapesjs-fonts/src/index.js": "cf42cf7bcee27840e1c9cf3219650f28c32101d5a14dadbed0a5e07117cb5cdb",
+      "grapesjs-plugins/grapesjs-fonts/src/fonts.js": "3176f94f94843d60889c221c50df93740d55cb2b40f4913259db148fcaea148b"
+    }
+  }
 }

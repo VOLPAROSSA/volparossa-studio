@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Inert safety checks. Synthetic ZIPs below are NOT Silex/runtime evidence."""
 import ast
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -12,6 +13,7 @@ import warnings
 import zipfile
 
 import extract as extractor
+from run import DIAGNOSTIC_COUNTS, DIAGNOSTIC_FLAGS, DOM_FLAGS, validate_startup_diagnostics
 
 ROOT = Path(__file__).resolve().parent
 
@@ -113,6 +115,53 @@ class SourceChecks(unittest.TestCase):
         self.assertFalse(manifest['runtime_accepted'])
         self.assertFalse(manifest['network_published'])
         self.assertFalse(manifest['browser']['download_fallback'])
+
+    def test_synthetic_font_contract_remains_pinned_and_loopback_only(self):
+        manifest = json.loads((ROOT / 'manifest.json').read_text())
+        contract = manifest['font_plugin_contract']
+        self.assertEqual(contract['silex_commit'], manifest['silex']['commit'])
+        self.assertEqual(set(contract['files_sha256']), {'editor/grapesjs/index.ts',
+            'grapesjs-plugins/grapesjs-fonts/src/index.js', 'grapesjs-plugins/grapesjs-fonts/src/fonts.js'})
+        self.assertTrue(all(len(value) == 64 for value in contract['files_sha256'].values()))
+        client = (ROOT / 'client-config.js').read_text()
+        self.assertEqual(contract['synthetic_token'], 'VOLPAROSSA_SYNTHETIC_OFFLINE_FONT_TOKEN')
+        self.assertIn("config.fontsApiKey = '" + contract['synthetic_token'] + "';", client)
+        for key in ('fontsServerUrl', 'fontsApiUrl'):
+            self.assertIn("config." + key + " = 'http://127.0.0.1:6805/disabled-fonts';", client)
+
+
+class DiagnosticTests(unittest.TestCase):
+    def value(self):
+        return dict({key: 0 for key in DIAGNOSTIC_COUNTS},
+            **{key: False for key in DIAGNOSTIC_FLAGS}, schema=1,
+            first_page_error='none', dom_snapshot='captured',
+            dom={key: False for key in DOM_FLAGS})
+
+    def test_closed_diagnostic_accepts_only_bounded_counts_and_booleans(self):
+        value = self.value()
+        value.update(page_errors=32, first_page_error='TypeError', navigation_completed=True)
+        validate_startup_diagnostics(value)
+
+    def test_unbounded_or_private_diagnostic_values_are_rejected(self):
+        invalid = []
+        for field, item in (('page_errors', 33), ('page_errors', True),
+                            ('first_page_error', 'SYNTHETIC_PRIVATE_TEXT'),
+                            ('dom_snapshot', 'SYNTHETIC_PRIVATE_TEXT'),
+                            ('navigation_completed', 'SYNTHETIC_PRIVATE_TEXT')):
+            value = self.value()
+            value[field] = item
+            invalid.append(value)
+        value = self.value()
+        value['url'] = 'SYNTHETIC_PRIVATE_TEXT'
+        invalid.append(value)
+        value = self.value()
+        value['dom']['editor_root_present'] = 'SYNTHETIC_PRIVATE_TEXT'
+        invalid.append(value)
+        for value in invalid:
+            with self.subTest(value_type=type(value).__name__):
+                with self.assertRaises(ValueError) as caught:
+                    validate_startup_diagnostics(copy.deepcopy(value))
+                self.assertNotIn('SYNTHETIC_PRIVATE_TEXT', str(caught.exception))
 
 
 if __name__ == '__main__':
