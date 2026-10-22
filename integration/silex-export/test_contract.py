@@ -13,7 +13,7 @@ import warnings
 import zipfile
 
 import extract as extractor
-from run import DIAGNOSTIC_COUNTS, DIAGNOSTIC_FLAGS, DOM_FLAGS, validate_startup_diagnostics
+from run import DIAGNOSTIC_COUNTS, DIAGNOSTIC_FLAGS, DOM_FLAGS, INTERACTION_COUNTS, INTERACTION_FLAGS, read_browser_receipt, validate_startup_diagnostics
 
 ROOT = Path(__file__).resolve().parent
 
@@ -135,12 +135,28 @@ class DiagnosticTests(unittest.TestCase):
         return dict({key: 0 for key in DIAGNOSTIC_COUNTS},
             **{key: False for key in DIAGNOSTIC_FLAGS}, schema=1,
             first_page_error='none', dom_snapshot='captured',
-            dom={key: False for key in DOM_FLAGS})
+            dom={key: False for key in DOM_FLAGS},
+            interaction=dict({key: 0 for key in INTERACTION_COUNTS},
+                **{key: False for key in INTERACTION_FLAGS}))
 
     def test_closed_diagnostic_accepts_only_bounded_counts_and_booleans(self):
         value = self.value()
         value.update(page_errors=32, first_page_error='TypeError', navigation_completed=True)
+        value['interaction'].update({key: 32 for key in INTERACTION_COUNTS})
+        value['interaction'].update({key: True for key in INTERACTION_FLAGS})
         validate_startup_diagnostics(value)
+
+    def test_bounded_interaction_receipt_is_validated_before_retention(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'receipt.json'
+            value = {'schema': 1, 'startup_diagnostics': self.value()}
+            path.write_text(json.dumps(value))
+            self.assertLess(path.stat().st_size, 4096)
+            self.assertEqual(read_browser_receipt(path), value)
+            del value['startup_diagnostics']['interaction']['texts']
+            path.write_text(json.dumps(value))
+            with self.assertRaises(ValueError):
+                read_browser_receipt(path)
 
     def test_unbounded_or_private_diagnostic_values_are_rejected(self):
         invalid = []
@@ -157,6 +173,12 @@ class DiagnosticTests(unittest.TestCase):
         value = self.value()
         value['dom']['editor_root_present'] = 'SYNTHETIC_PRIVATE_TEXT'
         invalid.append(value)
+        for field, item in (('texts', 33), ('texts', -1), ('texts', True),
+                            ('wrapper_visible', 'SYNTHETIC_PRIVATE_TEXT'),
+                            ('url', 'SYNTHETIC_PRIVATE_TEXT')):
+            value = self.value()
+            value['interaction'][field] = item
+            invalid.append(value)
         for value in invalid:
             with self.subTest(value_type=type(value).__name__):
                 with self.assertRaises(ValueError) as caught:

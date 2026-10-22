@@ -53,5 +53,43 @@
       "grapesjs-plugins/grapesjs-fonts/src/index.js": "cf42cf7bcee27840e1c9cf3219650f28c32101d5a14dadbed0a5e07117cb5cdb",
       "grapesjs-plugins/grapesjs-fonts/src/fonts.js": "3176f94f94843d60889c221c50df93740d55cb2b40f4913259db148fcaea148b"
     }
+  },
+  "render_source_evidence": {
+    "silex_commit": "672efed69dda04c0a1e968859239e042f00d9538",
+    "purpose": "read-only pinned dependency render and activation audit; no new runtime dependency or runtime acceptance",
+    "packages": [
+      {
+        "name": "grapesjs",
+        "version": "0.23.2",
+        "registry": "https://registry.npmjs.org/grapesjs/0.23.2",
+        "registry_git_head": "a46b6eaf2651540e42bad5bc3832191d219db792",
+        "license": "BSD-3-Clause",
+        "integrity": "sha512-Td2eitWTlrmVRmzrQ1oysY3vqPT0XRuKqYAAog84rKJrHoG7sGOXWwPlPsq0tPLgXYnmL3GPCRy4dYxWp18n4Q==",
+        "archive_sha256": "fe257a456a8ef95ab1f61994e14bb434f116cc82c8f4d5ccf0db50b484593d19",
+        "source_map": "package/dist/grapes.mjs.map",
+        "sources_content_sha256": {
+          "BlockView.ts": "61a62878822633ec34f55405d2975987ced1959f90a2b4579ec28531f7d6596a",
+          "ComponentView.ts": "01b7301aa0e57693a8ca6c1805e3bf4dc50c097d22f6579c0fe1d20aedd8a528",
+          "ComponentTextView.ts": "fb223672f6f32a3dbf9fe44d445d0cb87078695205979b64b36706a8b4ec4a27",
+          "FrameView.ts": "92b668c2c173865e0fbaa9a518b64c1bc10499cfa0374828b4d3a0cc3c73a039",
+          "Droppable.ts": "190cd329ccebc289037f3634b6a6480a3f86f6dbbb01b16a3cd0dc802ce3b038",
+          "RichTextEditor.ts": "b28472f3893bf899e5d9d22faaa48c4b977066820284f20b1b098f78afeafba3"
+        }
+      },
+      {
+        "name": "grapesjs-blocks-basic",
+        "version": "1.0.2",
+        "registry": "https://registry.npmjs.org/grapesjs-blocks-basic/1.0.2",
+        "registry_git_head": "1296fe9c767e925a336c120522cfdb09e0bc7915",
+        "license": "BSD-3-Clause",
+        "integrity": "sha512-SsPKf/CvQkZ+kABOsN01auAPHXh/2J20g0AWYF7fHR3Gw3TZLtdIxT1mk90Qzi76u/7sUYi3CTI+i3ZaTtXHRA==",
+        "archive_sha256": "7deeb4d5289e472abe6f0225e5375cb9321c12ba62d0d620c28a66b6c91d96ec",
+        "source_map": "package/dist/index.js.map",
+        "sources_content_sha256": {
+          "blocks.ts": "0d0ad709548c7b0b3838ebdd6144d71375129beae30e2cff22dcc45e4bf65e3a"
+        }
+      }
+    ],
+    "silex_blocks_sha256": "d627694a4746df8c50f9e74f1b9177ea4a4ce7ad6e7f9fbf6b564551220ca936"
   }
 }

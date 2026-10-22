@@ -33,9 +33,12 @@ DOM_FLAGS = frozenset(('editor_root_present', 'loader_present', 'loader_hidden',
     'editor_root_visible', 'frame_present', 'silex_api_present', 'client_config_present',
     'fonts_api_key_empty'))
 
+INTERACTION_COUNTS = frozenset(('blocks', 'text_blocks', 'frames', 'wrappers', 'texts', 'editable_texts'))
+INTERACTION_FLAGS = frozenset(('wrapper_visible', 'text_visible'))
+
 
 def validate_startup_diagnostics(value):
-    keys = DIAGNOSTIC_COUNTS | DIAGNOSTIC_FLAGS | {'schema', 'first_page_error', 'dom_snapshot', 'dom'}
+    keys = DIAGNOSTIC_COUNTS | DIAGNOSTIC_FLAGS | {'schema', 'first_page_error', 'dom_snapshot', 'dom', 'interaction'}
     if type(value) is not dict or set(value) != keys or type(value['schema']) is not int or value['schema'] != 1:
         raise ValueError('closed startup diagnostic schema required')
     if any(type(value[key]) is not int or not 0 <= value[key] <= 32 for key in DIAGNOSTIC_COUNTS):
@@ -49,6 +52,14 @@ def validate_startup_diagnostics(value):
     dom = value['dom']
     if type(dom) is not dict or set(dom) != DOM_FLAGS or any(type(item) is not bool for item in dom.values()):
         raise ValueError('read-only DOM boolean inventory required')
+
+    interaction = value['interaction']
+    if type(interaction) is not dict or set(interaction) != INTERACTION_COUNTS | INTERACTION_FLAGS:
+        raise ValueError('closed interaction observation inventory required')
+    if any(type(interaction[key]) is not int or not 0 <= interaction[key] <= 32 for key in INTERACTION_COUNTS):
+        raise ValueError('bounded interaction counters required')
+    if any(type(interaction[key]) is not bool for key in INTERACTION_FLAGS):
+        raise ValueError('read-only interaction flags must be booleans')
 
 
 def read_browser_receipt(path):

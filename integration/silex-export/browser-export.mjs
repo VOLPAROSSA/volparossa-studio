@@ -17,7 +17,9 @@ const startup = { schema: 1, page_errors: 0, console_errors: 0,
   navigation_completed: false, dom_snapshot: 'not_attempted',
   dom: { editor_root_present: false, loader_present: false, loader_hidden: false,
     editor_root_visible: false, frame_present: false, silex_api_present: false,
-    client_config_present: false, fonts_api_key_empty: false } };
+    client_config_present: false, fonts_api_key_empty: false },
+  interaction: { blocks: 0, text_blocks: 0, frames: 0, wrappers: 0, texts: 0,
+    editable_texts: 0, wrapper_visible: false, text_visible: false } };
 const bump = key => { startup[key] = Math.min(32, startup[key] + 1); };
 const receipt = { schema: 1, status: 'failed', stage, synthetic_only: true,
   network_published: false, public_hosting_accepted: false, shared_ai_accepted: false };
@@ -70,24 +72,46 @@ try {
   await page.keyboard.press('Control+Alt+n');
   await page.locator('.new-page-dialog input[name="name"]').fill('Studio export');
   await page.locator('.new-page-dialog input[type="submit"]').click();
-  stage = 'manual_text';
+  stage = 'manual_blocks_open';
   await page.locator('[title^="Blocks ("]').click();
+  stage = 'manual_block_ready';
   const block = page.locator('.gjs-block').filter({ hasText: /^\s*Text\s*$/ }).first();
-  const frameElement = page.locator('.gjs-frame').first();
+  await block.waitFor({ state: 'visible' });
+  stage = 'manual_canvas_ready';
   const frame = page.frameLocator('.gjs-frame').first();
-  const box = await frameElement.boundingBox();
-  assert.ok(box);
+  // Pinned FrameView attaches Droppable to the wrapper, not the iframe shell.
+  const wrapper = frame.locator('[data-gjs-type="wrapper"]').first();
+  await wrapper.waitFor({ state: 'visible' });
+  const wrapperBox = await wrapper.boundingBox();
+  const frameBox = await page.locator('.gjs-frame').first().boundingBox();
+  assert.ok(wrapperBox && frameBox);
+  // Intersect the real drop root with its visible frame and fixed viewport.
+  const left = Math.max(0, wrapperBox.x, frameBox.x);
+  const top = Math.max(0, wrapperBox.y, frameBox.y);
+  const right = Math.min(1440, wrapperBox.x + wrapperBox.width, frameBox.x + frameBox.width);
+  const bottom = Math.min(1000, wrapperBox.y + wrapperBox.height, frameBox.y + frameBox.height);
+  const box = { x: left, y: top, width: right - left, height: bottom - top };
+  assert.ok(box.width > 0 && box.height > 0);
   const from = await block.boundingBox();
   assert.ok(from);
+  stage = 'manual_drag';
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2, box.y + 70, { steps: 20 });
+  await page.mouse.move(box.x + box.width / 2, box.y + Math.min(70, box.height / 2), { steps: 20 });
   await page.mouse.up();
-  const text = frame.locator('[data-gjs-type="text"]').first();
+  stage = 'manual_text_ready';
+  // ComponentView renders this attribute; Silex also adds silex-default-text.
+  const text = frame.locator('[data-gjs-type="text"].silex-default-text').first();
+  await text.waitFor({ state: 'visible' });
+  stage = 'manual_text_activate';
   await text.dblclick();
+  // ComponentTextView's dblclick enables the normal RTE on this DOM element.
+  await frame.locator('[data-gjs-type="text"].silex-default-text[contenteditable="true"]').first().waitFor();
+  stage = 'manual_text_edit';
   await page.keyboard.press('Control+a');
   await page.keyboard.insertText(marker);
   await page.keyboard.press('Escape');
+  stage = 'manual_text_commit';
   await text.click();
   stage = 'manual_style';
   await page.keyboard.press('r');
@@ -144,23 +168,39 @@ try {
   if (page && !page.isClosed()) {
     let timer;
     try {
-      // Read only fixed DOM/API-presence booleans. No text, HTML, URLs, keys,
+      // Read only fixed DOM/API booleans and capped counts. No text, HTML, URLs, keys,
       // project data or exception messages cross this observation boundary.
-      startup.dom = await Promise.race([
+      const observation = await Promise.race([
         page.evaluate(() => {
           const root = document.getElementById('gjs');
           const loader = document.querySelector('.silex-loader');
           const visible = el => Boolean(el && getComputedStyle(el).visibility !== 'hidden');
           const api = window.silex;
-          return { editor_root_present: Boolean(root), loader_present: Boolean(loader),
+          const frame = document.querySelector('.gjs-frame');
+          const doc = frame?.contentDocument;
+          const count = (base, selector) => Math.min(32, base?.querySelectorAll(selector).length ?? 0);
+          const wrapper = doc?.querySelector('[data-gjs-type="wrapper"]');
+          const text = doc?.querySelector('[data-gjs-type="text"].silex-default-text');
+          const boxVisible = el => Boolean(el && el.getClientRects().length &&
+            el.ownerDocument.defaultView.getComputedStyle(el).visibility !== 'hidden');
+          return { dom: { editor_root_present: Boolean(root), loader_present: Boolean(loader),
             loader_hidden: Boolean(loader && !visible(loader)), editor_root_visible: visible(root),
             frame_present: Boolean(document.querySelector('.gjs-frame')),
             silex_api_present: typeof api?.start === 'function',
             client_config_present: typeof api?.config === 'object' && api.config !== null,
-            fonts_api_key_empty: api?.config?.fontsApiKey === '' };
+            fonts_api_key_empty: api?.config?.fontsApiKey === '' },
+            interaction: { blocks: count(document, '.gjs-block'),
+              text_blocks: count(document, '.gjs-block[title="Text"]'),
+              frames: count(document, '.gjs-frame'),
+              wrappers: count(doc, '[data-gjs-type="wrapper"]'),
+              texts: count(doc, '[data-gjs-type="text"].silex-default-text'),
+              editable_texts: count(doc, '[data-gjs-type="text"].silex-default-text[contenteditable="true"]'),
+              wrapper_visible: boxVisible(wrapper), text_visible: boxVisible(text) } };
         }),
         new Promise((_, reject) => { timer = setTimeout(() => reject(new Error()), 500); }),
       ]);
+      startup.dom = observation.dom;
+      startup.interaction = observation.interaction;
       startup.dom_snapshot = 'captured';
     } catch {
       startup.dom_snapshot = 'unavailable';

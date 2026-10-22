@@ -1,8 +1,8 @@
 # Real Silex export to offline Core site pack
 
 This is a synthetic, explicitly selected hosted integration fixture. Source and
-inert safety checks are implemented; **two hosted trials failed before editor
-readiness, and no export/pack acceptance has been obtained**.
+inert safety checks are implemented; **three hosted trials failed, most recently
+at manual text interaction, and no export/pack acceptance has been obtained**.
 It is not a product frontend, public hosting service or model/AI implementation.
 
 The existing Core `Quality` workflow has an optional `studio_export_pack` manual
@@ -67,6 +67,50 @@ controller validates the diagnostic schema/types/bounds before retaining it.
 No raw browser/server error text, logs, URLs, request IDs, HTML, assets or project
 data are added to the receipt. Diagnostics are observations, not editor actions
 or startup acceptance. Independent review is required before another hosted run.
+
+The third [run 39850757186](https://github.com/VOLPAROSSA/volparossa/actions/runs/39850757186)
+used Studio `d5103c7cea96bdbd973b74666be9e7f8fbc77d96` and the same Core revision.
+Startup and page-creation UI actions returned; the browser then timed out in the
+combined `manual_text` stage. Its closed snapshot showed a visible editor/frame,
+hidden loader, and zero reported page, console, request or blocked-external-request
+errors. All reported cleanup passed. These observations establish neither
+persisted page correctness nor any text edit, preview, ZIP export or pack/decode.
+The original artifact `12456039695` (963 bytes), SHA-256
+`da35b2a608b2a13445d8938e6072f1435f45ec2ff34dd16dd4f0cd4bf254f881`,
+is retained under Core `.git/ci-evidence/studio-export-39850757186/`.
+
+The exact failed await remains unknown. A read-only audit of the **locked npm
+archives**, verified against their SRI in pinned Silex's lockfile, established:
+
+- GrapesJS 0.23.2 `ComponentView.updateAttributes()` renders `data-gjs-type` on
+  canvas DOM. The existing text attribute selector was therefore valid; it is
+  not an established defect. `FrameView._onRootMount()` attaches `Droppable` to
+  the actual wrapper, whose rendered attribute is `data-gjs-type="wrapper"`.
+- `grapesjs-blocks-basic` 1.0.2 defines Text as `type: 'text'`, `activate: true`.
+  Pinned Silex `editor/grapesjs/blocks.ts` replaces its inline padding style with
+  `silex-default-text`. GrapesJS `ComponentTextView` handles `dblclick` with
+  `onActive`; the normal rich-text editor sets `contentEditable` to true.
+- `BlockView` uses native drag events; ordinary block click does not append with
+  the default `appendOnClick: false`. The fixture retains real mouse dragging
+  and keyboard editing, without dispatched synthetic events or model mutations.
+
+The manifest records registry URLs, archive SRI/SHA-256, registry source commits,
+BSD-3-Clause license identities and extracted source-map `sourcesContent` hashes. These are
+read-only source provenance, not added runtime downloads or runtime acceptance.
+The candidate derives the drop position from the visible intersection of the
+actual wrapper, frame and existing viewport. It distinguishes block-panel open,
+block readiness, canvas readiness, dragging, text readiness, activation, keyboard
+editing and commit stages. It waits for the actual text component and ordinary
+RTE editable state before typing. Those checks preserve the existing 12-second
+UI limit and enclosing runtime deadlines; they do not prove the former drop failed.
+
+Failure-only diagnostics add six fixed DOM counts capped at 32 (blocks, Text
+blocks, frames, wrappers, fixture text components and editable fixture text
+components), plus wrapper/text visibility booleans. The same 500 ms snapshot
+budget applies; the controller rejects unknown fields, out-of-range counts,
+boolean-as-count and nonboolean flags. No DOM text, HTML, URLs, IDs, project data
+or raw error is retained. Independent review and a paired reviewed Core/Studio
+hosted trial remain necessary; no successful interaction is claimed here.
 
 The hosted job acquires exact source and builds the actual Node Silex application,
 using its frozen upstream lockfile and the exact app filter. Dependency install

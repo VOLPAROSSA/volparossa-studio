@@ -187,3 +187,39 @@ Do not install Silex or change the development host to satisfy these acceptance 
 Present evidence includes source/inert checks, pinned hosted builds and two failed
 browser startup trials with their scoped cleanup receipts. Actual manual editing,
 preview/export/Core packaging acceptance and the full requirements remain incomplete.
+
+### Third hosted export trial — manual interaction failed, retained
+
+[Run 39850757186](https://github.com/VOLPAROSSA/volparossa/actions/runs/39850757186)
+bound Studio `d5103c7cea96bdbd973b74666be9e7f8fbc77d96` and Core
+`721e867dc5f54b390283191cc0b7de21cbe91c3b`. Startup and create-page UI actions
+returned, then `manual_text` timed out. The closed snapshot showed visible
+editor/frame, hidden loader and zero reported page/console/request/external-block
+errors; all reported cleanup passed. Persistent page correctness, text/style
+editing, preview, export and actual Core pack/decode remain unverified.
+Original artifact `12456039695`, 963 bytes, SHA-256
+`da35b2a608b2a13445d8938e6072f1435f45ec2ff34dd16dd4f0cd4bf254f881`,
+is retained under Core `.git/ci-evidence/studio-export-39850757186/`.
+
+Read-only locked GrapesJS 0.23.2/basic-blocks 1.0.2 source inspection confirms
+`data-gjs-type` is rendered canvas DOM, the Text block's type/activation contract,
+Silex's `silex-default-text` class and normal dblclick/RTE editable behavior.
+The old selector is not a demonstrated defect; the exact failed await is unknown.
+The source candidate instead resolves the actual drop wrapper and its visible
+intersection, preserves genuine mouse/keyboard actions, distinguishes each
+interaction stage, and adds only bounded failure DOM counts/visibility flags.
+Dependency provenance is recorded in the fixture manifest and explained in its
+[README](../integration/silex-export/README.md). Pins, deadlines, sandbox/network
+scope, publication authority and manual editing requirements remain unchanged.
+
+Source/inert checks cannot establish actual drag/drop or editing success. The
+separately scoped Core test extension comparison correction and this Studio
+candidate require independent review before another paired hosted trial. All
+fifteen full Studio/hosting acceptance cases remain open.
+
+Candidate source checks passed: 16 inert Python contract/parser tests (including
+closed interaction receipt validation and rejection of private/invalid fields),
+exact upstream archive SRI/lock/source-map hash checks, fixed selector/activation
+source contracts, unchanged pin/config/deadline comparisons and whitespace checks.
+The paired Core-only test correction passed standalone rustfmt/source checks.
+No local Node/browser/Rust build or hosted rerun was executed for this candidate.
