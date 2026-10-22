@@ -10,7 +10,9 @@ let stage = 'browser_start';
 let browser;
 let page;
 let dragObserver;
-const emptyDragPhase = () => ({ snapshot: 'not_attempted', source_draggable: false,
+const emptyComponentCounts = () => ({ wrapper_descendants: 0, bare_texts: 0,
+  default_texts: 0, texts: 0, editable_texts: 0 });
+const emptyDragPhase = () => ({ components: emptyComponentCounts(), snapshot: 'not_attempted', source_draggable: false,
   source_point_in_block: false, target_main_hit_is_frame: false, target_frame_hit_in_wrapper: false });
 const drag = { schema: 1, observer: 'not_attempted', pre_drag: emptyDragPhase(),
   post_drag: emptyDragPhase(), events: { source_dragstart: 0, source_dragend: 0,
@@ -25,7 +27,8 @@ const startup = { schema: 1, page_errors: 0, console_errors: 0,
     editor_root_visible: false, frame_present: false, silex_api_present: false,
     client_config_present: false, fonts_api_key_empty: false },
   interaction: { blocks: 0, text_blocks: 0, frames: 0, wrappers: 0, texts: 0,
-    editable_texts: 0, wrapper_visible: false, text_visible: false } };
+    editable_texts: 0, wrapper_descendants: 0, bare_texts: 0, default_texts: 0,
+    wrapper_visible: false, text_visible: false } };
 const bump = key => { startup[key] = Math.min(32, startup[key] + 1); };
 const receipt = { schema: 1, status: 'failed', stage, synthetic_only: true,
   network_published: false, public_hosting_accepted: false, shared_ai_accepted: false };
@@ -112,17 +115,25 @@ try {
       const doc = frame.contentDocument;
       const wrapper = doc.querySelector('[data-gjs-type="wrapper"]');
       const contains = (root, hit) => Boolean(root && hit && root.contains(hit));
+      const count = (base, selector) => Math.min(32, base?.querySelectorAll(selector).length ?? 0);
+      const components = () => ({
+        wrapper_descendants: count(wrapper, '[data-gjs-type]'),
+        bare_texts: count(doc, '[data-gjs-type="text"]'),
+        default_texts: count(doc, '.silex-default-text'),
+        texts: count(doc, '[data-gjs-type="text"].silex-default-text'),
+        editable_texts: count(doc, '[data-gjs-type="text"].silex-default-text[contenteditable="true"]') });
       const probe = () => {
         const rect = frame.getBoundingClientRect();
         const localX = (targetPoint.x - rect.left) * frame.offsetWidth / rect.width - frame.clientLeft;
         const localY = (targetPoint.y - rect.top) * frame.offsetHeight / rect.height - frame.clientTop;
-        return { snapshot: 'captured', source_draggable: source.draggable === true,
+        return { components: components(), snapshot: 'captured', source_draggable: source.draggable === true,
           source_point_in_block: contains(source, document.elementFromPoint(sourcePoint.x, sourcePoint.y)),
           target_main_hit_is_frame: document.elementFromPoint(targetPoint.x, targetPoint.y) === frame,
           target_frame_hit_in_wrapper: contains(wrapper, doc.elementFromPoint(localX, localY)) };
       };
       const state = { schema: 1, observer: 'captured', pre_drag: probe(),
-        post_drag: { snapshot: 'not_attempted', source_draggable: false,
+        post_drag: { components: { wrapper_descendants: 0, bare_texts: 0,
+          default_texts: 0, texts: 0, editable_texts: 0 }, snapshot: 'not_attempted', source_draggable: false,
           source_point_in_block: false, target_main_hit_is_frame: false, target_frame_hit_in_wrapper: false },
         events: { source_dragstart: 0, source_dragend: 0,
           wrapper_dragenter: 0, wrapper_dragover: 0, wrapper_drop: 0 } };
@@ -260,6 +271,9 @@ try {
               text_blocks: count(document, '.gjs-block[title="Text"]'),
               frames: count(document, '.gjs-frame'),
               wrappers: count(doc, '[data-gjs-type="wrapper"]'),
+              wrapper_descendants: count(wrapper, '[data-gjs-type]'),
+              bare_texts: count(doc, '[data-gjs-type="text"]'),
+              default_texts: count(doc, '.silex-default-text'),
               texts: count(doc, '[data-gjs-type="text"].silex-default-text'),
               editable_texts: count(doc, '[data-gjs-type="text"].silex-default-text[contenteditable="true"]'),
               wrapper_visible: boxVisible(wrapper), text_visible: boxVisible(text) } };

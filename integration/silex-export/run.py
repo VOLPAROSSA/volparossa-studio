@@ -33,7 +33,8 @@ DOM_FLAGS = frozenset(('editor_root_present', 'loader_present', 'loader_hidden',
     'editor_root_visible', 'frame_present', 'silex_api_present', 'client_config_present',
     'fonts_api_key_empty'))
 
-INTERACTION_COUNTS = frozenset(('blocks', 'text_blocks', 'frames', 'wrappers', 'texts', 'editable_texts'))
+COMPONENT_COUNTS = frozenset(('wrapper_descendants', 'bare_texts', 'default_texts', 'texts', 'editable_texts'))
+INTERACTION_COUNTS = COMPONENT_COUNTS | {'blocks', 'text_blocks', 'frames', 'wrappers'}
 INTERACTION_FLAGS = frozenset(('wrapper_visible', 'text_visible'))
 
 
@@ -76,10 +77,15 @@ def validate_drag_diagnostics(value):
         raise ValueError('closed drag observation status required')
     for key in ('pre_drag', 'post_drag'):
         phase = value[key]
-        if type(phase) is not dict or set(phase) != DRAG_FLAGS | {'snapshot'}:
+        if type(phase) is not dict or set(phase) != DRAG_FLAGS | {'snapshot', 'components'}:
             raise ValueError('closed drag phase inventory required')
         if type(phase['snapshot']) is not str or phase['snapshot'] not in SNAPSHOT_STATES or any(type(phase[key]) is not bool for key in DRAG_FLAGS):
             raise ValueError('read-only drag phase booleans required')
+        components = phase['components']
+        if type(components) is not dict or set(components) != COMPONENT_COUNTS:
+            raise ValueError('closed DOM component inventory required')
+        if any(type(item) is not int or not 0 <= item <= 32 for item in components.values()):
+            raise ValueError('bounded DOM component counters required')
     events = value['events']
     if type(events) is not dict or set(events) != DRAG_COUNTS:
         raise ValueError('closed trusted drag event inventory required')

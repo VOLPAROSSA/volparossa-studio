@@ -13,7 +13,7 @@ import warnings
 import zipfile
 
 import extract as extractor
-from run import DRAG_COUNTS, DRAG_FLAGS, validate_drag_diagnostics, DIAGNOSTIC_COUNTS, DIAGNOSTIC_FLAGS, DOM_FLAGS, INTERACTION_COUNTS, INTERACTION_FLAGS, read_browser_receipt, validate_startup_diagnostics
+from run import COMPONENT_COUNTS, DRAG_COUNTS, DRAG_FLAGS, validate_drag_diagnostics, DIAGNOSTIC_COUNTS, DIAGNOSTIC_FLAGS, DOM_FLAGS, INTERACTION_COUNTS, INTERACTION_FLAGS, read_browser_receipt, validate_startup_diagnostics
 
 ROOT = Path(__file__).resolve().parent
 
@@ -128,6 +128,25 @@ class SourceChecks(unittest.TestCase):
                           'setAttribute', 'appendChild', 'window.silex'):
             self.assertNotIn(forbidden, observer)
 
+    def test_component_observation_uses_independent_fixed_dom_selectors(self):
+        driver = (ROOT / 'browser-export.mjs').read_text()
+        observer = driver.split('const components = () => ({', 1)[1].split('const probe =', 1)[0]
+        late = driver.split('interaction: { blocks: count(document', 1)[1].split('} };', 1)[0]
+        selectors = {
+            'wrapper_descendants': ('wrapper', '[data-gjs-type]'),
+            'bare_texts': ('doc', '[data-gjs-type="text"]'),
+            'default_texts': ('doc', '.silex-default-text'),
+            'texts': ('doc', '[data-gjs-type="text"].silex-default-text'),
+            'editable_texts': ('doc', '[data-gjs-type="text"].silex-default-text[contenteditable="true"]'),
+        }
+        self.assertEqual(set(selectors), COMPONENT_COUNTS)
+        for key, (base, selector) in selectors.items():
+            expression = f"{key}: count({base}, '{selector}')"
+            self.assertIn(expression, observer)
+            self.assertIn(expression, late)
+        for forbidden in ('.gjs-selected', 'MutationObserver', 'getData('):
+            self.assertNotIn(forbidden, driver)
+
     def test_synthetic_font_contract_remains_pinned_and_loopback_only(self):
         manifest = json.loads((ROOT / 'manifest.json').read_text())
         contract = manifest['font_plugin_contract']
@@ -191,6 +210,14 @@ class DiagnosticTests(unittest.TestCase):
             value = self.value()
             value['interaction'][field] = item
             invalid.append(value)
+        for field in INTERACTION_COUNTS:
+            for item in (-1, 33, True, 1.5, [], 'SYNTHETIC_PRIVATE_TEXT'):
+                value = self.value()
+                value['interaction'][field] = item
+                invalid.append(value)
+            value = self.value()
+            del value['interaction'][field]
+            invalid.append(value)
         for value in invalid:
             with self.subTest(value_type=type(value).__name__):
                 with self.assertRaises(ValueError) as caught:
@@ -200,7 +227,8 @@ class DiagnosticTests(unittest.TestCase):
 
 class DragDiagnosticTests(unittest.TestCase):
     def value(self):
-        phase = dict({key: False for key in DRAG_FLAGS}, snapshot='captured')
+        phase = dict({key: False for key in DRAG_FLAGS}, snapshot='captured',
+            components={key: 0 for key in COMPONENT_COUNTS})
         return dict(schema=1, observer='captured', pre_drag=copy.deepcopy(phase),
             post_drag=copy.deepcopy(phase), events={key: 0 for key in DRAG_COUNTS})
 
@@ -208,6 +236,8 @@ class DragDiagnosticTests(unittest.TestCase):
         value = self.value()
         value['events'].update({key: 32 for key in DRAG_COUNTS})
         value['pre_drag'].update({key: True for key in DRAG_FLAGS})
+        for phase in ('pre_drag', 'post_drag'):
+            value[phase]['components'].update({key: 32 for key in COMPONENT_COUNTS})
         value['post_drag']['snapshot'] = 'unavailable'
         validate_drag_diagnostics(value)
         # The complete new receipt still fits the existing, unchanged limit.
@@ -217,6 +247,16 @@ class DragDiagnosticTests(unittest.TestCase):
             path.write_text(json.dumps(receipt))
             self.assertLess(path.stat().st_size, 4096)
             self.assertEqual(read_browser_receipt(path), receipt)
+
+    def test_independent_selector_counts_do_not_require_combined_matches(self):
+        value = self.value()
+        for phase in ('pre_drag', 'post_drag'):
+            value[phase]['components'].update(wrapper_descendants=7, bare_texts=2,
+                default_texts=1, texts=0, editable_texts=0)
+        validate_drag_diagnostics(value)
+        late = DiagnosticTests().value()
+        late['interaction'].update(value['post_drag']['components'])
+        validate_startup_diagnostics(late)
 
     def test_private_unbounded_and_wrong_phase_types_are_rejected(self):
         invalid = []
@@ -231,6 +271,19 @@ class DragDiagnosticTests(unittest.TestCase):
                               ('target_id', 'SYNTHETIC_PRIVATE_TEXT')):
                 value = self.value()
                 value[phase][key] = item
+                invalid.append(value)
+        for phase in ('pre_drag', 'post_drag'):
+            for field in COMPONENT_COUNTS:
+                for item in (-1, 33, True, 1.5, [], 'SYNTHETIC_PRIVATE_TEXT'):
+                    value = self.value()
+                    value[phase]['components'][field] = item
+                    invalid.append(value)
+                value = self.value()
+                del value[phase]['components'][field]
+                invalid.append(value)
+            for item in (None, [], {'payload': 'SYNTHETIC_PRIVATE_TEXT'}):
+                value = self.value()
+                value[phase]['components'] = item
                 invalid.append(value)
         for key, item in (('schema', True), ('observer', []), ('observer', 'SYNTHETIC_PRIVATE_TEXT'),
                           ('url', 'SYNTHETIC_PRIVATE_TEXT')):

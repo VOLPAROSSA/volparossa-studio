@@ -144,7 +144,21 @@ frame-local target hitting the wrapper. Coordinates are used transiently for the
 hit tests and are never retained. Five counters, each capped at 32, observe only
 trusted native source dragstart/dragend and wrapper dragenter/dragover/drop during
 that gesture. No event data, target identifiers, text, HTML, URLs or project data
-are read or retained. Counts are observations, not causal or insertion proof.
+are read or retained. Counts are observations, not causal or insertion proof. Captured native delivery
+is not proof that the editor handler accepted the drop.
+
+Each pre/post phase also carries a closed `components` inventory: capped-at-32
+`wrapper_descendants` counts wrapper descendants with `[data-gjs-type]` (excluding
+the wrapper itself); `bare_texts` counts `[data-gjs-type="text"]`; `default_texts`
+counts `.silex-default-text`; `texts` retains the combined selector count; and
+`editable_texts` retains its `[contenteditable="true"]` refinement. The four text
+counts use the frame document, matching the existing late failure observations.
+The late failure `interaction` inventory gains the first three counts alongside
+its existing combined/editable counts. These independent counts distinguish a
+combined-selector mismatch from an absence of observed matching DOM elements;
+they do not identify components or prove model insertion. No text, HTML, payload,
+model or additional API reads are introduced. Gestures, selectors used for actual
+editing, observation budgets, pins and success criteria are unchanged.
 
 Listeners never prevent defaults, stop propagation, return false, dispatch events
 or change DOM/models. They detach immediately after the post-drag snapshot; partial
