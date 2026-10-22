@@ -159,6 +159,12 @@ must still prove real component insertion, manual editing/export and cleanup.
 The manifest extends existing locked native-source provenance with sorter,
 placeholder and CSS hashes; archive pins and integrity values are unchanged.
 
+The existing style assertions now report distinct failure stages:
+`manual_style_text_verify` checks the edited marker, then
+`manual_style_font_verify` checks the computed `37px` font size. Browser actions,
+assertions, timeouts and preview verification are unchanged; the stage alone
+identifies which invariant failed without establishing its cause.
+
 A best-effort, failure-only closed `drag_diagnostics` record now distinguishes
 **pre-drag** hit tests sampled before mouse input from **post-drag** hit tests
 sampled immediately after mouse-up and before waiting for the text component.

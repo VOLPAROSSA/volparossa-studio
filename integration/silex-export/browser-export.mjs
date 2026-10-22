@@ -258,7 +258,9 @@ try {
   await fontSize.fill('37');
   await fontSize.press('Enter');
   await fontSize.press('Tab');
+  stage = 'manual_style_text_verify';
   assert.equal(await text.innerText(), marker);
+  stage = 'manual_style_font_verify';
   assert.equal(await text.evaluate(el => getComputedStyle(el).fontSize), '37px');
   stage = 'preview';
   // Use the ordinary preview toolbar. Reading computed CSS never changes models.
