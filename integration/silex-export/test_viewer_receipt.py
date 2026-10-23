@@ -16,7 +16,8 @@ import unittest
 
 import run as fixture_run
 
-from viewer_receipt import validate_viewer_proof, read_viewer_cleanup
+from viewer_receipt import (validate_viewer_proof, read_viewer_cleanup, read_viewer_diagnostic,
+    CORE_STAGES, BROWSER_STAGES, DIAGNOSTIC_LOG_LIMIT, DIAGNOSTIC_PREFIX)
 from viewer_runtime import read_viewer_context, run_core_fixture
 
 ROOT = Path(__file__).resolve().parent
@@ -204,6 +205,9 @@ class ViewerReceiptTests(unittest.TestCase):
                 def fail_prepare(temporary):
                     created.append(temporary)
                     (temporary / 'private.log').write_text('PRIVATE_SENTINEL')
+                    diagnostic = dict(schema=1, core_stage='browser_observation', browser_stage='style')
+                    (temporary / 'viewer-core.log').write_bytes(
+                        DIAGNOSTIC_PREFIX + json.dumps(diagnostic).encode() + b'\nPRIVATE_SENTINEL')
                     if malformed:
                         (temporary / 'viewer-cleanup.json').write_text('{invalid')
                     raise RuntimeError('PRIVATE_SENTINEL')
@@ -224,8 +228,74 @@ class ViewerReceiptTests(unittest.TestCase):
                 value = json.loads(receipt.read_text())
                 self.assertEqual(value['status'], 'failed')
                 self.assertTrue(value['temporary_outputs_removed'])
+                self.assertEqual(value['viewer_diagnostic']['browser_stage'], 'style')
+                self.assertEqual(value['viewer_diagnostic']['status'], 'observed')
                 self.assertFalse(value['network_published'])
                 self.assertNotIn('PRIVATE_SENTINEL', receipt.read_text())
+
+    def test_closed_diagnostic_writer_to_reader_and_failure_projection(self):
+        # The Rust enum mapping is the real writer's vocabulary. No Rust, Node,
+        # browser or network runtime is executed by this source contract check.
+        if 'STUDIO_DIAGNOSTIC_CORE_SOURCE' not in os.environ:
+            self.skipTest('explicit inert Core source path required for writer contract')
+        core_root = Path(os.environ['STUDIO_DIAGNOSTIC_CORE_SOURCE'])
+        source = (core_root / 'crates/volparossa/tests/studio_site_pack/viewer.rs').read_text()
+        names = __import__('re').findall(r'Self::[A-Za-z]+ => "([a-z_]+)"', source)
+        self.assertEqual(tuple(names), CORE_STAGES)
+        self.assertIn('"schema": 1, "core_stage": stage.name(), "browser_stage": browser_stage', source)
+        for stage in BROWSER_STAGES[1:]:
+            self.assertIn('"' + stage + '"', source)
+        browser = (ROOT / 'browser-viewer.mjs').read_text()
+        self.assertIn("schema: 1, status: 'failed', stage,", browser)
+        self.assertIn('rendered_http_requests: Math.min(requests, 1024)', browser)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'viewer-core.log'
+            for browser_stage in BROWSER_STAGES:
+                records = [dict(schema=1, core_stage=stage, browser_stage='not_observed')
+                           for stage in names[:7]]
+                records.append(dict(schema=1, core_stage='browser_observation', browser_stage=browser_stage))
+                path.write_bytes(b'PRIVATE_SENTINEL panic hook\n' + b''.join(
+                    DIAGNOSTIC_PREFIX + json.dumps(record).encode() + b'\n' for record in records))
+                value = read_viewer_diagnostic(path)
+                self.assertEqual(value, dict(schema=1, status='observed', core_stage='browser_observation',
+                    browser_stage=browser_stage, record_count=8))
+                self.assertNotIn('PRIVATE_SENTINEL', json.dumps(value))
+
+    def test_diagnostic_malformed_oversized_symlink_and_private_text_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'log'
+            self.assertEqual(read_viewer_diagnostic(path)['status'], 'unavailable')
+            record = dict(schema=1, core_stage='pack', browser_stage='not_observed')
+            values = ['{', dict(record, schema=True), dict(record, raw='PRIVATE_SENTINEL'),
+                      dict(record, core_stage='PRIVATE_SENTINEL'), dict(record, browser_stage='http')]
+            for value in values:
+                path.write_bytes(DIAGNOSTIC_PREFIX + (value if type(value) is str else json.dumps(value)).encode())
+                result = read_viewer_diagnostic(path)
+                self.assertEqual(result['status'], 'invalid')
+                self.assertNotIn('PRIVATE_SENTINEL', json.dumps(result))
+            line = DIAGNOSTIC_PREFIX + json.dumps(record).encode() + b'\n'
+            path.write_bytes(line * 17)
+            self.assertEqual(read_viewer_diagnostic(path)['status'], 'invalid')
+            path.write_bytes(b' ' * (DIAGNOSTIC_LOG_LIMIT + 1))
+            self.assertEqual(read_viewer_diagnostic(path)['status'], 'invalid')
+            link = Path(directory) / 'link'
+            link.symlink_to(path)
+            self.assertEqual(read_viewer_diagnostic(link)['status'], 'invalid')
+            with patch('viewer_receipt.os.open', side_effect=InterruptedError('cancel')):
+                with self.assertRaises(InterruptedError):
+                    read_viewer_diagnostic(path)
+
+    def test_diagnostic_read_is_bounded_after_fstat(self):
+        data = io.BytesIO(b' ' * (DIAGNOSTIC_LOG_LIMIT + 1))
+        data.fileno = lambda: 91
+        read = Mock(wraps=data.read)
+        data.read = read
+        metadata = SimpleNamespace(st_mode=stat.S_IFREG | 0o600, st_size=2)
+        with patch('viewer_receipt.os.open', return_value=91), \
+                patch('viewer_receipt.os.fdopen', return_value=data), \
+                patch('viewer_receipt.os.fstat', return_value=metadata):
+            self.assertEqual(read_viewer_diagnostic(Path('/inert'))['status'], 'invalid')
+            read.assert_called_once_with(DIAGNOSTIC_LOG_LIMIT + 1)
 
     def test_python_syntax_without_runtime(self):
         for name in ('run.py', 'viewer_runtime.py', 'viewer_receipt.py'):

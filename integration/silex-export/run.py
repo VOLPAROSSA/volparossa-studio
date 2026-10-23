@@ -19,7 +19,7 @@ import urllib.request
 from extract import extract
 from lifecycle import GroupCaptureFailure, drain_group, start_group
 from runtime_context import write_context
-from viewer_receipt import validate_viewer_proof, read_viewer_cleanup
+from viewer_receipt import validate_viewer_proof, read_viewer_cleanup, read_viewer_diagnostic
 
 FIXTURE = Path(__file__).resolve().parent
 PINS = json.loads((FIXTURE / 'manifest.json').read_text())
@@ -409,7 +409,10 @@ def main():
             receipt['browser_export'] = read_browser_receipt(browser_receipt)
         raise
     finally:
+        # This log is created exclusively by viewer_runtime for the exact Core
+        # invocation. Project stages before deleting all private outputs.
         try:
+            receipt['viewer_diagnostic'] = read_viewer_diagnostic(temporary / 'viewer-core.log')
             viewer_cleanup = temporary / 'viewer-cleanup.json'
             if viewer_cleanup.is_file() and viewer_cleanup.stat().st_size <= 4096:
                 receipt['viewer_cleanup'] = read_viewer_cleanup(viewer_cleanup, require_success=False)

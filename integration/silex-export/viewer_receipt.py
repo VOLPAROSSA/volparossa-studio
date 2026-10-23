@@ -2,6 +2,8 @@
 """Closed sanitized receipt for the version-2 fixture; legacy receipts stay v1."""
 import json
 import re
+import os
+import stat
 
 
 def closed(value, keys):
@@ -64,3 +66,52 @@ def read_viewer_cleanup(path, require_success=True):
     if require_success:
         flags(value, keys[:-1], ('cleanup_failed',))
     return value
+
+
+CORE_STAGES = ('pack', 'decode', 'child_controls', 'sign', 'transfer', 'ready',
+               'browser_observation', 'shutdown', 'complete')
+BROWSER_STAGES = ('not_observed', 'launch', 'http', 'securityheaders', 'marker',
+                  'style', 'assets', 'close', 'invalid_receipt')
+DIAGNOSTIC_PREFIX = b'STUDIO_VIEWER_DIAGNOSTIC '
+DIAGNOSTIC_LOG_LIMIT = 4 * 1024 * 1024
+
+
+def read_viewer_diagnostic(path):
+    """Project only fixed progress categories from this invocation's private log.
+
+    Unavailable/malformed diagnostics never establish acceptance or mask the
+    original runtime/cleanup exception. No raw line or exception is returned.
+    """
+    result = dict(schema=1, status='unavailable', core_stage='unavailable',
+                  browser_stage='not_observed', record_count=0)
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+        with os.fdopen(descriptor, 'rb') as source:
+            metadata = os.fstat(source.fileno())
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > DIAGNOSTIC_LOG_LIMIT:
+                raise ValueError('bounded regular diagnostic log required')
+            data = source.read(DIAGNOSTIC_LOG_LIMIT + 1)
+        if len(data) > DIAGNOSTIC_LOG_LIMIT:
+            raise ValueError('diagnostic log grew beyond bound')
+        for line in data.splitlines():
+            if not line.startswith(DIAGNOSTIC_PREFIX):
+                continue
+            if len(line) > 256 or result['record_count'] >= 16:
+                raise ValueError('bounded diagnostic record required')
+            value = json.loads(line[len(DIAGNOSTIC_PREFIX):])
+            closed(value, ('schema', 'core_stage', 'browser_stage'))
+            if (type(value['schema']) is not int or value['schema'] != 1
+                    or type(value['core_stage']) is not str or value['core_stage'] not in CORE_STAGES
+                    or type(value['browser_stage']) is not str or value['browser_stage'] not in BROWSER_STAGES
+                    or (value['browser_stage'] != 'not_observed' and value['core_stage'] != 'browser_observation')):
+                raise ValueError('closed diagnostic stage required')
+            result.update(status='observed', core_stage=value['core_stage'],
+                          browser_stage=value['browser_stage'], record_count=result['record_count'] + 1)
+    except FileNotFoundError:
+        pass
+    except InterruptedError:
+        raise
+    except (OSError, ValueError, TypeError, RecursionError):
+        result = dict(schema=1, status='invalid', core_stage='unavailable',
+                      browser_stage='not_observed', record_count=0)
+    return result

@@ -18,6 +18,7 @@ assert.ok(handoff.assets.length >= 2 && handoff.assets.length <= 256);
 let browser;
 let passed = false;
 let requests = 0;
+let stage = 'launch';
 const receipt = { schema: 1, status: 'failed', bundle_sha256: handoff.bundle_sha256,
   bundle_bytes: handoff.bundle_bytes, asset_count: handoff.assets.length,
   visible_marker: false, computed_37px: false, all_assets_verified: false,
@@ -37,8 +38,10 @@ try {
     await route.continue();
   });
   const page = await context.newPage();
+  stage = 'http';
   const response = await page.goto(handoff.url, { waitUntil: 'networkidle', timeout: 15000 });
   assert.equal(response.status(), 200);
+  stage = 'securityheaders';
   const headers = response.headers();
   assert.equal(headers['cache-control'], 'no-store');
   assert.equal(headers['x-content-type-options'], 'nosniff');
@@ -50,14 +53,17 @@ try {
     "worker-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; " +
     "form-action 'none'; base-uri 'none'; frame-ancestors 'none'; manifest-src 'none'");
   receipt.security_headers_preserved = true;
+  stage = 'marker';
   const marker = page.getByText('VOLPAROSSA Studio manual export 20261022', { exact: true });
   await marker.waitFor({ state: 'visible', timeout: 5000 });
   assert.equal(await marker.count(), 1);
+  receipt.visible_marker = true;
+  stage = 'style';
   // Read-only computed layout observation, never setContent/evaluate mutations.
   assert.equal(await marker.evaluate(element => getComputedStyle(element).fontSize), '37px');
-  receipt.visible_marker = true;
   receipt.computed_37px = true;
   receipt.rendered_http_requests = requests;
+  stage = 'assets';
   // Integrity of every exported asset is separate from those requested by the
   // rendered page. Node HTTP retains the exact Host while connecting loopback.
   const { request } = await import('node:http');
@@ -85,13 +91,24 @@ try {
     assert.equal(createHash('sha256').update(bytes).digest('hex'), asset.sha256);
   }
   receipt.all_assets_verified = true;
+  stage = 'close';
   await context.close();
   passed = true;
 } finally {
-  if (browser) {
-    await browser.close();
-    receipt.browser_closed = true;
+  // A close failure must still leave a closed diagnostic; the original thrown
+  // exception/exit remains failure and its text stays in the private log.
+  try {
+    if (browser) {
+      await browser.close();
+      receipt.browser_closed = true;
+    }
+    if (passed && receipt.browser_closed) receipt.status = 'passed';
+  } finally {
+    const output = receipt.status === 'passed' ? receipt : {
+      schema: 1, status: 'failed', stage,
+      browser_closed: receipt.browser_closed,
+      rendered_http_requests: Math.min(requests, 1024),
+    };
+    await writeFile(handoff.receipt, JSON.stringify(output) + '\n', { flag: 'wx', mode: 0o600 });
   }
-  if (passed && receipt.browser_closed) receipt.status = 'passed';
-  await writeFile(handoff.receipt, JSON.stringify(receipt) + '\n', { flag: 'wx', mode: 0o600 });
 }

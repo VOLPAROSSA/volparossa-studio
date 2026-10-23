@@ -404,6 +404,35 @@ Run the additional inert receipt/context rejection checks with:
 python3 -B integration/silex-export/test_viewer_receipt.py
 ```
 
+The optional `viewer_diagnostic` field reports only a closed last-attempted Core
+stage and, on browser failure, its closed observation stage. These progress
+categories do not identify a root cause or establish successful execution. The
+reader accepts at most sixteen 256-byte records from a regular, nonsymlinked,
+4 MiB private log, including a capped read after metadata inspection. It projects
+only fixed stage strings, a record count and `observed`/`unavailable`/`invalid`;
+raw panic hooks, child output, paths, URLs, keys, assets and browser data are
+removed with the existing temporary tree. The exclusive log belongs to this
+exact Core child invocation and the outer receipt retains its exact source
+revisions. No previous run's log or browser receipt is reused.
+
+Browser failure receipts carry only their fixed observation stage, a close
+boolean and a capped request count; Rust validates and projects that stage before
+asserting child exit success. Neither a receipt nor a diagnostic can override a
+failed child, cancellation, timeout or cleanup failure. Historical version-1 and
+version-2 successful proof schemas keep their existing meaning. Malformed or
+missing diagnostics are categories, with no raw exception text retained.
+
+Exercise the source-writer vocabulary against the bounded Python reader with
+an explicit Core checkout (in addition to the ordinary inert tests):
+
+```sh
+STUDIO_DIAGNOSTIC_CORE_SOURCE=/path/to/core python3 -B integration/silex-export/test_viewer_receipt.py
+```
+
+These source and mocked failure/cleanup checks execute no Rust, Node, browser or
+network runtime. They cannot diagnose or retroactively change a prior hosted
+failure; actual viewer observation remains unproven until a new authorized run.
+
 Even a passing version-2 fixture keeps `network_published=false` and
 `full_studio_acceptance=false`. It does not prove independent peer retrieval,
 publisher-offline availability, public hosting, DNS/TLS, updates, withdrawal,
