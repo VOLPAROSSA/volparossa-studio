@@ -1,9 +1,11 @@
-# Real Silex export to offline Core site pack
+# Real Silex export to Core pack and signed local viewer
 
-This is a synthetic, explicitly selected hosted integration fixture. Source and
-inert safety checks are implemented; **four hosted trials failed, most recently
-after the drag returned with no matching text component visible; no export/pack
-acceptance has been obtained**.
+This is a synthetic, explicitly selected hosted integration fixture. The principal
+recorded the preceding export/pack acceptance in
+[run 39869460125](https://github.com/VOLPAROSSA/volparossa/actions/runs/39869460125).
+The local signed viewer extension below is implemented in source and has inert
+checks only; it still requires independent review and a disposable hosted trial.
+Earlier failed-trial evidence remains below.
 It is not a product frontend, public hosting service or model/AI implementation.
 
 The existing Core `Quality` workflow has an optional `studio_export_pack` manual
@@ -349,8 +351,10 @@ denials. They cannot serve as Silex output or runtime acceptance. Run no Node,
 pnpm, browser, Silex, Rust build or hosted dispatch merely to inspect this fixture.
 The lifecycle tests execute only inert Python fork/signal fixtures and adopt/reap
 their own children, reproducing the exited-leader/TERM-resistant-child failure.
-Wrapper tests execute only rejecting guards and never reach namespace creation or
-sudo. None is actual editor, browser sandbox or network cleanup acceptance.
+Wrapper tests extract the actual shell guard prefix and append an inert terminal
+sentinel before any tool check/probe. They verify both exact runtime entrypoints
+and reject other names, traversal, symlinks and invalid arguments; they never reach
+namespace creation or sudo. None is actual editor, browser sandbox or network cleanup acceptance.
 Context tests run only standard-library Python under a stripped environment;
 they do not perform a real sudo handoff or privilege transition.
 
@@ -359,9 +363,49 @@ exit status when a child executed, and a closed failure classification. Raw logs
 command arguments, paths and environment content are not included in diagnostics;
 spawn failures use a null exit status because no child exit occurred.
 
-A future passing receipt establishes only actual editor creation/edit/preview,
-local export and offline Core packaging within this narrow synthetic case. It
-does not close all of Studio cases 1/2/14, representative import/responsive/assets
-coverage, any signed/network publication, independent peer retrieval/rendering,
-publisher-offline availability, conventional/public hosting, DNS/TLS, updates,
-withdrawal, protected shared AI, dynamic state or the other fifteen-case criteria.
+A version-2 passing receipt additionally requires the exact actual Core-packed
+bundle to pass the production signing API with a fresh in-memory synthetic key,
+production named-transfer verification over an explicitly mocked local control
+peer, and the actual `content site open` CLI. No persistent identity, private user
+key, contribution configuration or external publication is used. The test binds
+the bundle SHA-256, byte length and asset count. Its fresh sandboxed Chrome process
+runs separately from the editor in another disposable loopback namespace under
+the same nonroot/capability-zero/no-new-privileges policy. It reads the actual Core
+HTTP response and requires a visible edited marker, computed 37px font size and
+unchanged security headers/CSP. A separate bounded HTTP integrity pass fetches and
+hash-checks every packed asset; this does not claim that the rendered page requests
+every exported asset. `rendered_http_requests` reports the browser request count.
+
+The bounded context reader uses both fstat and a capped read with a postread
+length check; inert tests cover file growth, malformed/boolean fields, owner/mode
+and link denials. Mocked viewer lifecycle controls exercise normal exit, early
+failure, timeout, cancellation, spawn failure and unsuccessful drain without
+executing Core or a browser. Mocked outer failures verify temporary content is
+removed even when cleanup receipt parsing fails. These are logic checks, not
+actual viewer/browser teardown evidence. The hosted fixture also authors direct
+Rust child controls for early exit, panic/drop and timeout/drop: its adversarial
+cleanup flag can become true only after those children are reaped inside the
+verified namespace. Those Rust controls remain unexecuted until hosted testing.
+
+The viewer phase compiles the actual test executable outside the namespace and
+passes only the canonical compiler-artifact path through a private 0600 handoff
+under the 0700 temporary root. Rust direct-child guards kill/reap on assertion or
+timeout failure; the Python runner joins/drains its owned process group, and the
+existing PID namespace is the final boundary for separately sessioned browser
+descendants. Success requires the viewer's closed report, spool removal and a
+closed listener. Temporary logs, handoffs, keys and content are removed before
+writing the sanitized receipt; no raw URL, HTML, browsing logs or screenshots are
+retained. Version-1 export/pack receipts remain interpretable as that narrower
+proof and do not gain viewer acceptance retroactively.
+
+Run the additional inert receipt/context rejection checks with:
+
+```sh
+python3 -B integration/silex-export/test_viewer_receipt.py
+```
+
+Even a passing version-2 fixture keeps `network_published=false` and
+`full_studio_acceptance=false`. It does not prove independent peer retrieval,
+publisher-offline availability, public hosting, DNS/TLS, updates, withdrawal,
+protected shared AI, dynamic state, native GUI operation, saved-project reload,
+representative import/responsive/assets coverage or the full fifteen-case criteria.

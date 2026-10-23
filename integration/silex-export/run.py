@@ -19,11 +19,12 @@ import urllib.request
 from extract import extract
 from lifecycle import GroupCaptureFailure, drain_group, start_group
 from runtime_context import write_context
+from viewer_receipt import validate_viewer_proof, read_viewer_cleanup
 
 FIXTURE = Path(__file__).resolve().parent
 PINS = json.loads((FIXTURE / 'manifest.json').read_text())
 OPERATIONS = frozenset(('install-silex', 'install-driver', 'build-client', 'build-server',
-                        'build-public', 'runtime', 'core-pack'))
+                        'build-public', 'runtime', 'core-pack', 'core-build', 'viewer-runtime'))
 FAILURES = frozenset(('exit_nonzero', 'signal_terminated', 'deadline_exceeded',
                       'output_limit_exceeded', 'spawn_failed', 'cleanup_failed', 'cancelled'))
 DIAGNOSTIC_COUNTS = frozenset(('page_errors', 'console_errors', 'failed_requests',
@@ -291,7 +292,7 @@ def main():
             or hashlib.sha256((source / 'pnpm-lock.yaml').read_bytes()).hexdigest() != PINS['silex']['lock_sha256']):
         raise ValueError('exact source binding')
     check_font_source_contract(source)
-    receipt = dict(schema=1, status='failed', stage='prepare', **refs,
+    receipt = dict(schema=2, status='failed', stage='prepare', **refs,
                    silex_revision=PINS['silex']['commit'], network_published=False,
                    full_studio_acceptance=False, synthetic_only=True)
     temporary = Path(tempfile.mkdtemp(prefix='studio-export-', dir=os.environ['RUNNER_TEMP']))
@@ -360,17 +361,42 @@ def main():
         receipt['runtime_cleanup'] = json.loads((temporary / 'runtime-cleanup.json').read_text())
         receipt['stage'] = 'bounded_actual_zip_extraction'
         extract(temporary / 'actual-export.zip', temporary / 'export', temporary / 'inventory.json')
-        receipt['stage'] = 'actual_core_pack_and_decode'
-        env['VOLPAROSSA_STUDIO_EXPORT_DIRECTORY'] = str(temporary / 'export')
-        env['VOLPAROSSA_STUDIO_EXPORT_INVENTORY'] = str(temporary / 'inventory.json')
-        log = run(['cargo', 'test', '--locked', '--offline', '-p', 'volparossa', '--test', 'studio_site_pack',
-                   'actual_silex_export_packs_and_decodes_without_publication', '--', '--ignored', '--exact', '--nocapture'],
-                  temporary, env, 'core-pack', timeout=900, cwd=core)
+        receipt['stage'] = 'build_actual_core_viewer_fixture'
+        build_log = run(['cargo', 'test', '--locked', '--offline', '-p', 'volparossa', '--test',
+                         'studio_site_pack', '--no-run', '--message-format=json'],
+                        temporary, env, 'core-build', timeout=900, cwd=core)
+        artifacts = []
+        for line in build_log.read_text().splitlines():
+            try:
+                message = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if (message.get('reason') == 'compiler-artifact'
+                    and message.get('target', {}).get('name') == 'studio_site_pack'
+                    and message.get('executable')):
+                artifacts.append(Path(message['executable']))
+        if (len(artifacts) != 1 or artifacts[0].parent != core.resolve() / 'target/debug/deps'
+                or artifacts[0].is_symlink() or not artifacts[0].is_file()
+                or not re.fullmatch(r'studio_site_pack-[0-9a-f]+', artifacts[0].name)):
+            raise ValueError('exact actual Core compiler artifact required')
+        descriptor = os.open(temporary / 'viewer-context.json',
+                             os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600)
+        with os.fdopen(descriptor, 'w') as output:
+            json.dump({'schema': 1, 'executable': str(artifacts[0])}, output)
+        receipt['stage'] = 'actual_core_pack_signed_local_viewer_and_independent_browser'
+        run([core / 'scripts/run-isolated-test.sh', '--studio-nonroot-command', '/usr/bin/python3',
+             'studio_export', 'VOLPAROSSA_HANDOFF_TEST_PARENT_NETNS', 'loopback', '-B', runtime_fixture / 'viewer_runtime.py'],
+            temporary, env, 'viewer-runtime', timeout=100)
+        log = temporary / 'viewer-core.log'
+        if log.stat().st_size > 4 * 1024 * 1024:
+            raise ValueError('bounded viewer proof log required')
         proofs = [json.loads(line.removeprefix('STUDIO_SITE_PACK_PROOF '))
                   for line in log.read_text().splitlines() if line.startswith('STUDIO_SITE_PACK_PROOF ')]
-        if len(proofs) != 1 or proofs[0]['network_published'] is not False or proofs[0]['status'] != 'passed':
-            raise ValueError('core proof absent')
+        if len(proofs) != 1:
+            raise ValueError('single Core proof required')
+        validate_viewer_proof(proofs[0])
         receipt['core_pack'] = proofs[0]
+        receipt['viewer_cleanup'] = read_viewer_cleanup(temporary / 'viewer-cleanup.json')
         receipt['status'], receipt['stage'] = 'passed', 'complete'
     except Exception as error:
         receipt['error_type'] = type(error).__name__
@@ -383,19 +409,28 @@ def main():
             receipt['browser_export'] = read_browser_receipt(browser_receipt)
         raise
     finally:
-        cleanup = temporary / 'runtime-cleanup.json'
-        if cleanup.is_file() and cleanup.stat().st_size <= 4096:
-            receipt['runtime_cleanup'] = json.loads(cleanup.read_text())
         try:
-            shutil.rmtree(temporary)
-        except OSError as error:
-            receipt.update(status='failed', stage='cleanup', cleanup_error_type=type(error).__name__)
+            viewer_cleanup = temporary / 'viewer-cleanup.json'
+            if viewer_cleanup.is_file() and viewer_cleanup.stat().st_size <= 4096:
+                receipt['viewer_cleanup'] = read_viewer_cleanup(viewer_cleanup, require_success=False)
+            cleanup = temporary / 'runtime-cleanup.json'
+            if cleanup.is_file() and cleanup.stat().st_size <= 4096:
+                receipt['runtime_cleanup'] = json.loads(cleanup.read_text())
+        except Exception as error:
+            receipt.update(status='failed', stage='cleanup_receipt', cleanup_error_type=type(error).__name__)
             raise
         finally:
-            receipt['temporary_outputs_removed'] = not temporary.exists()
-            with receipt_path.open('x') as output:
-                json.dump(receipt, output, sort_keys=True)
-                output.write('\n')
+            try:
+                shutil.rmtree(temporary)
+            except OSError as error:
+                receipt.update(status='failed', stage='cleanup', cleanup_error_type=type(error).__name__)
+                raise
+            finally:
+                receipt['temporary_outputs_removed'] = not temporary.exists()
+                with receipt_path.open('x') as output:
+                    json.dump(receipt, output, sort_keys=True)
+                    output.write('\n')
+
 
 
 if __name__ == '__main__':
