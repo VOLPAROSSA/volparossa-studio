@@ -1,3 +1,5 @@
+![VOLPAROSSA Studio-banner](docs/assets/banner-volparossa-studio.png)
+
 # VOLPAROSSA Studio
 
 A Silex-based visual website editor with shared VOLPAROSSA publishing, hosting
