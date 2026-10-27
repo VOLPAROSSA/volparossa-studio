@@ -102,7 +102,6 @@ class ExtractionTests(unittest.TestCase):
 
 class SourceChecks(unittest.TestCase):
     def test_python_sources_parse_without_executing_runtime(self):
-        self.fail('P08b controlled negative check; temporary PR only')
         for path in ROOT.glob('*.py'):
             ast.parse(path.read_text(), filename=str(path))
 
