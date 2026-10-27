@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
+# Temporary P08b required-CI probe. Close this test PR without merging.
 """Inert safety checks. Synthetic ZIPs below are NOT Silex/runtime evidence."""
 import ast
 import copy
@@ -101,6 +102,7 @@ class ExtractionTests(unittest.TestCase):
 
 class SourceChecks(unittest.TestCase):
     def test_python_sources_parse_without_executing_runtime(self):
+        self.fail('P08b controlled negative check; temporary PR only')
         for path in ROOT.glob('*.py'):
             ast.parse(path.read_text(), filename=str(path))
 
