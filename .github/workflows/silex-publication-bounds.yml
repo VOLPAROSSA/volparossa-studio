@@ -1,0 +1,172 @@
+name: Pinned Silex bounded publication checks
+
+on:
+  push:
+    branches: [fix/publication-preparation-bounds-20261028]
+    paths:
+      - .github/workflows/silex-publication-bounds.yml
+      - integration/silex-publication/**
+      - upstream.lock.json
+      - THIRD_PARTY_LICENSES.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: silex-publication-bounds-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_BUILD_JOBS: '2'
+  CARGO_TERM_COLOR: never
+  GIT_CONFIG_NOSYSTEM: '1'
+  GIT_CONFIG_SYSTEM: /dev/null
+  GIT_CONFIG_GLOBAL: /dev/null
+  GIT_ALLOW_PROTOCOL: https
+  GIT_TERMINAL_PROMPT: '0'
+  GIT_ASKPASS: /usr/bin/false
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  publication:
+    if: >-
+      github.repository == 'VOLPAROSSA/volparossa-studio' &&
+      github.ref == 'refs/heads/fix/publication-preparation-bounds-20261028'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: studio
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: silexlabs/Silex
+          ref: 672efed69dda04c0a1e968859239e042f00d9538
+          path: silex
+          persist-credentials: false
+      - name: Verify the unmodified upstream and authenticated compiler inputs
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_ARCH" = X64
+          test "$(id -u)" != 0
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$(git -C studio rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C silex rev-parse HEAD)" = 672efed69dda04c0a1e968859239e042f00d9538
+          test -z "$(git -C silex status --porcelain --untracked-files=all)"
+          umask 077
+          export CARGO_HOME="$RUNNER_TEMP/silex-publication-cargo"
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/silex-publication-target"
+          test ! -e "$CARGO_HOME"
+          test ! -L "$CARGO_HOME"
+          test ! -e "$CARGO_TARGET_DIR"
+          test ! -L "$CARGO_TARGET_DIR"
+          mkdir -m 0700 "$CARGO_HOME" "$CARGO_TARGET_DIR" publication-evidence
+          printf 'CARGO_HOME=%s\nCARGO_TARGET_DIR=%s\n' "$CARGO_HOME" "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"
+          python3 -B - <<'PY'
+          import hashlib,json,os,pathlib,re,tomllib
+          expected={
+            'provision-rust199.py':'73183c57744925c962cfb2bd7414ac2c20df8848ddad20e6240ba3257a2f8fcd',
+            'rust199-components.json':'5cf2439e109e9fa92a25037130a20f903282e703ddb0ce192d7c06a8ec2737ba',
+            'test-provision-rust199.py':'7683044d41b47a1cd3bc488368f63c15973e54b4154fe834696def2b4a3903f3',
+          }
+          root=pathlib.Path('studio/integration/silex-publication/toolchain')
+          for name,digest in expected.items():
+            assert hashlib.sha256((root/name).read_bytes()).hexdigest()==digest,name
+          raw=pathlib.Path('silex/Cargo.lock').read_bytes()
+          assert hashlib.sha256(raw).hexdigest()=='eb92b416e0ed0428d11068202132c95dbfb02a2e5c12fd6b315df71248c83f13'
+          packages=tomllib.loads(raw.decode())['package']
+          assert len(packages)==607
+          for package in packages:
+            if 'source' in package:
+              assert package['source']=='registry+https://github.com/rust-lang/crates.io-index'
+              assert re.fullmatch('[0-9a-f]{64}',package['checksum'])
+          for cwd in (pathlib.Path.cwd(),pathlib.Path('silex').resolve()):
+            for parent in (cwd,*cwd.parents):
+              assert not (parent/'.cargo/config').exists() and not (parent/'.cargo/config.toml').exists()
+          for relative in ('.cargo/config','.cargo/config.toml','.cargo/credentials','.cargo/credentials.toml','.netrc'):
+            path=pathlib.Path.home()/relative
+            assert not path.exists() and not path.is_symlink()
+          allowed={'CARGO_HOME','CARGO_TARGET_DIR','CARGO_BUILD_JOBS','CARGO_TERM_COLOR'}
+          assert all(not name.startswith('CARGO_') or name in allowed for name in os.environ)
+          for name in ('RUSTC','RUSTDOC','RUSTC_WRAPPER','RUSTC_WORKSPACE_WRAPPER','RUSTUP_TOOLCHAIN'):
+            assert name not in os.environ
+          pathlib.Path('publication-evidence/source.json').write_text(json.dumps(dict(version=1,
+            studio_commit=os.environ['GITHUB_SHA'],upstream_commit='672efed69dda04c0a1e968859239e042f00d9538',
+            cargo_lock_sha256=hashlib.sha256(raw).hexdigest(),toolchain_source_sha256=expected,
+            source_graph='public-crates-io-and-pinned-workspace-only',
+            publication_patch_applied=False,desktop_or_editor_execution=False),sort_keys=True)+'\n')
+          PY
+      - name: Test compiler authority and install the existing exact reviewed compiler
+        run: |
+          set -euo pipefail
+          python3 -B studio/integration/silex-publication/toolchain/test-provision-rust199.py -v \
+            2>&1 | tee publication-evidence/toolchain-tests.log
+          python3 -B studio/integration/silex-publication/toolchain/provision-rust199.py runner
+      - name: Test source preparation and apply the exact recorded patch
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest discover -s studio/integration/silex-publication -p 'test_*.py' -v \
+            2>&1 | tee publication-evidence/driver-tests.log
+          python3 -B studio/integration/silex-publication/prepare.py verify-baseline --source "$GITHUB_WORKSPACE/silex"
+          python3 -B studio/integration/silex-publication/prepare.py apply --source "$GITHUB_WORKSPACE/silex" \
+            | tee publication-evidence/patch.json
+      - name: Fetch the exact locked public workspace dependencies
+        working-directory: silex
+        run: cargo fetch --locked
+      - name: Compile and test only the server library without frontend or desktop
+        id: server
+        working-directory: silex
+        run: |
+          set -euo pipefail
+          cargo check --locked --offline -p silex-server --lib 2>&1 | tee ../publication-evidence/check.log
+          cargo test --locked --offline -p silex-server --lib 2>&1 | tee ../publication-evidence/test.log
+          python3 -B - <<'PYTEST'
+          import pathlib,re
+          raw=pathlib.Path('../publication-evidence/test.log').read_text()
+          results=re.findall(r'test result: ok\. (\d+) passed; 0 failed; 0 ignored; 0 measured; 0 filtered out',raw)
+          assert len(results)==1 and int(results[0])>=18,results
+          PYTEST
+      - name: Check formatting only for the changed Rust sources
+        if: always() && steps.server.outcome == 'success'
+        run: |
+          set -euo pipefail
+          python3 -B - <<'PYFMT'
+          import json,pathlib,subprocess
+          manifest=json.loads(pathlib.Path('studio/integration/silex-publication/manifest.json').read_text())
+          paths=sorted(str(pathlib.Path('silex')/p) for p in manifest['files'] if p.endswith('.rs'))
+          subprocess.run(['rustfmt','--edition','2021','--config','skip_children=true','--check',*paths],check=True)
+          PYFMT
+      - name: Record strict lint results without suppressing upstream failures
+        if: always() && steps.server.outcome == 'success'
+        working-directory: silex
+        run: |
+          set -euo pipefail
+          cargo clippy --locked --offline -p silex-server --lib --tests -- -D warnings \
+            2>&1 | tee ../publication-evidence/clippy.log
+      - name: Recheck compiler payload and the exact patched source
+        if: always()
+        run: |
+          set -euo pipefail
+          test "$(git -C studio rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git -C studio status --porcelain --untracked-files=all)"
+          test "$(git -C silex rev-parse HEAD)" = 672efed69dda04c0a1e968859239e042f00d9538
+          python3 -B studio/integration/silex-publication/prepare.py verify-patched --source "$GITHUB_WORKSPACE/silex"
+          if test -d "$RUNNER_TEMP/volparossa-rust-1.99.1"; then
+            python3 -B studio/integration/silex-publication/toolchain/provision-rust199.py runner
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: silex-publication-bounds-${{ github.run_id }}
+          path: publication-evidence/
+          retention-days: 14
+          if-no-files-found: warn
