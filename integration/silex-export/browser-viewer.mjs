@@ -16,6 +16,10 @@ assert.match(origin.hostname, /^vp[0-9a-f]{32}\.localhost$/);
 assert.equal(origin.pathname, '/');
 assert.equal(origin.search + origin.hash + origin.username + origin.password, '');
 assert.ok(handoff.assets.length >= 2 && handoff.assets.length <= 256);
+// The UI creates and edits this additional page. The original index is a
+// different exported page; it remains covered by the all-asset integrity pass.
+const editedPagePath = '/studio-export.html';
+assert.equal(handoff.assets.filter(asset => asset.path === editedPagePath).length, 1);
 let browser;
 let passed = false;
 let requests = 0;
@@ -40,7 +44,8 @@ try {
   });
   const page = await context.newPage();
   stage = 'http';
-  const response = await page.goto(handoff.url, { waitUntil: 'networkidle', timeout: 15000 });
+  const response = await page.goto(new URL(editedPagePath, origin).href,
+    { waitUntil: 'networkidle', timeout: 15000 });
   assert.equal(response.status(), 200);
   stage = 'securityheaders';
   const headers = response.headers();

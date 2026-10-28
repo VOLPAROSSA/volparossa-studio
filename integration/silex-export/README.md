@@ -376,6 +376,15 @@ unchanged security headers/CSP. A separate bounded HTTP integrity pass fetches a
 hash-checks every packed asset; this does not claim that the rendered page requests
 every exported asset. `rendered_http_requests` reports the browser request count.
 
+The ordinary UI creates a new page named `Studio export`. The pinned Silex
+`common/page.ts` slug and `PublicationManager.ts` export map that page to
+`/studio-export.html`; the original `/index.html` remains a separate page.
+The independent browser observes this fixed edited-page path under the validated
+Core origin and requires exactly one corresponding manifest asset. Core also
+checks the marker on that specific HTML asset before signing. Root index and all
+other exported assets still participate in the integrity pass; no export files
+or DOM are rewritten to satisfy the viewer check.
+
 The bounded context reader uses both fstat and a capped read with a postread
 length check; inert tests cover file growth, malformed/boolean fields, owner/mode
 and link denials. Mocked viewer lifecycle controls exercise normal exit, early
