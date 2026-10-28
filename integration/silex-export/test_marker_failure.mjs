@@ -2,6 +2,7 @@
 // Pure behavior tests; execute only with the fixture's authenticated hosted Node.
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { performance } from 'node:perf_hooks';
 import { MARKER_OBSERVATION_BUDGET_MS, observeMarkerFailure } from './marker_failure.mjs';
 
 function locator(counts, visibility = []) {
@@ -69,6 +70,54 @@ test('one finite budget returns generic and late RPC completion cannot publish a
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(stages, ['marker']);
   assert.equal(countCalls, 1);
+});
+
+test('early timer stops every in-flight snapshot continuation before the clock deadline', async t => {
+  // Keep the monotonic deadline in the future, independently of scheduling.
+  // Only the controlled timer may settle the observation in this test.
+  t.mock.method(performance, 'now', () => 0);
+  let fire;
+  const handle = {};
+  t.mock.method(globalThis, 'setTimeout', (callback, delay) => {
+    assert.equal(delay, 200);
+    fire = callback;
+    return handle;
+  });
+  const cleared = [];
+  t.mock.method(globalThis, 'clearTimeout', timer => { cleared.push(timer); });
+  const sequence = ['count', 'visible', 'count', 'visible', 'count'];
+  for (let pendingAt = 0; pendingAt < sequence.length; ++pendingAt) {
+    let finish;
+    let entered;
+    const started = new Promise(resolve => { entered = resolve; });
+    const calls = [];
+    const rpc = kind => {
+      const position = calls.length;
+      calls.push(kind);
+      if (position === pendingAt) {
+        entered();
+        return new Promise(resolve => { finish = resolve; });
+      }
+      return Promise.resolve(kind === 'count' ? 1 : false);
+    };
+    const stages = [];
+    const primary = new Error('public synthetic early timer failure');
+    const operation = observeMarkerFailure(async () => { throw primary; }, {
+      count() { return rpc('count'); },
+      isVisible() { return rpc('visible'); },
+    }, stage => stages.push(stage));
+    const rejected = assert.rejects(operation, error => error === primary);
+    await started;
+    assert.deepEqual(calls, sequence.slice(0, pendingAt + 1));
+    fire();
+    await rejected;
+    assert.deepEqual(stages, ['marker']);
+    finish(sequence[pendingAt] === 'count' ? 1 : false);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(calls, sequence.slice(0, pendingAt + 1));
+    assert.deepEqual(stages, ['marker']);
+  }
+  assert.deepEqual(cleared, sequence.map(() => handle));
 });
 
 test('successful primary check is called exactly once without observation or stage changes', async () => {

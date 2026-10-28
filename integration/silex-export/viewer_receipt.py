@@ -77,6 +77,70 @@ BROWSER_STAGES = ('not_observed', 'launch', 'http', 'securityheaders', 'marker',
 DIAGNOSTIC_PREFIX = b'STUDIO_VIEWER_DIAGNOSTIC '
 DIAGNOSTIC_LOG_LIMIT = 4 * 1024 * 1024
 
+# Exact source-owned Node test titles map to fixed public case IDs. TAP error
+# messages, paths, stack traces and arbitrary test names never leave the log.
+UNIT_CASES = {
+    'repeated matching absent, ambiguous and hidden snapshots have finite labels': 'marker_labels',
+    'visible later, changing counts or changing visibility keep generic failure': 'marker_changes',
+    'invalid types and nonfinite or unsafe counts never enter a specific label': 'marker_types',
+    'unavailable observation preserves primary identity without inspecting private errors': 'marker_errors',
+    'one finite budget returns generic and late RPC completion cannot publish again': 'marker_budget',
+    'successful primary check is called exactly once without observation or stage changes': 'marker_success',
+    'recording failure cannot mask the original assertion or turn failure into success': 'marker_recording',
+    'early timer stops every in-flight snapshot continuation before the clock deadline': 'marker_early_timer',
+    'actual private regular file and strict multibyte UTF8 are read successfully': 'handoff_read',
+    'actual symlinks, permissions, hardlinks and directories fail closed': 'handoff_files',
+    'actual exact size bound succeeds and oversize input is refused': 'handoff_size',
+    'malformed JSON, UTF8 and leading BOM return only closed error text': 'handoff_encoding',
+    'one fixed open supplies both stats and all bounded reads and closes on success': 'handoff_fd',
+    'invalid initial FD metadata denies before allocation/read and still closes': 'handoff_metadata',
+    'growth, truncation and changed post-read FD identity or nanosecond metadata deny': 'handoff_mutation',
+    'open/stat/read/parse/close failures never expose underlying errors and close acquired FD': 'handoff_errors',
+}
+UNIT_LOG_LIMIT = 1024 * 1024
+
+
+def read_viewer_unit_diagnostic(path):
+    """Optional failure-only projection; never acceptance or a primary exception."""
+    empty = dict(schema=1, status='unavailable', failed_case_ids=[], case_count=0)
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+        with os.fdopen(descriptor, 'rb') as source:
+            metadata = os.fstat(source.fileno())
+            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_size > UNIT_LOG_LIMIT
+                    or metadata.st_uid != os.getuid() or metadata.st_nlink != 1):
+                raise ValueError('bounded private unit log required')
+            data = source.read(UNIT_LOG_LIMIT + 1)
+        if len(data) > UNIT_LOG_LIMIT:
+            raise ValueError('unit log grew beyond bound')
+        lines = data.decode('utf-8', errors='strict').splitlines()
+        if 'TAP version 13' not in lines:
+            raise ValueError('explicit unit TAP format required')
+        seen, indices, failed = set(), set(), set()
+        for line in lines:
+            if not line.startswith(('ok ', 'not ok ')):
+                continue
+            match = re.fullmatch(r'(not ok|ok) ([1-9][0-9]?) - (.{1,256})', line)
+            if match is None:
+                raise ValueError('closed unit record required')
+            outcome, index, name = match.groups()
+            case = UNIT_CASES.get(name)
+            if (case is None or case in seen or index in indices
+                    or int(index) > len(UNIT_CASES) or len(seen) >= len(UNIT_CASES)):
+                raise ValueError('unique fixed unit case required')
+            seen.add(case)
+            indices.add(index)
+            if outcome == 'not ok':
+                failed.add(case)
+        if not failed:
+            raise ValueError('failure diagnostic cannot claim successful tests')
+        return dict(schema=1, status='observed', failed_case_ids=sorted(failed), case_count=len(seen))
+    except FileNotFoundError:
+        return empty
+    except Exception:
+        # This optional observer must never mask the original unit failure.
+        return dict(empty, status='invalid')
+
 
 def read_viewer_diagnostic(path):
     """Project only fixed progress categories from this invocation's private log.

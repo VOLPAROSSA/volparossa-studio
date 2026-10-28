@@ -17,7 +17,8 @@ import unittest
 import run as fixture_run
 
 from viewer_receipt import (validate_viewer_proof, read_viewer_cleanup, read_viewer_diagnostic,
-    CORE_STAGES, BROWSER_STAGES, DIAGNOSTIC_LOG_LIMIT, DIAGNOSTIC_PREFIX)
+    CORE_STAGES, BROWSER_STAGES, DIAGNOSTIC_LOG_LIMIT, DIAGNOSTIC_PREFIX,
+    UNIT_CASES, UNIT_LOG_LIMIT, read_viewer_unit_diagnostic)
 from viewer_runtime import read_viewer_context, run_core_fixture
 
 ROOT = Path(__file__).resolve().parent
@@ -294,31 +295,113 @@ class ViewerReceiptTests(unittest.TestCase):
         self.assertIn("content-security-policy", browser)
         tree = ast.parse((ROOT / 'run.py').read_text())
         main = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'main')
-        calls = [node for node in ast.walk(main) if isinstance(node, ast.Call)
+        runner = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'run_viewer_units')
+        calls = [node for node in ast.walk(runner) if isinstance(node, ast.Call)
                  and isinstance(node.func, ast.Name) and node.func.id == 'run'
                  and len(node.args) >= 4 and isinstance(node.args[3], ast.Constant)
                  and node.args[3].value == 'marker-unit']
         self.assertEqual(len(calls), 1)
         call = calls[0]
         argv = call.args[0].elts
-        self.assertEqual(len(argv), 3)
+        self.assertEqual(len(argv), 5)
         self.assertEqual(argv[0].id, 'node')
         self.assertEqual(ast.literal_eval(argv[1]), '--test')
-        self.assertIsInstance(argv[2].op, ast.Div)
-        self.assertEqual(argv[2].left.id, 'runtime_fixture')
-        self.assertEqual(ast.literal_eval(argv[2].right), 'test_marker_failure.mjs')
+        self.assertEqual(ast.literal_eval(argv[2]), '--test-reporter=tap')
+        for argument, name in zip(argv[3:], ('test_marker_failure.mjs', 'test_viewer_handoff.mjs')):
+            self.assertIsInstance(argument.op, ast.Div)
+            self.assertEqual(argument.left.id, 'runtime_fixture')
+            self.assertEqual(ast.literal_eval(argument.right), name)
         self.assertEqual(call.args[2].id, 'env')
         self.assertEqual({entry.arg: ast.literal_eval(entry.value) for entry in call.keywords}, {'timeout': 10})
         prepare = next(node for node in ast.walk(main) if isinstance(node, ast.Call)
                        and isinstance(node.func, ast.Name) and node.func.id == 'prepare')
+        invocation = next(node for node in ast.walk(main) if isinstance(node, ast.Call)
+                          and isinstance(node.func, ast.Name) and node.func.id == 'run_viewer_units')
         installs = [node for node in ast.walk(main) if isinstance(node, ast.Call)
                     and isinstance(node.func, ast.Name) and node.func.id == 'run'
                     and len(node.args) >= 4 and isinstance(node.args[3], ast.Constant)
                     and node.args[3].value in ('install-silex', 'install-driver')]
-        self.assertLess(prepare.lineno, call.lineno)
+        self.assertLess(prepare.lineno, invocation.lineno)
         self.assertTrue(installs)
-        self.assertTrue(all(call.lineno < install.lineno for install in installs))
+        self.assertTrue(all(invocation.lineno < install.lineno for install in installs))
         self.assertIn('marker-unit', fixture_run.OPERATIONS)
+
+    def test_unit_vocabulary_matches_both_static_node_sources(self):
+        names = []
+        for name in ('test_marker_failure.mjs', 'test_viewer_handoff.mjs'):
+            names.extend(__import__('re').findall(r"test\('([^']+)'", (ROOT / name).read_text()))
+        self.assertEqual(len(names), len(set(names)))
+        self.assertEqual(set(names), set(UNIT_CASES))
+        self.assertEqual(len(set(UNIT_CASES.values())), len(UNIT_CASES))
+
+    def test_unit_failure_projection_is_closed_and_cannot_claim_success(self):
+        name = next(name for name, case in UNIT_CASES.items() if case == 'marker_budget')
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'units.log'
+            path.write_text('TAP version 13\nnot ok 1 - ' + name + '\n  error: PRIVATE_SENTINEL\n')
+            result = read_viewer_unit_diagnostic(path)
+            self.assertEqual(result, dict(schema=1, status='observed', failed_case_ids=['marker_budget'], case_count=1))
+            self.assertNotIn('PRIVATE_SENTINEL', json.dumps(result))
+            for text in ('TAP version 13\nnot ok 1 - PRIVATE_SENTINEL\n',
+                         'TAP version 13\nok 1 - ' + name + '\n',
+                         'TAP version 13\nnot ok 99 - ' + name + '\n',
+                         'TAP version 13\n' + ('not ok 1 - ' + name + '\n') * 2,
+                         'PRIVATE_SENTINEL'):
+                path.write_text(text)
+                result = read_viewer_unit_diagnostic(path)
+                self.assertEqual(result['status'], 'invalid')
+                self.assertEqual(result['failed_case_ids'], [])
+
+    def test_unit_reader_refuses_links_and_bounds_growth_after_fstat(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'units.log'
+            self.assertEqual(read_viewer_unit_diagnostic(path)['status'], 'unavailable')
+            path.write_bytes(b' ' * (UNIT_LOG_LIMIT + 1))
+            self.assertEqual(read_viewer_unit_diagnostic(path)['status'], 'invalid')
+            link = Path(directory) / 'link'
+            link.symlink_to(path)
+            self.assertEqual(read_viewer_unit_diagnostic(link)['status'], 'invalid')
+        data = io.BytesIO(b' ' * (UNIT_LOG_LIMIT + 1))
+        data.fileno = lambda: 91
+        read = Mock(wraps=data.read)
+        data.read = read
+        metadata = SimpleNamespace(st_mode=stat.S_IFREG | 0o600, st_size=2,
+                                   st_uid=os.getuid(), st_nlink=1)
+        with patch('viewer_receipt.os.open', return_value=91), \
+                patch('viewer_receipt.os.fdopen', return_value=data), \
+                patch('viewer_receipt.os.fstat', return_value=metadata):
+            self.assertEqual(read_viewer_unit_diagnostic(Path('/inert'))['status'], 'invalid')
+            read.assert_called_once_with(UNIT_LOG_LIMIT + 1)
+
+    def test_unit_failure_preserves_primary_and_never_prints_success(self):
+        primary = fixture_run.OperationFailure('marker-unit', 1, 'exit_nonzero')
+        projected = dict(schema=1, status='invalid', failed_case_ids=[], case_count=0)
+        receipt = {}
+        with patch.object(fixture_run, 'run', side_effect=primary), \
+                patch.object(fixture_run, 'read_viewer_unit_diagnostic', return_value=projected), \
+                patch('builtins.print') as output:
+            with self.assertRaises(fixture_run.OperationFailure) as raised:
+                fixture_run.run_viewer_units(Path('/node'), Path('/fixture'), Path('/temporary'), {}, receipt)
+            self.assertIs(raised.exception, primary)
+            self.assertEqual(receipt['viewer_unit_diagnostic'], projected)
+            output.assert_called_once()
+            self.assertTrue(output.call_args.args[0].startswith('STUDIO_VIEWER_UNIT_FAILURE '))
+
+    def test_unit_observer_or_logger_error_preserves_primary(self):
+        for failure in ('observer', 'logger'):
+            primary = fixture_run.OperationFailure('marker-unit', 1, 'exit_nonzero')
+            projected = dict(schema=1, status='invalid', failed_case_ids=[], case_count=0)
+            options = {'side_effect': RuntimeError('PRIVATE_SENTINEL')} if failure == 'observer' else {'return_value': projected}
+            receipt = {}
+            with self.subTest(failure=failure), \
+                    patch.object(fixture_run, 'run', side_effect=primary), \
+                    patch.object(fixture_run, 'read_viewer_unit_diagnostic', **options), \
+                    patch('builtins.print', side_effect=BrokenPipeError('PRIVATE_SENTINEL')):
+                with self.assertRaises(fixture_run.OperationFailure) as raised:
+                    fixture_run.run_viewer_units(Path('/node'), Path('/fixture'), Path('/temporary'), {}, receipt)
+                self.assertIs(raised.exception, primary)
+                self.assertEqual(receipt['viewer_unit_diagnostic'], projected)
+                self.assertNotIn('PRIVATE_SENTINEL', json.dumps(receipt))
 
     def test_diagnostic_malformed_oversized_symlink_and_private_text_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Independent, read-only observer: all page content/styles come from Core HTTP.
 import { chromium } from 'playwright-core';
-import { readFile, writeFile, stat } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { observeMarkerFailure } from './marker_failure.mjs';
+import { readViewerHandoff } from './viewer_handoff.mjs';
 
 const path = process.argv[2];
-assert.ok((await stat(path)).size <= 131072);
-const handoff = JSON.parse(await readFile(path, 'utf8'));
+const handoff = await readViewerHandoff(path);
 assert.equal(handoff.schema, 1);
 const origin = new URL(handoff.url);
 assert.equal(origin.protocol, 'http:');

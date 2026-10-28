@@ -19,7 +19,8 @@ import urllib.request
 from extract import extract
 from lifecycle import GroupCaptureFailure, drain_group, start_group
 from runtime_context import write_context
-from viewer_receipt import validate_viewer_proof, read_viewer_cleanup, read_viewer_diagnostic
+from viewer_receipt import (validate_viewer_proof, read_viewer_cleanup, read_viewer_diagnostic,
+                            read_viewer_unit_diagnostic)
 
 FIXTURE = Path(__file__).resolve().parent
 PINS = json.loads((FIXTURE / 'manifest.json').read_text())
@@ -279,6 +280,22 @@ def run(command, temporary, env, label, timeout=600, cwd=None):
     return path
 
 
+def run_viewer_units(node, runtime_fixture, temporary, env, receipt):
+    """Run only fixed tests; retain closed failed case IDs, never raw TAP."""
+    try:
+        run([node, '--test', '--test-reporter=tap', runtime_fixture / 'test_marker_failure.mjs',
+             runtime_fixture / 'test_viewer_handoff.mjs'], temporary, env, 'marker-unit', timeout=10)
+    except OperationFailure:
+        try:
+            receipt['viewer_unit_diagnostic'] = read_viewer_unit_diagnostic(temporary / 'marker-unit.log')
+            print('STUDIO_VIEWER_UNIT_FAILURE ' + json.dumps(receipt['viewer_unit_diagnostic'], sort_keys=True), flush=True)
+        except Exception:
+            receipt.setdefault('viewer_unit_diagnostic',
+                dict(schema=1, status='invalid', failed_case_ids=[], case_count=0))
+        raise
+    print('STUDIO_MARKER_UNIT {"schema":1,"status":"passed","diagnostic_only":true}', flush=True)
+
+
 def main():
     if (os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted'
             or os.environ.get('RUNNER_OS') != 'Linux' or os.environ.get('RUNNER_ARCH') != 'X64'):
@@ -338,9 +355,7 @@ def main():
         # Pure finite-label behavior tests use the same authenticated Node, fixed
         # copied fixture path and bounded owned-group runner as this actual trial.
         # They run before dependency installation or any editor/viewer work.
-        run([node, '--test', runtime_fixture / 'test_marker_failure.mjs'],
-            temporary, env, 'marker-unit', timeout=10)
-        print('STUDIO_MARKER_UNIT {"schema":1,"status":"passed","diagnostic_only":true}', flush=True)
+        run_viewer_units(node, runtime_fixture, temporary, env, receipt)
         receipt['stage'] = 'frozen_install'
         options = ['install', '--frozen-lockfile', '--ignore-scripts', '--store-dir', str(temporary / 'store'),
                    '--config.manage-package-manager-versions=false', '--config.update-notifier=false']

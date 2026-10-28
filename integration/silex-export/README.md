@@ -396,6 +396,12 @@ Rust child controls for early exit, panic/drop and timeout/drop: its adversarial
 cleanup flag can become true only after those children are reaped inside the
 verified namespace. Those Rust controls remain unexecuted until hosted testing.
 
+The separate browser handoff is read through one no-follow file descriptor.
+It must be an owned, single-link regular file at exact mode 0600, at most 128 KiB.
+Reads are bounded even after metadata inspection, and identity/size/nanosecond
+metadata must remain stable before strict UTF-8/JSON decoding. Every acquired
+descriptor gets a close attempt; failures expose only a fixed category.
+
 The viewer phase compiles the actual test executable outside the namespace and
 passes only the canonical compiler-artifact path through a private 0600 handoff
 under the 0700 temporary root. Rust direct-child guards kill/reap on assertion or
@@ -441,6 +447,14 @@ raw DOM/text nor exception content enters the receipt. Pure observer behavior
 tests run with the already authenticated Node before dependency installation in
 the hosted trial. Ordinary Studio CI runs the Python viewer contracts; the Core
 trial additionally checks the exact source writer's vocabulary.
+
+Ordinary Studio CI also executes the sixteen pure marker/handoff Node tests with
+the existing authenticated Node before any Core/browser trial. Explicit timer
+completion stops pending observer continuations even if the timer fires slightly
+before the monotonic deadline. If units fail, an optional bounded TAP reader maps
+only fixed test titles to closed case IDs. Unknown/malformed results stay invalid;
+raw test output, exceptions and paths are deleted. Observation or logging failure
+cannot replace the primary unit failure. Unit results remain diagnostic-only.
 
 Exercise the source-writer vocabulary against the bounded Python reader with
 an explicit Core checkout (in addition to the ordinary inert tests):

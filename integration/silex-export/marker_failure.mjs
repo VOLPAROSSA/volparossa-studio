@@ -7,8 +7,7 @@ import { performance } from 'node:perf_hooks';
 export const MARKER_OBSERVATION_BUDGET_MS = 200;
 const generic = 'marker';
 
-async function snapshotStage(locator, deadline) {
-  const expired = () => performance.now() >= deadline;
+async function snapshotStage(locator, expired) {
   if (expired()) return generic;
   const first = await locator.count();
   if (expired() || !Number.isSafeInteger(first) || first < 0) return generic;
@@ -19,7 +18,8 @@ async function snapshotStage(locator, deadline) {
   const secondVisible = second === 1 ? await locator.isVisible() : null;
   if (expired() || (second === 1 && (typeof secondVisible !== 'boolean' || secondVisible !== firstVisible))) return generic;
   // Detect a count change during the second visibility query as well.
-  if (await locator.count() !== first || expired()) return generic;
+  const third = await locator.count();
+  if (expired() || third !== first) return generic;
   if (first === 0) return 'marker_absent';
   if (first > 1) return 'marker_ambiguous';
   return firstVisible === false ? 'marker_hidden' : generic;
@@ -30,16 +30,24 @@ async function boundedStage(locator) {
   // not extend the Core-owned 35s browser deadline. A timed-out RPC may finish
   // later; normal browser/group cleanup still owns it, and it cannot republish.
   const deadline = performance.now() + MARKER_OBSERVATION_BUDGET_MS;
+  let stopped = false;
+  const expired = () => stopped || performance.now() >= deadline;
   let timer;
   try {
-    const expired = new Promise(resolve => {
-      timer = setTimeout(() => resolve(generic), MARKER_OBSERVATION_BUDGET_MS);
+    const timeout = new Promise(resolve => {
+      timer = setTimeout(() => {
+        // Timer rounding may fire before the monotonic deadline. Stop future
+        // RPCs immediately, including continuations of an in-flight snapshot.
+        stopped = true;
+        resolve(generic);
+      }, MARKER_OBSERVATION_BUDGET_MS);
     });
-    const observed = snapshotStage(locator, deadline)
-      .then(stage => performance.now() < deadline ? stage : generic)
+    const observed = snapshotStage(locator, expired)
+      .then(stage => expired() ? generic : stage)
       .catch(() => generic);
-    return await Promise.race([observed, expired]);
+    return await Promise.race([observed, timeout]);
   } finally {
+    stopped = true;
     clearTimeout(timer);
   }
 }
