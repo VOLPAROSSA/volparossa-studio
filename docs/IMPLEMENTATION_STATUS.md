@@ -1,9 +1,40 @@
 # Studio implementation status
 
-Updated 2026-10-23. Requirements are the complete permanent
+Updated 2026-10-27. Requirements are the complete permanent
 [Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/STUDIO_HOSTING_REQUIREMENTS.md),
 incorporated by the full Core goal. This file records Studio evidence and next
 work, without replacing that scope or the shared Core execution ledger.
+
+## Ordinary source CI and dependency updates — 2026-10-27
+
+The proposed `Studio CI` workflow runs the stable `source-contracts` job on
+ordinary pull requests and pushes to `main`, without path filters or actor
+exclusions. It uses a disposable Ubuntu hosted runner, read-only repository
+permissions and SHA-pinned checkout without persisted credentials. It needs no
+secrets, dependency installation, Core checkout, browser, SDK or native build.
+
+Run the same 37 existing checks locally from `integration/silex-export`:
+
+```sh
+python3 -B -m unittest -v test_contract test_lifecycle test_runtime_context
+```
+
+These cover Python syntax, synthetic extraction/diagnostic contracts, bounded
+process cleanup and private context handoff. `test_wrapper_guard.py` requires
+Core's namespace wrapper and remains in the separate Core integration trial.
+Source checks do not accept the Studio application or hosting platform.
+
+Dependabot proposes weekly Monday updates for npm/pnpm in
+`/integration/silex-export` and GitHub Actions in `/`, with at most three open
+version-update PRs per ecosystem and grouped security updates. Existing exact
+dependency/package-manager pins, lockfile and Silex provenance stay unchanged.
+Future updates must reconcile the fixture manifest/provenance contracts and
+retain exact dependency versions and full Action commit SHAs before merge.
+
+F06/F10 remain proposed until manual merge and a fresh check on `main`.
+The existing branch ruleset is unchanged; `source-contracts` is not required.
+Fork/Dependabot execution and failed-check merge blocking need separate evidence
+before an explicitly approved ruleset change.
 
 ## Verified starting state
 
