@@ -22,8 +22,6 @@ defaults:
 env:
   CARGO_BUILD_JOBS: '2'
   CARGO_TERM_COLOR: never
-  CARGO_HOME: ${{ runner.temp }}/silex-baseline-cargo
-  CARGO_TARGET_DIR: ${{ runner.temp }}/silex-baseline-target
   GIT_CONFIG_NOSYSTEM: '1'
   GIT_CONFIG_SYSTEM: /dev/null
   GIT_CONFIG_GLOBAL: /dev/null
@@ -63,9 +61,14 @@ jobs:
           test "$(git -C silex rev-parse HEAD)" = 672efed69dda04c0a1e968859239e042f00d9538
           test -z "$(git -C silex status --porcelain --untracked-files=all)"
           umask 077
+          export CARGO_HOME="$RUNNER_TEMP/silex-baseline-cargo"
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/silex-baseline-target"
           test ! -e "$CARGO_HOME"
+          test ! -L "$CARGO_HOME"
           test ! -e "$CARGO_TARGET_DIR"
+          test ! -L "$CARGO_TARGET_DIR"
           mkdir -m 0700 "$CARGO_HOME" "$CARGO_TARGET_DIR" baseline-evidence
+          printf 'CARGO_HOME=%s\nCARGO_TARGET_DIR=%s\n' "$CARGO_HOME" "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"
           python3 -B - <<'PY'
           import hashlib,json,os,pathlib,re,tomllib
           expected={
