@@ -1,0 +1,145 @@
+{
+  "acceptance": {
+    "browser_rendering": false,
+    "full_studio": false,
+    "independent_hosting": false,
+    "native_publication_authorization": false
+  },
+  "baseline_root_lock_sha256": "eb92b416e0ed0428d11068202132c95dbfb02a2e5c12fd6b315df71248c83f13",
+  "capability": {
+    "active_fs_read_jobs_per_connector": 2,
+    "default_non_fs_bounded_read": "unsupported",
+    "maximum_assets": 256,
+    "maximum_body_bytes": 268435456,
+    "maximum_index_bytes": 262144,
+    "maximum_object_bytes": 268435456,
+    "maximum_path_bytes": 1024,
+    "platform": "linux-openat2",
+    "preparation_seconds": 30,
+    "root_workspace_lock": "Cargo.lock",
+    "selected_package": "silex-server",
+    "whole_shutdown_drain_proven": false
+  },
+  "files": {
+    "Cargo.lock": {
+      "after": {
+        "bytes": 159405,
+        "mode": "100644",
+        "sha256": "35d0ea429b62f5cd2bc8533f75f997c05e787ad3355a40c1de0eba5fd3233536"
+      },
+      "before": {
+        "bytes": 159394,
+        "mode": "100644",
+        "sha256": "eb92b416e0ed0428d11068202132c95dbfb02a2e5c12fd6b315df71248c83f13"
+      }
+    },
+    "server-rust/Cargo.toml": {
+      "after": {
+        "bytes": 1360,
+        "mode": "100644",
+        "sha256": "8ceddbf2380af61a42098d99ae50cc885cb80e7dd5af8726754fc213e02ede25"
+      },
+      "before": {
+        "bytes": 1196,
+        "mode": "100644",
+        "sha256": "30a558810a029d08588cc2046347ea30e18b9957da6d50900891c979651217bb"
+      }
+    },
+    "server-rust/src/connectors/fs_storage.rs": {
+      "after": {
+        "bytes": 22949,
+        "mode": "100644",
+        "sha256": "f93e72a182d5e16797165d4b4f44e3d9b22cca571f060bd4d2c85fba8c6b4039"
+      },
+      "before": {
+        "bytes": 22031,
+        "mode": "100644",
+        "sha256": "b0dcd4b96b0056c6e187da42bb706150db2e0dcdad8abf6f44ff4e2c52e3f3ac"
+      }
+    },
+    "server-rust/src/connectors/fs_storage/bounded_asset.rs": {
+      "after": {
+        "bytes": 8389,
+        "mode": "100644",
+        "sha256": "218e5b944687c4a73dd662949747673f7b6076e70cf37d495c1fbc86a69c375b"
+      },
+      "before": null
+    },
+    "server-rust/src/connectors/fs_storage/bounded_asset/tests.rs": {
+      "after": {
+        "bytes": 7444,
+        "mode": "100644",
+        "sha256": "238f9999987d103dddd9750602385e63ce2ae91ee692ce7ce3610f46812b651b"
+      },
+      "before": null
+    },
+    "server-rust/src/connectors/mod.rs": {
+      "after": {
+        "bytes": 854,
+        "mode": "100644",
+        "sha256": "db10820753c48b8f152e14f8161811433eb4ede16fd09aae8f9ed02b33da81dd"
+      },
+      "before": {
+        "bytes": 806,
+        "mode": "100644",
+        "sha256": "a53cca2fec04f309bba0e69853f248179fb253ed16fccac151004e33e630663a"
+      }
+    },
+    "server-rust/src/connectors/traits.rs": {
+      "after": {
+        "bytes": 9603,
+        "mode": "100644",
+        "sha256": "5918565ed0e3c7090c5a1ec61f6542420c7bcdeb29e55791cc0d70164b36eba4"
+      },
+      "before": {
+        "bytes": 8587,
+        "mode": "100644",
+        "sha256": "93d7f69e0862fa7d447529607247d06678b835deb56c6978aed9a3f3037fa6fe"
+      }
+    },
+    "server-rust/src/routes/publication.rs": {
+      "after": {
+        "bytes": 7249,
+        "mode": "100644",
+        "sha256": "e54352be19581a9d8478ac6f28d7ebb166cc921c25f506c65ab8159f4db06ed9"
+      },
+      "before": {
+        "bytes": 7838,
+        "mode": "100644",
+        "sha256": "29c83f7590db8bac1177ce463d5c2a7019e366aab44beacfc9a36e71f2089f66"
+      }
+    },
+    "server-rust/src/routes/publication/preparation.rs": {
+      "after": {
+        "bytes": 11005,
+        "mode": "100644",
+        "sha256": "4535c1292cddc379aa1e902539300679a327c6ff02201c094385c305d309677a"
+      },
+      "before": null
+    },
+    "server-rust/src/routes/publication/preparation/tests.rs": {
+      "after": {
+        "bytes": 9007,
+        "mode": "100644",
+        "sha256": "d2741db27551daa5cede89fa86caff9b0f8f27f6543f376c7f0af0b2a46ea033"
+      },
+      "before": null
+    },
+    "server-rust/src/routes/publication/tests.rs": {
+      "after": {
+        "bytes": 10892,
+        "mode": "100644",
+        "sha256": "1fbe729de31996c00751402545405152054d279c4e80b6fdc7aaa161472cad0d"
+      },
+      "before": null
+    }
+  },
+  "origin": "https://github.com/silexlabs/Silex",
+  "patch": {
+    "bytes": 64666,
+    "path": "patches/publication-bounds.patch",
+    "sha256": "30901a10f6b2d09967f553820ea642f83e087fa66a55533b1b683da26306926a"
+  },
+  "schema": 1,
+  "upstream_commit": "672efed69dda04c0a1e968859239e042f00d9538"
+}
