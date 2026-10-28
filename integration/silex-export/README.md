@@ -422,6 +422,17 @@ failed child, cancellation, timeout or cleanup failure. Historical version-1 and
 version-2 successful proof schemas keep their existing meaning. Malformed or
 missing diagnostics are categories, with no raw exception text retained.
 
+After the original five-second visible-marker check or exact-one assertion fails,
+an optional read-only observer has one 200 ms budget inside the existing browser
+deadline. Repeated count/visibility snapshots may refine `marker` to
+`marker_absent`, `marker_hidden` or `marker_ambiguous`; unavailable, changed, late
+or now-visible observations keep `marker`. These later snapshots do not establish
+the earlier failure's cause. The original error remains the failure, and neither
+raw DOM/text nor exception content enters the receipt. Pure observer behavior
+tests run with the already authenticated Node before dependency installation in
+the hosted trial. Ordinary Studio CI runs the Python viewer contracts; the Core
+trial additionally checks the exact source writer's vocabulary.
+
 Exercise the source-writer vocabulary against the bounded Python reader with
 an explicit Core checkout (in addition to the ordinary inert tests):
 

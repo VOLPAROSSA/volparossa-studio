@@ -24,7 +24,7 @@ from viewer_receipt import validate_viewer_proof, read_viewer_cleanup, read_view
 FIXTURE = Path(__file__).resolve().parent
 PINS = json.loads((FIXTURE / 'manifest.json').read_text())
 OPERATIONS = frozenset(('install-silex', 'install-driver', 'build-client', 'build-server',
-                        'build-public', 'runtime', 'core-pack', 'core-build', 'viewer-runtime'))
+                        'build-public', 'runtime', 'core-pack', 'core-build', 'viewer-runtime', 'marker-unit'))
 FAILURES = frozenset(('exit_nonzero', 'signal_terminated', 'deadline_exceeded',
                       'output_limit_exceeded', 'spawn_failed', 'cleanup_failed', 'cancelled'))
 DIAGNOSTIC_COUNTS = frozenset(('page_errors', 'console_errors', 'failed_requests',
@@ -335,6 +335,12 @@ def main():
                    CI='true', HUSKY='0', DO_NOT_TRACK='1', PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD='1',
                    NPM_CONFIG_UPDATE_NOTIFIER='false', PNPM_DISABLE_SELF_UPDATE_CHECK='1',
                    COREPACK_ENABLE_NETWORK='0')
+        # Pure finite-label behavior tests use the same authenticated Node, fixed
+        # copied fixture path and bounded owned-group runner as this actual trial.
+        # They run before dependency installation or any editor/viewer work.
+        run([node, '--test', runtime_fixture / 'test_marker_failure.mjs'],
+            temporary, env, 'marker-unit', timeout=10)
+        print('STUDIO_MARKER_UNIT {"schema":1,"status":"passed","diagnostic_only":true}', flush=True)
         receipt['stage'] = 'frozen_install'
         options = ['install', '--frozen-lockfile', '--ignore-scripts', '--store-dir', str(temporary / 'store'),
                    '--config.manage-package-manager-versions=false', '--config.update-notifier=false']

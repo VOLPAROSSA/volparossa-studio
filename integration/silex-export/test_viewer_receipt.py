@@ -261,6 +261,65 @@ class ViewerReceiptTests(unittest.TestCase):
                     browser_stage=browser_stage, record_count=8))
                 self.assertNotIn('PRIVATE_SENTINEL', json.dumps(value))
 
+    def test_marker_refinements_are_closed_browser_phase_only_and_never_acceptance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'viewer-core.log'
+            for marker in ('marker_absent', 'marker_hidden', 'marker_ambiguous'):
+                self.assertIn(marker, BROWSER_STAGES)
+                for core_stage in CORE_STAGES:
+                    record = dict(schema=1, core_stage=core_stage, browser_stage=marker)
+                    path.write_bytes(DIAGNOSTIC_PREFIX + json.dumps(record).encode() + b'\n')
+                    result = read_viewer_diagnostic(path)
+                    expected = 'observed' if core_stage == 'browser_observation' else 'invalid'
+                    self.assertEqual(result['status'], expected)
+                    self.assertNotIn('PRIVATE_SENTINEL', json.dumps(result))
+                # A failed marker label cannot supply a successful viewer/browser proof.
+                value = proof()
+                value['local_viewer']['browser'].update(status='failed', stage=marker)
+                with self.assertRaises(ValueError):
+                    validate_viewer_proof(value)
+            for marker in ('marker_unavailable', 'marker_hidden PRIVATE_SENTINEL', True, 1, None):
+                record = dict(schema=1, core_stage='browser_observation', browser_stage=marker)
+                path.write_bytes(DIAGNOSTIC_PREFIX + json.dumps(record).encode() + b'\n')
+                result = read_viewer_diagnostic(path)
+                self.assertEqual(result['status'], 'invalid')
+                self.assertNotIn('PRIVATE_SENTINEL', json.dumps(result))
+
+    def test_marker_observer_keeps_primary_checks_and_uses_authenticated_node_preflight(self):
+        browser = (ROOT / 'browser-viewer.mjs').read_text()
+        self.assertIn("getByText('VOLPAROSSA Studio manual export 20261022', { exact: true })", browser)
+        self.assertIn("await marker.waitFor({ state: 'visible', timeout: 5000 });", browser)
+        self.assertIn('assert.equal(await marker.count(), 1);', browser)
+        self.assertIn("getComputedStyle(element).fontSize), '37px'", browser)
+        self.assertIn("content-security-policy", browser)
+        tree = ast.parse((ROOT / 'run.py').read_text())
+        main = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'main')
+        calls = [node for node in ast.walk(main) if isinstance(node, ast.Call)
+                 and isinstance(node.func, ast.Name) and node.func.id == 'run'
+                 and len(node.args) >= 4 and isinstance(node.args[3], ast.Constant)
+                 and node.args[3].value == 'marker-unit']
+        self.assertEqual(len(calls), 1)
+        call = calls[0]
+        argv = call.args[0].elts
+        self.assertEqual(len(argv), 3)
+        self.assertEqual(argv[0].id, 'node')
+        self.assertEqual(ast.literal_eval(argv[1]), '--test')
+        self.assertIsInstance(argv[2].op, ast.Div)
+        self.assertEqual(argv[2].left.id, 'runtime_fixture')
+        self.assertEqual(ast.literal_eval(argv[2].right), 'test_marker_failure.mjs')
+        self.assertEqual(call.args[2].id, 'env')
+        self.assertEqual({entry.arg: ast.literal_eval(entry.value) for entry in call.keywords}, {'timeout': 10})
+        prepare = next(node for node in ast.walk(main) if isinstance(node, ast.Call)
+                       and isinstance(node.func, ast.Name) and node.func.id == 'prepare')
+        installs = [node for node in ast.walk(main) if isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Name) and node.func.id == 'run'
+                    and len(node.args) >= 4 and isinstance(node.args[3], ast.Constant)
+                    and node.args[3].value in ('install-silex', 'install-driver')]
+        self.assertLess(prepare.lineno, call.lineno)
+        self.assertTrue(installs)
+        self.assertTrue(all(call.lineno < install.lineno for install in installs))
+        self.assertIn('marker-unit', fixture_run.OPERATIONS)
+
     def test_diagnostic_malformed_oversized_symlink_and_private_text_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'log'

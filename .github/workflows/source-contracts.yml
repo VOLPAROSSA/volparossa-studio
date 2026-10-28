@@ -25,5 +25,6 @@ jobs:
       - name: Check Python syntax and inert contracts
         working-directory: integration/silex-export
         # test_contract parses every fixture Python source without running it.
-        # test_wrapper_guard requires Core and stays in the separate Core trial.
-        run: python3 -B -m unittest -v test_contract test_lifecycle test_runtime_context
+        # The viewer writer cross-check and test_wrapper_guard require Core and
+        # stay in the separate Core trial; remaining viewer contracts run here.
+        run: python3 -B -m unittest -v test_contract test_lifecycle test_runtime_context test_viewer_receipt

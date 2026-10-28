@@ -70,7 +70,9 @@ def read_viewer_cleanup(path, require_success=True):
 
 CORE_STAGES = ('pack', 'decode', 'child_controls', 'sign', 'transfer', 'ready',
                'browser_observation', 'shutdown', 'complete')
-BROWSER_STAGES = ('not_observed', 'launch', 'http', 'securityheaders', 'marker',
+# Marker refinements are repeated AFTER-failure observations, never causal proof.
+# Unavailable, late, changed or now-visible observations retain generic 'marker'.
+BROWSER_STAGES = ('not_observed', 'launch', 'http', 'securityheaders', 'marker', 'marker_absent', 'marker_hidden', 'marker_ambiguous',
                   'style', 'assets', 'close', 'invalid_receipt')
 DIAGNOSTIC_PREFIX = b'STUDIO_VIEWER_DIAGNOSTIC '
 DIAGNOSTIC_LOG_LIMIT = 4 * 1024 * 1024

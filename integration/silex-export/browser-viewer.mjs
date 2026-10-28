@@ -4,6 +4,7 @@ import { chromium } from 'playwright-core';
 import { readFile, writeFile, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
+import { observeMarkerFailure } from './marker_failure.mjs';
 
 const path = process.argv[2];
 assert.ok((await stat(path)).size <= 131072);
@@ -55,8 +56,10 @@ try {
   receipt.security_headers_preserved = true;
   stage = 'marker';
   const marker = page.getByText('VOLPAROSSA Studio manual export 20261022', { exact: true });
-  await marker.waitFor({ state: 'visible', timeout: 5000 });
-  assert.equal(await marker.count(), 1);
+  await observeMarkerFailure(async () => {
+    await marker.waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await marker.count(), 1);
+  }, marker, observedStage => { stage = observedStage; });
   receipt.visible_marker = true;
   stage = 'style';
   // Read-only computed layout observation, never setContent/evaluate mutations.
