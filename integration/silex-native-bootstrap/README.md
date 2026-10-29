@@ -61,3 +61,22 @@ that requirement.
 
 All execution belongs to hosted evidence. No local Node/test/native execution is
 needed to inspect these source files.
+
+## Offline lock resolution
+
+The separate opt-in `native_followup=resolve-lock` profile authenticates the existing
+Rust1.99.1 compiler carrier and acquires the exact607-package base-lock sources into
+a fresh private Cargo home before applying this native overlay. The first network
+fetch uses the same explicit environment and preflight configuration/credential
+refusal as the resolver, through its fixed `--fetch-base` mode. It then resolves
+metadata offline and requires a second offline locked query. A fixed target-cache
+location under the runner temporary directory keeps generated metadata out of the
+source tree. No GTK package is installed and no application is compiled or run.
+
+The original lock, result lock and closed receipt are retained for independent
+review. Retained package records must stay identical, including version, source,
+checksum and dependencies. Only the five removed desktop memberships may change;
+unused registry records may disappear. Unexpected changes fail closed. This is a
+lock candidate, not native build, runtime, publication, update or full Studio
+acceptance. The final six-path overlay must apply its lock delta after the existing
+bounded-publication lock (`35d0…`), rather than against the original upstream lock.
