@@ -27,7 +27,7 @@ jobs:
         # test_contract parses every fixture Python source without running it.
         # The viewer writer cross-check and test_wrapper_guard require Core and
         # stay in the separate Core trial; remaining viewer contracts run here.
-        run: python3 -B -m unittest -v test_contract test_lifecycle test_runtime_context test_viewer_receipt
+        run: python3 -B -m unittest -v test_contract test_lifecycle test_runtime_context test_viewer_receipt test_signed_site_profile test_signed_site_receipt
       - name: Check viewer units with the existing authenticated Node
         working-directory: integration/silex-export
         run: |

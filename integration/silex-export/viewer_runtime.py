@@ -10,6 +10,7 @@ import stat
 
 from lifecycle import drain_group, start_group
 from runtime_context import read_context, restored_environment
+from signed_site_profile import MODE as SIGNED_SITE_MODE, TEST as SIGNED_SITE_TEST, read_core_context
 
 
 def read_viewer_context(path):
@@ -47,31 +48,40 @@ def main():
     fixture = Path(__file__).resolve().parent
     temporary = fixture.parent
     values = read_context(temporary / 'runtime-context.json')
-    executable = read_viewer_context(temporary / 'viewer-context.json')
+    context = read_core_context(temporary / 'viewer-context.json')
     resource.setrlimit(resource.RLIMIT_FSIZE, (32 * 1024 * 1024, 32 * 1024 * 1024))
     env = dict(restored_environment(values), TMPDIR=str(temporary / 'tmp'),
         STUDIO_VIEWER_OBSERVER=str(fixture / 'browser-viewer.mjs'),
         VOLPAROSSA_HANDOFF_TEST_PARENT_NETNS=parent,
         VOLPAROSSA_STUDIO_EXPORT_DIRECTORY=str(temporary / 'export'),
         VOLPAROSSA_STUDIO_EXPORT_INVENTORY=str(temporary / 'inventory.json'))
+    if context.mode == SIGNED_SITE_MODE:
+        env.update(VOLPAROSSA_REQUIRE_STUDIO_SIGNED_SITE_PROOF='1',
+                   GITHUB_ACTIONS='true', RUNNER_ENVIRONMENT='github-hosted')
     def cancel(_signum, _frame):
         raise InterruptedError('cancelled')
     signal.signal(signal.SIGTERM, cancel)
     signal.signal(signal.SIGINT, cancel)
-    run_core_fixture(executable, temporary, env)
+    run_core_fixture(context.executable, temporary, env, signed=context.mode == SIGNED_SITE_MODE)
 
 
-def run_core_fixture(executable, temporary, env):
+def run_core_fixture(executable, temporary, env, *, signed=False):
     """Only called after boundary validation; owns the complete Core child group."""
     process = identity = None
     cleanup = {'core_group_drained': False, 'core_joined': False,
         'isolated_network_namespace': True, 'capabilities_dropped': True,
         'nonroot_runner_uid': True, 'cleanup_failed': True}
     try:
-        with (temporary / 'viewer-core.log').open('xb') as log:
-            process, identity = start_group([str(executable),
-                'actual_silex_export_packs_and_decodes_without_publication',
-                '--ignored', '--exact', '--nocapture'], env=env, stdout=log, stderr=log)
+        name = 'signed-site-core.log' if signed else 'viewer-core.log'
+        with (temporary / name).open('xb') as log:
+            if signed:
+                os.fchmod(log.fileno(), 0o600)
+            arguments = [str(executable),
+                SIGNED_SITE_TEST if signed else 'actual_silex_export_packs_and_decodes_without_publication',
+                '--ignored', '--exact', '--nocapture']
+            if signed:
+                arguments.append('--test-threads=1')
+            process, identity = start_group(arguments, env=env, stdout=log, stderr=log)
             if process.wait(timeout=80) != 0:
                 raise RuntimeError('actual Core viewer proof failed')
     finally:
