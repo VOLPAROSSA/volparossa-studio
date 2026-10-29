@@ -75,9 +75,9 @@
         "desktop GPL-3.0-or-later"
       ],
       "manifest": "integration/silex-fs-identifier-rename/manifest.json",
-      "manifest_sha256": "725ca94c0f1e182f5909a59cd79c79c11895bec8efedaf841544ff230425f224",
+      "manifest_sha256": "99a5893dea431b0f0be38d97d0b0b342e0b3c7a8ad191b9e05ab158a7ce195aa",
       "path": "integration/silex-fs-identifier-rename/patches/fs-identifier-rename.patch",
-      "sha256": "63789249cdb765d603842ed304dde7a3efe848a2e7366d5d48b9f1488931c123",
+      "sha256": "6a79621066a65151924fba4eca2b2eef8d9f12ec1b808d0aebf11094874d5274",
       "upstream_commit": "672efed69dda04c0a1e968859239e042f00d9538",
       "applied_after_patch_sha256": "e927749533958b9ab3dda95b0378baa1649ec5e2b5409c7b73d5a729fbe67bd2",
       "root_cargo_lock_before": "de04aaf5ff1acbdde421e3447ea67f3eb7a00a7d5ed118f4387a180e84590118",

@@ -19,7 +19,7 @@ PINS = {
     BOOTSTRAP / 'native_build.py': '9d8d45fe88922ced9ee43a0465177343f7b3757f6e9a28dc30884b0e3a03f51c',
     HERE.parent / 'silex-native-dashboard/check.py': '42fbd5e85d74681634c7316197202dbe71372bc6b862dca38f604c6a487f1c26',
     HERE / 'prepare.py': 'd2f1cd0d964f4d89d932ab4d26201cc9d8eae0a97408087d1f102b9331bb4f3e',
-    HERE / 'manifest.json': '725ca94c0f1e182f5909a59cd79c79c11895bec8efedaf841544ff230425f224',
+    HERE / 'manifest.json': '99a5893dea431b0f0be38d97d0b0b342e0b3c7a8ad191b9e05ab158a7ce195aa',
 }
 LOCK = 'de04aaf5ff1acbdde421e3447ea67f3eb7a00a7d5ed118f4387a180e84590118'
 METADATA_CASES = (

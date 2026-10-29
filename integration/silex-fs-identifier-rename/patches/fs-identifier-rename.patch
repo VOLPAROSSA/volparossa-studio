@@ -1181,7 +1181,7 @@ diff --git a/server-rust/src/connectors/fs_storage/tests.rs b/server-rust/src/co
 new file mode 100644
 --- /dev/null
 +++ b/server-rust/src/connectors/fs_storage/tests.rs
-@@ -0,0 +1,527 @@
+@@ -0,0 +1,544 @@
 +/*
 + * Copyright (c) 2026 VOLPAROSSA contributors
 + * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -1327,6 +1327,23 @@ new file mode 100644
 +    std::fs::create_dir(&outside).unwrap();
 +    std::fs::write(outside.join("meta.json"), br#"{"name":"outside"}"#).unwrap();
 +    let router = app(storage.clone(), storage.data_path.as_path());
++    // Axum 0.8 nest("/website", route("/", ...)) registers the canonical
++    // /api/website endpoint, without a trailing slash. First establish that
++    // this route is reached and that an absent ID retains the list operation.
++    let listed = router
++        .clone()
++        .oneshot(request(
++            "GET",
++            "/api/website?connectorId=fs-storage",
++            serde_json::json!({}),
++        ))
++        .await
++        .unwrap();
++    assert_eq!(listed.status(), StatusCode::OK);
++    assert_eq!(
++        to_bytes(listed.into_body(), 1024).await.unwrap().as_ref(),
++        b"[]"
++    );
 +    let absolute = outside.to_str().unwrap().replace('/', "%2F");
 +    for id in [
 +        "",
@@ -1351,9 +1368,9 @@ new file mode 100644
 +                serde_json::json!({"name":"denied"}),
 +            ),
 +            ("POST", "/api/website/duplicate", serde_json::json!({})),
-+            ("DELETE", "/api/website/", serde_json::json!({})),
-+            ("POST", "/api/website/", serde_json::json!({})),
-+            ("GET", "/api/website/", serde_json::json!({})),
++            ("DELETE", "/api/website", serde_json::json!({})),
++            ("POST", "/api/website", serde_json::json!({})),
++            ("GET", "/api/website", serde_json::json!({})),
 +            ("GET", "/api/website/assets/sentinel", serde_json::json!({})),
 +        ] {
 +            let response = router
