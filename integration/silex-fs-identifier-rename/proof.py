@@ -69,6 +69,7 @@ COMPILER_MARKERS = {
     'download': rb'^failed to download ',
     'execute': rb'^could not execute process ',
     'custom_build': rb'^failed to run custom build command for ',
+    'cargo_test_failed': rb'^test failed, to rerun pass ',
     'syntax': rb'^(?:expected\b|unexpected\b|mismatched closing delimiter|unclosed delimiter|this file contains an unclosed delimiter)',
     'macro': rb'^(?:cannot find macro |cannot find attribute |proc macro panicked|no rules expected|unexpected end of macro invocation)',
     'format': rb'^invalid format string:',
@@ -204,8 +205,61 @@ def compiler_refusal(native, work, *, clipped=False):
     return result
 
 
+def failed_test_result(raw):
+    """Validate a whole failed libtest suite; never return panic messages."""
+    require(type(raw) is bytes and len(raw) <= 16 * 1024 * 1024, 'tests_rejected')
+    text = raw.decode('utf-8', errors='strict')
+    starts = re.findall(r'^running ([0-9]{1,4}) tests?$', text, re.MULTILINE)
+    require(len(starts) == 1 and len(re.findall(r'^running ', text, re.MULTILINE)) == 1
+            and 14 <= int(starts[0]) <= 4096, 'tests_rejected')
+    rows = re.findall(r'^test ([A-Za-z0-9_:]{1,512}) \.\.\. (ok|FAILED|ignored)$', text, re.MULTILINE)
+    require(len(rows) == int(starts[0])
+            and len(re.findall(r'^test (?!result:)', text, re.MULTILINE)) == len(rows)
+            and len({name for name, _ in rows}) == len(rows)
+            and EXPECTED <= {name for name, _ in rows}, 'tests_rejected')
+    summaries = re.findall(r'^test result: FAILED\. ([0-9]{1,4}) passed; ([0-9]{1,4}) failed; '
+        r'([0-9]{1,4}) ignored; 0 measured; 0 filtered out; finished in [0-9.]{1,32}s$',
+        text, re.MULTILINE)
+    require(len(summaries) == 1
+            and len(re.findall(r'^test result:', text, re.MULTILINE)) == 1, 'tests_rejected')
+    passed, failed, ignored = map(int, summaries[0])
+    require(failed > 0 and (passed, failed, ignored) == tuple(
+        sum(status == expected for _, status in rows) for expected in ('ok', 'FAILED', 'ignored')),
+        'tests_rejected')
+    failed_names = {name for name, status in rows if status == 'FAILED'}
+    result = dict(tests=len(rows), passed=passed, failed=failed, ignored=ignored, measured=0,
+        filtered=0, failed_reviewed_cases=sorted(failed_names.intersection(EXPECTED)),
+        unknown_failed_count=len(failed_names.difference(EXPECTED)),
+        panic_source_role=None, panic_source_line=None, panic_source_column=None)
+    for span in re.finditer(r"^thread '[^\r\n']{1,256}'(?: \([0-9]{1,10}\))? panicked at "
+            r'([A-Za-z0-9_./-]{1,256}):([0-9]{1,5}):([0-9]{1,4}):\r?$', text, re.MULTILINE):
+        role = SOURCE_ROLES.get(span[1])
+        line, column = int(span[2]), int(span[3])
+        if role is not None and 1 <= line <= 65535 and 1 <= column <= 4096:
+            result.update(panic_source_role=role, panic_source_line=line, panic_source_column=column)
+            break
+    return result
+
+
+def test_failure_observation(native, work, *, clipped=False):
+    result = dict(schema=1, status='clipped' if clipped else 'unrecognized',
+                  log_sha256=None, log_bytes=None, suite=None)
+    if clipped:
+        return result
+    raw = native.read_file(work / 'logs/native-cargo.log', 16 * 1024 * 1024,
+                           modes=(0o600,), allow_empty=True)
+    result.update(log_sha256=hashlib.sha256(raw).hexdigest(), log_bytes=len(raw))
+    try:
+        suite = failed_test_result(raw)
+    except (Rejected, UnicodeError):
+        return result
+    result.update(status='structured_failed', suite=suite)
+    return result
+
+
 def execute_tests(native, temporary, source, work, env, deadline, groups, lifecycle, report):
     """One actual Cargo actor; privately bounded combined output, never streamed."""
+    report['rust_test_binary_executed'] = None  # Unknown until a complete suite is validated.
     try:
         native.actor(test_command(temporary), env, source, deadline, groups, lifecycle,
                      log=work / 'logs/native-cargo.log', seconds=900)
@@ -220,10 +274,19 @@ def execute_tests(native, temporary, source, work, env, deadline, groups, lifecy
                 native, work, clipped=isinstance(error, native.Rejected) and error.kind == 'output_limit')
         except BaseException:
             pass  # The original actor failure also wins over this new observer.
+        try:
+            observation = test_failure_observation(
+                native, work, clipped=isinstance(error, native.Rejected) and error.kind == 'output_limit')
+            report['test_failure_observation'] = observation
+            if observation['status'] == 'structured_failed':
+                report['rust_test_binary_executed'] = True
+        except BaseException:
+            pass  # A missing/malformed log never replaces the actual actor failure.
         raise
-    report['rust_test_binary_executed'] = True
     raw = native.read_file(work / 'logs/native-cargo.log', 16 * 1024 * 1024, modes=(0o600,))
-    return test_result(raw)
+    result = test_result(raw)
+    report['rust_test_binary_executed'] = True
+    return result
 
 
 def main():
@@ -259,7 +322,7 @@ def main():
         source_files_sha256=None, source_unchanged=False, compiler_payload_verified=False,
         full_offline_locked_metadata_passed=False, server_lib_tests_passed=False,
         test_result=None, compiler_diagnostic=None, fs_compiler_diagnostic=None,
-        rust_test_binary_executed=False, compiled_target_retained=False,
+        test_failure_observation=None, rust_test_binary_executed=None, compiled_target_retained=False,
         owned_group_count=0, owned_groups_joined=False, owner_scope='proof_process_groups',
         private_tool_tree_removed=False, **{name: False for name in FALSE_FLAGS})
     try:

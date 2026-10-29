@@ -22,6 +22,20 @@ def output(names=None):
             '0 filtered out; finished in 0.04s\n').encode()
 
 
+def failed_output():
+    names = sorted(M.EXPECTED)
+    rows = [(name, 'FAILED' if i == 0 else 'ignored' if i == 1 else 'ok')
+            for i, name in enumerate(names)] + [('PRIVATE_unknown_test', 'FAILED')]
+    return (f'running {len(rows)} tests\n' +
+            ''.join(f'test {name} ... {status}\n' for name, status in rows) +
+            "thread 'PRIVATE_unknown_test' (12345) panicked at "
+            'server-rust/src/connectors/fs_storage/metadata/tests.rs:44:12:\n'
+            'PRIVATE panic payload /secret/path token=PRIVATE\n' +
+            f'test result: FAILED. {len(rows) - 3} passed; 2 failed; 1 ignored; '
+            '0 measured; 0 filtered out; finished in 0.04s\n'
+            'error: test failed, to rerun pass `-p silex-server --lib`\n').encode()
+
+
 def source_fixture(extra=b'', staged=b'', tracked=b'H ordinary.rs\0'):
     source = Path('/fixed/silex')
     records = {name: dict(sha256=key * 64, mode='100644') for name, key in
@@ -56,6 +70,71 @@ def source_fixture(extra=b'', staged=b'', tracked=b'H ordinary.rs\0'):
 
 
 class ProofTests(unittest.TestCase):
+    def test_failed_suite_counts_allowlisted_ids_and_public_panic_span_without_private_text(self):
+        result = M.failed_test_result(failed_output())
+        self.assertEqual((result['tests'], result['passed'], result['failed'], result['ignored']),
+                         (15, 12, 2, 1))
+        self.assertEqual(result['failed_reviewed_cases'], [sorted(M.EXPECTED)[0]])
+        self.assertEqual(result['unknown_failed_count'], 1)
+        self.assertEqual((result['panic_source_role'], result['panic_source_line'],
+                          result['panic_source_column']), ('metadata_tests', 44, 12))
+        self.assertNotIn('PRIVATE', json.dumps(result))
+        self.assertNotIn('/secret', json.dumps(result))
+        self.assertEqual(set(result), {'tests', 'passed', 'failed', 'ignored', 'measured',
+            'filtered', 'failed_reviewed_cases', 'unknown_failed_count', 'panic_source_role',
+            'panic_source_line', 'panic_source_column'})
+
+    def test_failed_suite_refuses_missing_duplicate_partial_and_inconsistent_rows_or_summaries(self):
+        raw = failed_output()
+        name = sorted(M.EXPECTED)[0].encode()
+        row = b'test ' + name + b' ... FAILED\n'
+        for changed in (raw.replace(row, b''), raw.replace(row, row + row),
+                raw.replace(b'12 passed', b'11 passed'), raw.replace(b'2 failed', b'0 failed'),
+                raw.replace(b'1 ignored', b'0 ignored'), raw.replace(b'0 measured', b'1 measured'),
+                raw.replace(b'0 filtered out', b'1 filtered out'), raw + raw,
+                raw.replace(b'running 15 tests', b'running 14 tests'),
+                raw.replace(row, row.replace(b'FAILED', b'unknown')),
+                raw + b'test PRIVATE ... unknown\n', raw + b'test result: malformed\n',
+                raw.replace(name, b'PRIVATE_replacement'), output(), b'error: test failed\n'):
+            with self.subTest(sha=hashlib.sha256(changed).hexdigest()), self.assertRaises(M.Rejected):
+                M.failed_test_result(changed)
+
+    def test_failed_actor_structured_suite_proves_execution_but_preserves_original_rejection(self):
+        for raw, executed, status in ((failed_output(), True, 'structured_failed'),
+                (b'error: test failed, to rerun pass `--lib`\n', None, 'unrecognized')):
+            original = M.Rejected('child_failed')
+            native = SimpleNamespace(actor=Mock(side_effect=original), Rejected=M.Rejected,
+                compiler_diagnostic=Mock(return_value={'status': 'captured'}),
+                read_file=Mock(return_value=raw))
+            report = dict(rust_test_binary_executed=False)
+            with self.assertRaises(M.Rejected) as caught:
+                M.execute_tests(native, Path('/private'), Path('/source'), Path('/work'), {},
+                                100, [], object(), report)
+            self.assertIs(caught.exception, original)
+            self.assertIs(report['rust_test_binary_executed'], executed)
+            self.assertEqual(report['test_failure_observation']['status'], status)
+            self.assertEqual(report['test_failure_observation']['log_sha256'], hashlib.sha256(raw).hexdigest())
+            self.assertIs(report['fs_compiler_diagnostic']['cargo_test_failed'], True)
+            self.assertNotIn('PRIVATE', json.dumps(report))
+        native = SimpleNamespace(read_file=Mock())
+        self.assertEqual(M.test_failure_observation(native, Path('/work'), clipped=True)['status'], 'clipped')
+        native.read_file.assert_not_called()
+
+    def test_panic_spans_reject_unknown_paths_and_bounds_and_do_not_turn_notes_into_cargo_failure(self):
+        path = 'server-rust/src/connectors/fs_storage/metadata/tests.rs'
+        for invalid in ('/private/' + path + ':44:12', '../' + path + ':44:12',
+                        'PRIVATE.rs:44:12', path + ':65536:12', path + ':44:4097',
+                        path + ':0:12', path + ':44:0'):
+            raw = failed_output().replace((path + ':44:12').encode(), invalid.encode())
+            result = M.failed_test_result(raw)
+            self.assertIsNone(result['panic_source_role'])
+            self.assertIsNone(result['panic_source_line'])
+            self.assertIsNone(result['panic_source_column'])
+        raw = b'warning: test failed, to rerun pass PRIVATE\n | error: test failed, to rerun pass PRIVATE\n'
+        result = M.compiler_refusal(SimpleNamespace(read_file=Mock(return_value=raw)), Path('/work'))
+        self.assertIs(result['cargo_test_failed'], False)
+        self.assertEqual(result['primary_error_lines'], 0)
+
     def test_compile_refusal_has_finite_categories_separate_footer_and_no_raw_messages(self):
         cases = (
             (b'the lock file /PRIVATE/Cargo.lock needs to be updated but --locked was passed', 'cargo_lock'),
@@ -150,7 +229,7 @@ class ProofTests(unittest.TestCase):
         self.assertIs(caught.exception, original)
         self.assertEqual(report['compiler_diagnostic'], {'status': 'captured'})
         self.assertIsNone(report['fs_compiler_diagnostic'])
-        self.assertIs(report['rust_test_binary_executed'], False)
+        self.assertIsNone(report['rust_test_binary_executed'])
         self.assertNotIn('PRIVATE', json.dumps(report))
 
     def test_fourteen_case_names_bind_the_reviewed_source_patch(self):
@@ -247,7 +326,7 @@ class ProofTests(unittest.TestCase):
                     M.execute_tests(native, Path('/private'), Path('/source'), Path('/work'), {}, 100, [], object(), report)
                 self.assertIs(caught.exception, original)
                 self.assertEqual(report['compiler_diagnostic'], None if observer_fails else {'status': 'clipped'})
-                self.assertIs(report['rust_test_binary_executed'], False)
+                self.assertIsNone(report['rust_test_binary_executed'])
                 native.compiler_diagnostic.assert_called_once_with(Path('/work'), clipped=True)
                 native.read_file.assert_not_called()
 
