@@ -5,16 +5,16 @@
       "sha256": "4f0df0073b0c24f9c1e78840536cdc7654d14f4c98953581a18872b528bc8890"
     },
     "dashboard.js": {
-      "bytes": 22167,
-      "sha256": "655018e77eed5aff07328ac7afb345b2bc0ddcbf458287883a6ab8067bd7261f"
+      "bytes": 22208,
+      "sha256": "e1d0db1d7bb3139ef85cf15953db9f069076580861a7810e02f7f2983bedef30"
     },
     "index.html": {
       "bytes": 3383,
       "sha256": "b7c98dc9b78108140fd9ae942e1415307d288cf9d67865331e36fbee7c6e23f6"
     },
     "test_dashboard.mjs": {
-      "bytes": 27875,
-      "sha256": "48a14d931b985a27269d609fe8a1e2fa58cac05ced92d05ea20b246404043954"
+      "bytes": 27874,
+      "sha256": "8a63efd0d594085053b93f3e46b509531c1e908895ba2e508c35f53939e0e768"
     }
   },
   "operation": "original_local_dashboard_units",
@@ -26,8 +26,8 @@
     "unit_fixture_only": true
   },
   "tests": [
-    "fixed local CRUD routes use the actual methods and never follow metadata URLs",
-    "rename discovers actual connector capability and sends only the typed name payload",
+    "canonical local CRUD roots use the actual methods and never follow metadata URLs",
+    "rename discovers canonical connector capability and sends only the typed name payload",
     "missing or false rename capability refuses mutation without a legacy fallback",
     "untrusted project settings and precision tokens are never sent back during rename",
     "malformed duplicate wrong-type or excessive connector capabilities cannot permit a rename request",

@@ -12,7 +12,13 @@ exact TAP names/totals with no skip, cancellation or todo. Eleven Python control
 exercise receipt commit and cleanup. Only a closed JSON receipt is uploaded; no
 raw TAP or project payload. All tests execute on approved disposable runners.
 
-Rename uses the pinned Rust API's `GET /api/connector/?type=STORAGE`, with at most
+Root project actions use canonical `/api/website` (without a trailing slash),
+matching the pinned Axum 0.8.8 nested root route and existing Silex MCP caller.
+The full server has no path normalizer; this app does not depend on redirects or
+try an alternate URL after failure. Named subroutes remain `/api/website/rename`
+and `/api/website/duplicate`.
+
+Rename uses the pinned Rust API's `GET /api/connector?type=STORAGE`, with at most
 16 connector rows and 64 KiB of streamed JSON, within the same original 15-second
 action deadline. A unique `fs-storage` row of type `STORAGE` must explicitly report
 `supportsWebsiteRename: true`. Only then does the app send
@@ -34,8 +40,13 @@ The original 25-case [run 40821942219](https://github.com/VOLPAROSSA/volparossa-
 belongs to immutable Studio source `0c70576b63a47142ad752b34683b4c081328ea15` and its
 original manifest. It exercises the older full-metadata rename client and does not
 verify this name-only/capability source. Its evidence remains separate; the updated
-27-case manifest requires a new exact-source hosted run. No local JavaScript,
-browser, application or build execution is part of preparing this change.
+27-case manifest requires a new exact-source hosted run. The earlier 27-case
+[run 40823831173](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/40823831173)
+belongs to source `aed4119e46b7d8164b24b23108d465701faa3848`, before the canonical
+root-URL correction. Those unit fixtures did not establish matching real-server
+routes. Their evidence is preserved separately and does not verify this URL delta.
+Actual Rust route/CRUD evidence remains necessary. No local JavaScript, browser,
+application or build execution is part of preparing this change.
 
 The separate explicit `dashboard-compose-unit` profile executes eighteen Python
 controls for copying only the three authenticated original application assets

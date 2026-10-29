@@ -149,12 +149,13 @@ function supportsRename(value) {
 function apiPath(kind = '', id) {
   if (kind === 'connector') {
     if (id !== undefined) fail();
-    return '/api/connector/?type=STORAGE';
+    return '/api/connector?type=STORAGE';
   }
   const query = new URLSearchParams();
   if (id !== undefined) { if (!validId(id)) fail(); query.set('websiteId', id); }
   query.set('connectorId', 'fs-storage');
-  return `/api/website/${kind}?${query.toString()}`;
+  const suffix = kind ? '/' + kind : '';
+  return `/api/website${suffix}?${query.toString()}`;
 }
 
 function acknowledgement(value, created = false) {

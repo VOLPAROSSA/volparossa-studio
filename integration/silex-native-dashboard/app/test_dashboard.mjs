@@ -46,7 +46,7 @@ async function rejectsCode(promise, code) {
     && !/PRIVATE_SENTINEL|never-fetch|file:\/\//.test(error.message));
 }
 
-test('fixed local CRUD routes use the actual methods and never follow metadata URLs', async () => {
+test('canonical local CRUD roots use the actual methods and never follow metadata URLs', async () => {
   const replies = [json([]), json({ websiteId: ID, message: 'Created' }), json([row()]),
     ack(), json([row(), row('Public example copy', ID2)]), ack(), json([row('Public example copy', ID2)])];
   const h = harness(replies);
@@ -56,13 +56,13 @@ test('fixed local CRUD routes use the actual methods and never follow metadata U
   await h.controller.duplicate(ID);
   await h.controller.delete(ID);
   assert.deepEqual(h.calls.map(call => [call.options.method, call.path]), [
-    ['GET', '/api/website/?connectorId=fs-storage'],
-    ['PUT', '/api/website/?connectorId=fs-storage'],
-    ['GET', '/api/website/?connectorId=fs-storage'],
+    ['GET', '/api/website?connectorId=fs-storage'],
+    ['PUT', '/api/website?connectorId=fs-storage'],
+    ['GET', '/api/website?connectorId=fs-storage'],
     ['POST', `/api/website/duplicate?websiteId=${ID}&connectorId=fs-storage`],
-    ['GET', '/api/website/?connectorId=fs-storage'],
-    ['DELETE', `/api/website/?websiteId=${ID}&connectorId=fs-storage`],
-    ['GET', '/api/website/?connectorId=fs-storage'],
+    ['GET', '/api/website?connectorId=fs-storage'],
+    ['DELETE', `/api/website?websiteId=${ID}&connectorId=fs-storage`],
+    ['GET', '/api/website?connectorId=fs-storage'],
   ]);
   assert.deepEqual(JSON.parse(h.calls[1].options.body), { name: 'Public example', connectorUserSettings: {} });
   for (const call of h.calls) {
@@ -77,12 +77,12 @@ test('fixed local CRUD routes use the actual methods and never follow metadata U
   assert.equal(h.timers.size, 0);
 });
 
-test('rename discovers actual connector capability and sends only the typed name payload', async () => {
+test('rename discovers canonical connector capability and sends only the typed name payload', async () => {
   const h = harness([json([row('Old list name')]), connectors(), ack(), json([row('New name')])]);
   await h.controller.refresh();
   await h.controller.rename(ID, 'New name');
   assert.deepEqual(h.calls.slice(1).map(call => call.options.method), ['GET', 'POST', 'GET']);
-  assert.equal(h.calls[1].path, '/api/connector/?type=STORAGE');
+  assert.equal(h.calls[1].path, '/api/connector?type=STORAGE');
   assert.equal(h.calls[2].path, `/api/website/rename?websiteId=${ID}&connectorId=fs-storage`);
   const posted = JSON.parse(h.calls[2].options.body);
   assert.deepEqual(posted, { name: 'New name' });
