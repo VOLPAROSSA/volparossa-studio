@@ -1,0 +1,59 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  color: #1b2434;
+  background: #f4f6fa;
+  --surface: #fff;
+  --border: #b5bfd0;
+  --accent: #244fb3;
+  --muted: #46546b;
+  --danger: #a51b27;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 64rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+header { margin-bottom: 2rem; }
+h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.2; margin: .25rem 0 1rem; }
+h2 { font-size: 1.35rem; margin: 0 0 1rem; }
+p { margin: .6rem 0; }
+.eyebrow { color: var(--accent); font-weight: 700; letter-spacing: .06em; }
+section { background: var(--surface); border: 1px solid var(--border); border-radius: .8rem; padding: 1.5rem; margin-top: 1.25rem; }
+label { display: block; font-weight: 600; margin-bottom: .4rem; }
+input, button { font: inherit; border: 1px solid var(--border); border-radius: .35rem; padding: .65rem .9rem; min-height: 2.8rem; }
+input { width: 100%; min-width: 0; color: inherit; background: var(--surface); }
+button { cursor: pointer; font-weight: 600; color: var(--accent); background: var(--surface); }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .55; cursor: default; }
+button[type="submit"] { color: #fff; background: var(--accent); border-color: var(--accent); }
+button.danger { background: var(--danger); border-color: var(--danger); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.form-row, .section-heading, .project, .project-actions, .dialog-actions { display: flex; gap: .75rem; align-items: center; }
+.form-row button { flex-shrink: 0; }
+.section-heading { justify-content: space-between; flex-wrap: wrap; }
+.section-heading h2 { margin: 0; }
+.hint { color: var(--muted); font-size: .9rem; }
+.projects { list-style: none; padding: 0; margin: 1rem 0 0; }
+.project { justify-content: space-between; border-top: 1px solid var(--border); padding: 1.15rem 0; flex-wrap: wrap; }
+.project-name { font-size: 1.1rem; font-weight: 650; overflow-wrap: anywhere; min-width: 0; flex: 1 1 12rem; }
+.project-actions { flex-wrap: wrap; }
+#error { color: var(--danger); border-left: .25rem solid var(--danger); padding-left: .75rem; }
+dialog { color: inherit; background: var(--surface); border: 1px solid var(--border); border-radius: .8rem; padding: 1.5rem; max-width: min(32rem, calc(100vw - 2rem)); }
+dialog::backdrop { background: #101c38a6; }
+.dialog-actions { justify-content: flex-end; margin-top: 1.5rem; flex-wrap: wrap; }
+#delete-name { overflow-wrap: anywhere; font-weight: 600; }
+[hidden] { display: none !important; }
+@media (max-width: 36rem) {
+  main { padding: 1.25rem .75rem 3rem; }
+  section { padding: 1rem; }
+  .form-row { align-items: stretch; flex-direction: column; }
+  .project-actions { width: 100%; }
+}
+@media (prefers-color-scheme: dark) {
+  :root { color: #e8edf7; background: #111827; --surface: #1c2638; --border: #738198; --accent: #a6c1ff; --muted: #c1cce0; --danger: #ffb4b8; }
+  button[type="submit"] { color: #121c30; }
+}
+@media (forced-colors: active) {
+  button, input, section, dialog { border: 1px solid CanvasText; }
+}

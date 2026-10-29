@@ -126,3 +126,29 @@ license file or explicit license declaration was observed at that commit; no
 license is inferred here. The fixture does not upload its assets, compiled ELF
 or generated frontend. Product redistribution remains unaccepted. Existing
 upstream notices and the Silex project license records above remain preserved.
+
+## Filesystem identifier and name-only overlay — 2026-10-29
+
+The additive [FS manifest](integration/silex-fs-identifier-rename/manifest.json)
+binds eleven paths after the exact Native6 overlay, including the complete patch,
+before/after bytes, modes and hashes. The server derivative and its new Rust
+helpers/tests retain AGPL-3.0-or-later; desktop MCP changes retain the existing
+GPL-3.0-or-later notices. No component is relicensed. All Cargo manifests and root
+and historical nested locks remain unchanged; no new dependency is introduced.
+Independent preparation/proof drivers, tests and documentation use GPL-3.0-only.
+Source review does not establish runtime, authorization, complete filesystem
+confinement, native GUI, publication or redistribution acceptance.
+
+The original local dashboard under `integration/silex-native-dashboard/app/` is
+independently authored GPL-3.0-only HTML, CSS and JavaScript, with no framework or
+borrowed dashboard assets. Its manifest records exact source bytes. A future
+explicit native composition may embed only its three application files; unit
+tests are separate. The existing nine-file GitLab dashboard fixture and its
+unverified license remain a distinct private build input, unchanged. This
+record does not grant distribution acceptance to a combined application.
+
+The original GPL-3.0-only `crud_server.rs` is a private test harness for Silex's
+public server-library API, temporarily copied only to
+`server-rust/examples/volparossa_dashboard_crud.rs`. It changes no upstream Cargo
+manifest, dependency, license or existing notice. Its compilation and browser
+fixture remain disposable acceptance work, without redistribution authority.
