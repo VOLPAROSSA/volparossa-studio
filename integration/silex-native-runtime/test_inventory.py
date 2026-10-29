@@ -26,7 +26,7 @@ class MetadataCommands:
         self.missing = missing
         self.calls = []
 
-    def run(self, arguments, accepted=(0,)):
+    def run(self, arguments, accepted=(0,), *, diagnostic=None):
         self.calls.append(arguments)
         if arguments[:2] == ['/usr/bin/dpkg-query', '-W']:
             return 0, ''.join(f'{n}\t1\tamd64\tinstall ok installed\n'
@@ -40,7 +40,12 @@ class MetadataCommands:
             provider = next(provider for provider, aliases in INVENTORY.TOOLS.values() if alias in aliases)
             return 0, f'{provider}: {alias}\n'.encode()
         if arguments[0] == '/usr/bin/apt-get':
-            return 0, ''.join(f'Inst {n} (2 Ubuntu:24.04/noble [amd64])\n' for n in self.missing).encode()
+            raw = ''.join(f'Inst {n} (2 Ubuntu:24.04/noble [amd64])\n' for n in self.missing).encode()
+            if diagnostic is not None:
+                diagnostic.update(phase='actor', exit_class='normal', exit_code=0,
+                    stdout_bytes=len(raw), stderr_bytes=0, output_limit_exceeded=False,
+                    cumulative_limit_exceeded=False, parser_failure='not_run', **INVENTORY.simulation_shape(raw))
+            return 0, raw
         raise AssertionError('unexpected metadata command')
 
 
@@ -60,6 +65,95 @@ def collect_fixture(missing=()):
 
 
 class InventoryTests(unittest.TestCase):
+    def test_simulation_failure_projects_only_bounded_shape_and_first_closed_predicate(self):
+        secret = 'DO-NOT-PERSIST-private-origin-https://private.invalid/token'
+        raw = ('Inst private-fixture:amd64 (2 ' + secret + ')\n').encode()
+        diagnostic = {}
+        with self.assertRaises(INVENTORY.Rejected):
+            INVENTORY.simulation_rows(raw, ['xdotool'], diagnostic=diagnostic)
+        self.assertEqual(diagnostic['phase'], 'parser')
+        self.assertEqual(diagnostic['parser_failure'], 'inst_shape')
+        self.assertEqual(diagnostic['failure_line_class'], 'inst')
+        self.assertEqual(diagnostic['failure_line'], 0)
+        self.assertIs(diagnostic['failure_inst_native_arch'], True)
+        self.assertIs(diagnostic['failure_has_version_parenthesis'], True)
+        self.assertIs(diagnostic['failure_closing_parenthesis'], True)
+        self.assertEqual(diagnostic['inst_shape_matches'], 0)
+        self.assertEqual(diagnostic['inst_shape_mismatches'], 1)
+        self.assertEqual(diagnostic['native_arch_qualified_inst'], 1)
+        INVENTORY.check_simulation_diagnostic(diagnostic)
+        for private in ('private-fixture', secret, 'https://', 'token'):
+            self.assertNotIn(private, json.dumps(diagnostic))
+        original = dict(diagnostic)
+        INVENTORY.simulation_failure(diagnostic, 'removal', 9999, 'Remv private')
+        self.assertEqual(diagnostic, original)
+        for value, predicate in ((b'Remv public [1]\n', 'removal'),
+                (b'Inst public (2 Ubuntu [amd64])\n' * 2, 'duplicate'),
+                (b'no requested install\n', 'missing_membership'), (b'\xff', 'encoding')):
+            diagnostic = {}
+            with self.assertRaises((INVENTORY.Rejected, UnicodeError)):
+                INVENTORY.simulation_rows(value, ['xdotool'], diagnostic=diagnostic)
+            self.assertEqual(diagnostic['parser_failure'], predicate)
+            INVENTORY.check_simulation_diagnostic(diagnostic)
+        shape = INVENTORY.simulation_shape(b'Inst public malformed\n' * 1025)
+        self.assertEqual(shape['nonempty_lines'], 1024)
+        self.assertEqual(shape['inst_lines'], 256)
+        self.assertIs(shape['lines_clipped'], True)
+        self.assertIs(shape['inst_lines_clipped'], True)
+        self.assertEqual(shape['inst_shape_mismatches'], 256)
+        commands, report = collect_fixture(('nftables',))
+        self.assertEqual(report['simulation_diagnostic']['phase'], 'complete')
+        self.assertEqual(report['simulation_diagnostic']['parser_failure'], 'none')
+        self.assertEqual(report['simulation_diagnostic']['requested_covered_count'], 1)
+        INVENTORY.check_simulation_diagnostic(report['simulation_diagnostic'])
+        for bad in ({'stdout': secret}, {'error': secret}, {'path': secret}, {'environment': {}},
+                    {'exit_code': True}, {'exit_code': 256}, {'failure_line': 1025},
+                    {'stdout_bytes': INVENTORY.MAX_OUTPUT + 1}, {'parser_failure': secret}):
+            with self.subTest(bad=bad), self.assertRaises(INVENTORY.Rejected):
+                INVENTORY.check_simulation_diagnostic(bad)
+
+    def test_simulation_exit_100_is_observed_before_unchanged_exit_guard_and_cleanup_preserves_rejection(self):
+        stdout, stderr = MagicMock(), MagicMock()
+        stdout.fileno.return_value, stderr.fileno.return_value = 10, 11
+        child = SimpleNamespace(pid=123456, stdout=stdout, stderr=stderr, wait=MagicMock())
+        selector = MagicMock()
+        selector.get_map.side_effect = [{10: True, 11: True}, {}]
+        out = b'Reading package lists...\n'
+        err = b'DO-NOT-PERSIST-private-path-environment-or-APT-error\n'
+        selector.select.return_value = [(SimpleNamespace(fd=10, fileobj=stdout), None),
+            (SimpleNamespace(fd=10, fileobj=stdout), None),
+            (SimpleNamespace(fd=11, fileobj=stderr), None),
+            (SimpleNamespace(fd=11, fileobj=stderr), None)]
+        diagnostic = {}
+        with patch.object(INVENTORY.subprocess, 'Popen', return_value=child), \
+                patch.object(INVENTORY.selectors, 'DefaultSelector', return_value=selector), \
+                patch.object(INVENTORY.os, 'set_blocking'), \
+                patch.object(INVENTORY.os, 'read', side_effect=[out, b'', err, b'']), \
+                patch.object(INVENTORY.os, 'waitid', return_value=SimpleNamespace(
+                    si_code=INVENTORY.os.CLD_EXITED, si_status=100)), \
+                patch.object(INVENTORY.os, 'killpg'), patch.object(INVENTORY, 'group_live', return_value=False), \
+                patch.object(INVENTORY.signal, 'pthread_sigmask', return_value=set()), \
+                patch.object(INVENTORY.signal, 'sigpending', return_value=set()):
+            commands = INVENTORY.Commands()
+            with self.assertRaises(INVENTORY.Rejected):
+                commands.run(['/usr/bin/apt-get', '--simulate', '--no-remove', '--no-download',
+                    '--no-install-recommends', 'install', 'xdotool=2'], diagnostic=diagnostic)
+        self.assertEqual(diagnostic['exit_class'], 'normal')
+        self.assertEqual(diagnostic['exit_code'], 100)
+        self.assertEqual(diagnostic['phase'], 'actor')
+        self.assertEqual(diagnostic['parser_failure'], 'not_run')
+        self.assertEqual(diagnostic['stdout_bytes'], len(out))
+        self.assertEqual(diagnostic['stderr_bytes'], len(err))
+        self.assertEqual(diagnostic['inst_lines'], 0)
+        self.assertEqual(commands.started, 1)
+        self.assertEqual(commands.joined, 1)
+        INVENTORY.check_simulation_diagnostic(diagnostic)
+        self.assertNotIn('DO-NOT-PERSIST', json.dumps(diagnostic))
+        child.wait.assert_called_once()
+        stdout.close.assert_called_once()
+        stderr.close.assert_called_once()
+        selector.close.assert_called_once()
+
     def test_fixed_providers_and_tools(self):
         self.assertEqual(INVENTORY.PROVIDERS, ('dbus-daemon', 'util-linux', 'mount', 'iproute2',
                          'nftables', 'xvfb', 'xauth', 'xdotool', 'bubblewrap'))

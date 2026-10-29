@@ -36,6 +36,7 @@ EFFECTS = ('packages_installed', 'archives_downloaded', 'archive_contents_verifi
            'namespaces_created', 'network_configuration_changed', 'display_started',
            'inventoried_tools_executed', 'compiler_or_node_executed', 'application_executed',
            'native_runtime_acceptance', 'full_studio_acceptance')
+INST_PATTERN = r'Inst ([a-z0-9][a-z0-9+.-]*)(?: \[[^\]\r\n]+\])? \(([0-9A-Za-z.+:~\-]+) [^\r\n]+\)'
 
 
 class Rejected(ValueError):
@@ -96,7 +97,11 @@ class Commands:
         self.env = dict(PATH='/usr/sbin:/usr/bin:/sbin:/bin', LC_ALL='C', LANG='C',
                         HOME='/nonexistent', GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null')
 
-    def run(self, arguments, accepted=(0,)):
+    def run(self, arguments, accepted=(0,), *, diagnostic=None):
+        if diagnostic is not None:
+            diagnostic.update(phase='actor', exit_class='unobserved', exit_code=0,
+                              stdout_bytes=0, stderr_bytes=0, output_limit_exceeded=False,
+                              cumulative_limit_exceeded=False, parser_failure='not_run')
         require(time.monotonic() < self.deadline and self.started < 384)
         require(arguments[0] in ('/usr/bin/git', '/usr/bin/dpkg', '/usr/bin/dpkg-query',
                                  '/usr/bin/apt-cache', '/usr/bin/apt-get'))
@@ -124,11 +129,22 @@ class Commands:
                         continue
                     total += len(chunk)
                     self.bytes += len(chunk)
+                    if diagnostic is not None:
+                        key_name = 'stdout_bytes' if key.fileobj is child.stdout else 'stderr_bytes'
+                        diagnostic[key_name] = min(MAX_OUTPUT, diagnostic[key_name] + len(chunk))
+                        diagnostic['output_limit_exceeded'] = total > MAX_OUTPUT
+                        diagnostic['cumulative_limit_exceeded'] = self.bytes > 16 * MAX_OUTPUT
                     require(total <= MAX_OUTPUT and self.bytes <= 16 * MAX_OUTPUT)
                     if key.fileobj is child.stdout:
                         output.extend(chunk)
                 # Observe, but do not reap: the directly owned PGID stays reserved.
                 status = os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+                if diagnostic is not None and status is not None:
+                    diagnostic.update(exit_class='normal' if status.si_code == os.CLD_EXITED else
+                        'signalled' if status.si_code in (os.CLD_KILLED, os.CLD_DUMPED) else 'other',
+                        exit_code=max(0, min(255, status.si_status)))
+            if diagnostic is not None:
+                diagnostic.update(simulation_shape(bytes(output)))
             require(status.si_code == os.CLD_EXITED and status.si_status in accepted)
         except BaseException as error:
             primary = error
@@ -281,16 +297,91 @@ def binary_record(aliases):
                 links=info.st_nlink), [a for a, _ in found]
 
 
-def simulation_rows(raw, missing):
+def simulation_shape(raw):
+    """Finite public predicates only; no stdout line or package/version escapes."""
+    try:
+        text = raw.decode('utf-8', errors='strict')
+        valid = True
+    except UnicodeError:
+        text = raw.decode('utf-8', errors='replace')
+        valid = False
+    lines = [line for line in text.splitlines() if line.strip()]
+    installs = [line for line in lines if line.startswith('Inst ')]
+    matches = sum(re.fullmatch(INST_PATTERN, line) is not None for line in installs)
+    return dict(utf8_valid=valid, nonempty_lines=min(len(lines), 1024), lines_clipped=len(lines) > 1024,
+        inst_lines=min(len(installs), 256), inst_lines_clipped=len(installs) > 256,
+        inst_shape_matches=min(matches, 256), inst_shape_mismatches=min(len(installs) - matches, 256),
+        conf_lines=min(sum(line.startswith('Conf ') for line in lines), 256),
+        removal_lines=min(sum(line.startswith(('Remv ', 'Purg ')) for line in lines), 256),
+        native_arch_qualified_inst=min(sum(re.match(r'^Inst [a-z0-9][a-z0-9+.-]*:amd64 ', line) is not None for line in installs), 256))
+
+
+def simulation_failure(diagnostic, predicate, index=None, line=None):
+    if diagnostic is None or diagnostic.get('parser_failure') not in (None, 'not_run'):
+        return
+    diagnostic['parser_failure'] = predicate
+    if index is not None:
+        diagnostic.update(failure_line=min(index, 1024), failure_line_clipped=index > 1024,
+            failure_line_class='inst' if line.startswith('Inst ') else 'removal' if line.startswith(('Remv ', 'Purg ')) else 'other',
+            failure_inst_native_arch=re.match(r'^Inst [a-z0-9][a-z0-9+.-]*:amd64 ', line) is not None,
+            failure_has_version_parenthesis=' (' in line, failure_closing_parenthesis=line.endswith(')'))
+
+
+def check_simulation_diagnostic(value):
+    enums = {'phase': ('actor', 'parser', 'parsed', 'metadata', 'complete', 'unavailable'),
+        'exit_class': ('unobserved', 'normal', 'signalled', 'other'),
+        'parser_failure': ('not_run', 'none', 'encoding', 'removal', 'inst_shape', 'duplicate', 'plan_bound', 'missing_membership'),
+        'failure_line_class': ('inst', 'removal', 'other')}
+    bounds = {'exit_code': 255, 'stdout_bytes': MAX_OUTPUT, 'stderr_bytes': MAX_OUTPUT,
+        'nonempty_lines': 1024, 'inst_lines': 256, 'inst_shape_matches': 256,
+        'inst_shape_mismatches': 256, 'conf_lines': 256, 'removal_lines': 256,
+        'native_arch_qualified_inst': 256, 'failure_line': 1024, 'parsed_plan_count': 256,
+        'requested_count': 9, 'requested_covered_count': 9}
+    booleans = {'output_limit_exceeded', 'cumulative_limit_exceeded', 'utf8_valid', 'lines_clipped',
+        'inst_lines_clipped', 'failure_line_clipped', 'failure_inst_native_arch',
+        'failure_has_version_parenthesis', 'failure_closing_parenthesis'}
+    require(type(value) is dict and value.keys() <= enums.keys() | bounds.keys() | booleans)
+    for key, item in value.items():
+        if key in enums:
+            require(type(item) is str and item in enums[key])
+        elif key in bounds:
+            require(type(item) is int and 0 <= item <= bounds[key])
+        else:
+            require(type(item) is bool)
+
+
+def simulation_rows(raw, missing, *, diagnostic=None):
+    if diagnostic is not None:
+        diagnostic.update(phase='parser', **simulation_shape(raw))
     names = {}
-    for line in raw.decode('utf-8', errors='strict').splitlines():
+    try:
+        lines = raw.decode('utf-8', errors='strict').splitlines()
+    except UnicodeError:
+        simulation_failure(diagnostic, 'encoding')
+        raise
+    for index, line in enumerate(lines):
+        if line.startswith(('Remv ', 'Purg ')):
+            simulation_failure(diagnostic, 'removal', index, line)
         require(not line.startswith(('Remv ', 'Purg ')))
         if not line.startswith('Inst '):
             continue
-        match = re.fullmatch(r'Inst ([a-z0-9][a-z0-9+.-]*)(?: \[[^\]\r\n]+\])? \(([0-9A-Za-z.+:~\-]+) [^\r\n]+\)', line)
+        match = re.fullmatch(INST_PATTERN, line)
+        if match is None:
+            simulation_failure(diagnostic, 'inst_shape', index, line)
+        elif match[1] in names:
+            simulation_failure(diagnostic, 'duplicate', index, line)
+        elif len(names) >= 256:
+            simulation_failure(diagnostic, 'plan_bound', index, line)
         require(match is not None and match[1] not in names and len(names) < 256)
         names[match[1]] = match[2]
+    if diagnostic is not None:
+        diagnostic.update(parsed_plan_count=min(len(names), 256), requested_count=min(len(missing), 9),
+                          requested_covered_count=min(len(set(missing).intersection(names)), 9))
+    if not set(missing) <= names.keys():
+        simulation_failure(diagnostic, 'missing_membership')
     require(set(missing) <= names.keys())
+    if diagnostic is not None:
+        diagnostic.update(phase='parsed', parser_failure='none')
     return names
 
 
@@ -380,15 +471,19 @@ def collect(commands, report):
     report['stage'] = 'simulation'
     if missing and all(report['packages'][n]['candidate_archive_metadata'] is not None for n in missing):
         targets = [n + '=' + report['packages'][n]['candidate_archive_metadata']['Version'] for n in missing]
+        diagnostic = {}
+        report['simulation_diagnostic'] = diagnostic
         _, raw = commands.run(['/usr/bin/apt-get', '--simulate', '--no-remove', '--no-download',
-                               '--no-install-recommends', 'install', *targets])
-        plan = simulation_rows(raw, missing)
+                               '--no-install-recommends', 'install', *targets], diagnostic=diagnostic)
+        plan = simulation_rows(raw, missing, diagnostic=diagnostic)
         report['installation_plan_sha256'] = hashlib.sha256(raw).hexdigest()
+        diagnostic['phase'] = 'metadata'
         for name, version in sorted(plan.items()):
             record = metadata(commands, name, version)
             require(record is not None)
             report['installation_plan'][name] = record
         report['simulation_performed'] = True
+        diagnostic['phase'] = 'complete'
     report['readiness'] = 'ready' if all(r['installed_provenance_verified'] for r in report['tools'].values()) else 'not_ready'
     report.update(status='passed', stage='complete')
 
@@ -417,6 +512,12 @@ def main():
                       cleanup_confirmed=commands.started > 0 and commands.started == commands.joined)
         if not report['cleanup_confirmed']:
             report.update(status='failed', readiness='not_ready')
+        if 'simulation_diagnostic' in report:
+            try:
+                check_simulation_diagnostic(report['simulation_diagnostic'])
+            except BaseException as error:
+                primary = primary or error
+                report.update(status='failed', readiness='not_ready', simulation_diagnostic={'phase': 'unavailable'})
         raw = (json.dumps(report, sort_keys=True) + '\n').encode()
         require(len(raw) <= MAX_RECEIPT and report['stage'] in PHASES)
         if output is not None:
