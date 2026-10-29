@@ -2,6 +2,7 @@
 """Hosted-only proof protocol controls; no compiler, native app or dependency run."""
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import re
 from types import SimpleNamespace
@@ -55,6 +56,103 @@ def source_fixture(extra=b'', staged=b'', tracked=b'H ordinary.rs\0'):
 
 
 class ProofTests(unittest.TestCase):
+    def test_compile_refusal_has_finite_categories_separate_footer_and_no_raw_messages(self):
+        cases = (
+            (b'the lock file /PRIVATE/Cargo.lock needs to be updated but --locked was passed', 'cargo_lock'),
+            (b'no matching package named PRIVATE found', 'offline'),
+            (b'failed to download PRIVATE', 'download'),
+            (b'could not execute process PRIVATE', 'execute'),
+            (b'failed to run custom build command for PRIVATE', 'custom_build'),
+            (b'expected PRIVATE', 'syntax'), (b'cannot find macro PRIVATE', 'macro'),
+            (b'invalid format string: PRIVATE', 'format'),
+            (b'recursion limit reached while expanding PRIVATE', 'recursion'),
+            (b'lifetime may not live long enough PRIVATE', 'lifetime'),
+            (b'future cannot be sent between threads safely PRIVATE', 'future_send'),
+            (b"couldn't read PRIVATE", 'source_read'),
+            (b'PRIVATE: Resource temporarily unavailable', 'resource'),
+            (b'PRIVATE: No space left on device', 'no_space'),
+            (b'PRIVATE: Permission denied', 'permissions'),
+        )
+        for message, category in cases:
+            raw = b'error: ' + message + b'\nerror: could not compile PRIVATE due to previous error\n'
+            native = SimpleNamespace(read_file=Mock(return_value=raw))
+            result = M.compiler_refusal(native, Path('/private'))
+            self.assertEqual(result['status'], 'captured')
+            self.assertEqual(result['primary_error_lines'], 1)
+            self.assertEqual(result['compile_footer_lines'], 1)
+            self.assertEqual(result['unknown_primary_error_lines'], 0)
+            self.assertIs(result[category], True)
+            self.assertEqual(sum(result[name] for name in M.COMPILER_MARKERS), 1)
+            self.assertEqual(result['log_sha256'], hashlib.sha256(raw).hexdigest())
+            self.assertNotIn('PRIVATE', json.dumps(result))
+            native.read_file.assert_called_once_with(Path('/private/logs/native-cargo.log'),
+                16 * 1024 * 1024, modes=(0o600,), allow_empty=True)
+        raw = (b'warning: could not execute process PRIVATE\n'
+               b'  | error: Permission denied\nPRIVATE no matching package named\n'
+               b'error: PRIVATE unknown message\n'
+               b'  = note: `-D warnings` implied by PRIVATE\n')
+        result = M.compiler_refusal(SimpleNamespace(read_file=Mock(return_value=raw)), Path('/private'))
+        self.assertEqual(result['primary_error_lines'], 1)
+        self.assertEqual(result['unknown_primary_error_lines'], 1)
+        self.assertFalse(any(result[name] for name in M.COMPILER_MARKERS))
+        self.assertIs(result['denied_warnings'], True)
+        self.assertNotIn('PRIVATE', json.dumps(result))
+        self.assertEqual(set(result), {'schema', 'status', 'log_sha256', 'log_bytes',
+            'primary_error_lines', 'compile_footer_lines', 'unknown_primary_error_lines',
+            'source_role', 'source_line', 'source_column', 'denied_warnings', *M.COMPILER_MARKERS})
+
+    def test_compile_source_spans_are_exact_manifest_members_with_bounded_coordinates(self):
+        manifest = json.loads((M.HERE / 'manifest.json').read_bytes())
+        self.assertEqual(set(M.SOURCE_ROLES), set(manifest['files']))
+        self.assertEqual(len(set(M.SOURCE_ROLES.values())), 11)
+        for path, role in M.SOURCE_ROLES.items():
+            raw = f'error: PRIVATE\n  --> {path}:65535:4096\n'.encode()
+            result = M.compiler_refusal(SimpleNamespace(read_file=Mock(return_value=raw)), Path('/private'))
+            self.assertEqual((result['source_role'], result['source_line'], result['source_column']),
+                             (role, 65535, 4096))
+        path = 'server-rust/src/connectors/fs_storage/metadata.rs'
+        for invalid in ('/private/' + path + ':1:1', '../' + path + ':1:1',
+                        'unreviewed.rs:1:1', path + ':0:1', path + ':65536:1',
+                        path + ':1:4097', path + ':1:0', path + ':1:1 PRIVATE'):
+            result = M.compiler_refusal(SimpleNamespace(read_file=Mock(
+                return_value=('error: PRIVATE\n --> ' + invalid + '\n').encode())), Path('/private'))
+            self.assertIsNone(result['source_role'])
+            self.assertIsNone(result['source_line'])
+            self.assertIsNone(result['source_column'])
+            self.assertNotIn('PRIVATE', json.dumps(result))
+
+    def test_clipped_compile_log_never_publishes_classification_or_source_observations(self):
+        native = SimpleNamespace(read_file=Mock())
+        result = M.compiler_refusal(native, Path('/private'), clipped=True)
+        native.read_file.assert_not_called()
+        self.assertEqual(result['status'], 'clipped')
+        self.assertIsNone(result['log_sha256'])
+        for raw in (b'error: Permission denied\n' * 65, b'error: ' + b'x' * 8193):
+            native.read_file.return_value = raw
+            result = M.compiler_refusal(native, Path('/private'))
+            self.assertEqual(result['status'], 'clipped')
+            self.assertEqual(result['primary_error_lines'], 0)
+            self.assertEqual(result['compile_footer_lines'], 0)
+            self.assertFalse(any(result[name] for name in M.COMPILER_MARKERS))
+            self.assertIsNone(result['source_role'])
+            self.assertEqual(result['log_sha256'], hashlib.sha256(raw).hexdigest())
+
+    def test_new_observer_failure_preserves_actor_identity_and_old_observation(self):
+        original = M.Rejected('child_failed')
+        native = SimpleNamespace(actor=Mock(side_effect=original), Rejected=M.Rejected,
+            compiler_diagnostic=Mock(return_value={'status': 'captured'}),
+            read_file=Mock(side_effect=RuntimeError('PRIVATE observer failure')))
+        report = dict(compiler_diagnostic=None, fs_compiler_diagnostic=None,
+                      rust_test_binary_executed=False)
+        with self.assertRaises(M.Rejected) as caught:
+            M.execute_tests(native, Path('/private'), Path('/source'), Path('/work'), {},
+                            100, [], object(), report)
+        self.assertIs(caught.exception, original)
+        self.assertEqual(report['compiler_diagnostic'], {'status': 'captured'})
+        self.assertIsNone(report['fs_compiler_diagnostic'])
+        self.assertIs(report['rust_test_binary_executed'], False)
+        self.assertNotIn('PRIVATE', json.dumps(report))
+
     def test_fourteen_case_names_bind_the_reviewed_source_patch(self):
         raw = (M.HERE / 'patches/fs-identifier-rename.patch').read_text()
         names = set(re.findall(r'^\+(?:async )?fn ([a-z0-9_]+)', raw, re.MULTILINE))

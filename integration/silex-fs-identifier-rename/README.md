@@ -18,8 +18,9 @@ embedded assets, Node, browser or native desktop application is required.
 
 The actual Cargo/test actor uses a private owned mode0600 combined log capped at
 16MiB; success reads it through a stable bounded descriptor for the test summary.
-Failure may project only the existing closed compiler codes/counts/flags and log
-hash/size. Raw output is never printed or uploaded. The joined actor's log is
+Failure may project the existing closed compiler codes/counts/flags and log
+hash/size, plus the separate proof-owned `fs_compiler_diagnostic` described below.
+Raw output is never printed or uploaded. The joined actor's log is
 removed with the private tool/test tree before receipt publication; an unconfirmed
 actor retains that private temporary tree and cannot pass.
 Failures use finite stage/class projections. `operation_failure_kind` covers the
@@ -39,3 +40,35 @@ cases. General path confinement, authorization, cross-process CAS, complete
 atomicity, a running HTTP service, native GUI/privacy, publication, updates,
 dependency acceptance and full Studio acceptance remain false. The earlier
 private native build at `66f512c4` remains separate immutable evidence.
+
+The first [FS trial 40824366321](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/40824366321)
+on `7f6ade5293ffe50342b0577eee29b6e751cbe824` failed in the server-library
+Cargo actor. All 61 Python controls, authenticated compiler admission and full
+563-package offline locked metadata passed. All eleven owned groups joined and
+the private tool tree was removed. The retained compiler observation was one
+error line, zero extracted Rust error codes and a 9,100-byte log; it does not
+identify a source defect or distinguish Cargo refusal from compiler failure.
+The original ZIP remains separate at SHA256
+`d418f3bb55fcace380c3b467a5acfa1a5a5b5e251964e4bd360ca78fe124bcba`.
+No Rust test binary ran and no test/compilation acceptance follows.
+
+The new observer uses the same stable owned mode0600 bounded-log reader without
+changing the Cargo argv, actor lifecycle, original failure or existing compiler
+diagnostic. It projects fixed message-marker booleans for lock/offline/download,
+execution/custom build, syntax/macro/format/recursion, lifetime/future-Send,
+source-read, resource/no-space/permission and denied-warning observations.
+Error headings and Cargo compile footers are counted separately; unknown primary
+headings stay unknown. A warning, quoted source line or unrecognized message
+cannot become a primary error through an unanchored substring. These categories
+describe message shapes, not proven causes or permission to alter guards.
+
+An optional first reviewed source span maps only the exact eleven public FS
+manifest paths to fixed role enums, with line 1–65535 and column 1–4096. It is
+a span observation, not proof that this location caused the failure. Absolute,
+unknown or aliased paths and oversized coordinates are omitted. No error text,
+arbitrary path, package, version or environment is serialized. Clipped actor
+output, more than 64 error headings or an error heading exceeding 8192 bytes
+produces no classifications or spans. Observer failure preserves the primary
+actor exception. Eighteen hosted-only controls include four new diagnostic,
+privacy, clipping, source-allowlist and failure-preservation checks; no local
+compiler, test, project import or native process was executed for this change.

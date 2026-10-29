@@ -50,6 +50,36 @@ FALSE_FLAGS = ('sdk_installed', 'packages_installed', 'node_executed', 'native_a
                'generic_asset_path_confinement_proven', 'authorization_proven', 'cross_process_cas_proven',
                'full_atomicity_proven', 'publication_authorized', 'full_studio_acceptance',
                'dependency_acceptance', 'volparossa_updates_verified')
+SOURCE_ROLES = {
+    'desktop/src-tauri/src/mcp.rs': 'mcp',
+    'server-rust/src/connectors/fs_hosting.rs': 'fs_hosting',
+    'server-rust/src/connectors/fs_storage.rs': 'fs_storage',
+    'server-rust/src/connectors/fs_storage/identifier.rs': 'identifier',
+    'server-rust/src/connectors/fs_storage/metadata.rs': 'metadata',
+    'server-rust/src/connectors/fs_storage/metadata/tests.rs': 'metadata_tests',
+    'server-rust/src/connectors/fs_storage/tests.rs': 'storage_tests',
+    'server-rust/src/connectors/traits.rs': 'traits',
+    'server-rust/src/models/connector.rs': 'connector_model',
+    'server-rust/src/models/website.rs': 'website_model',
+    'server-rust/src/routes/website.rs': 'website_routes',
+}
+COMPILER_MARKERS = {
+    'cargo_lock': rb'^(?:(?:the lock file|cannot update the lock file) .*--locked\b|failed to acquire .*lock)',
+    'offline': rb'^(?:no matching package named |attempting to make an HTTP request, but --offline was specified)',
+    'download': rb'^failed to download ',
+    'execute': rb'^could not execute process ',
+    'custom_build': rb'^failed to run custom build command for ',
+    'syntax': rb'^(?:expected\b|unexpected\b|mismatched closing delimiter|unclosed delimiter|this file contains an unclosed delimiter)',
+    'macro': rb'^(?:cannot find macro |cannot find attribute |proc macro panicked|no rules expected|unexpected end of macro invocation)',
+    'format': rb'^invalid format string:',
+    'recursion': rb'^recursion limit reached',
+    'lifetime': rb'^(?:lifetime may not live long enough|implementation of .* is not general enough)',
+    'future_send': rb'^future cannot be sent between threads safely',
+    'source_read': rb"^(?:couldn't read |file not found for module )",
+    'resource': rb'(?:Resource temporarily unavailable|Cannot allocate memory|Too many open files)',
+    'no_space': rb'No space left on device',
+    'permissions': rb'Permission denied',
+}
 
 
 class Rejected(RuntimeError):
@@ -127,6 +157,53 @@ def failure_kind(error):
     return 'cancelled' if isinstance(error, (KeyboardInterrupt, InterruptedError)) else 'source_rejected'
 
 
+def compiler_refusal(native, work, *, clipped=False):
+    """Optional closed observation of the same private log, never raw errors."""
+    result = dict(schema=1, status='clipped' if clipped else 'unavailable', log_sha256=None,
+                  log_bytes=None, primary_error_lines=0, compile_footer_lines=0,
+                  unknown_primary_error_lines=0, source_role=None, source_line=None,
+                  source_column=None, denied_warnings=False,
+                  **{name: False for name in COMPILER_MARKERS})
+    if clipped:
+        return result
+    raw = native.read_file(work / 'logs/native-cargo.log', 16 * 1024 * 1024,
+                           modes=(0o600,), allow_empty=True)
+    result.update(log_sha256=hashlib.sha256(raw).hexdigest(), log_bytes=len(raw))
+    # Limits apply before publishing any content-derived observations.
+    errors = []
+    for match in re.finditer(rb'^[ \t]{0,32}error(?:\[E[0-9]{4}\])?:[ \t]*([^\r\n]*)', raw, re.MULTILINE):
+        if len(errors) >= 64 or len(match[1]) > 8192:
+            result['status'] = 'clipped'
+            return result
+        errors.append(match[1])
+    flags = {name: False for name in COMPILER_MARKERS}
+    primary = footer = unknown = 0
+    for message in errors:
+        if message.startswith(b'could not compile '):
+            footer += 1
+            continue
+        primary += 1
+        observed = {name: re.search(pattern, message) is not None
+                    for name, pattern in COMPILER_MARKERS.items()}
+        unknown += not any(observed.values())
+        for name, matched in observed.items():
+            flags[name] |= matched
+    result.update(flags, primary_error_lines=primary, compile_footer_lines=footer,
+                  unknown_primary_error_lines=unknown, status='captured')
+    result['denied_warnings'] = re.search(
+        rb'^[ \t]{0,32}= (?:note|help): [^\r\n]{0,512}(?:-D warnings|-Dwarnings)\b',
+        raw, re.MULTILINE) is not None
+    # Only exact public manifest paths qualify. Absolute/private paths, aliases,
+    # oversized coordinates and unknown files are ignored, never serialized.
+    for span in re.finditer(rb'^[ \t]{0,32}--> ([A-Za-z0-9_./-]{1,256}):([0-9]{1,5}):([0-9]{1,4})[ \t]*\r?$', raw, re.MULTILINE):
+        role = SOURCE_ROLES.get(span[1].decode('ascii'))
+        line, column = int(span[2]), int(span[3])
+        if role is not None and 1 <= line <= 65535 and 1 <= column <= 4096:
+            result.update(source_role=role, source_line=line, source_column=column)
+            break
+    return result
+
+
 def execute_tests(native, temporary, source, work, env, deadline, groups, lifecycle, report):
     """One actual Cargo actor; privately bounded combined output, never streamed."""
     try:
@@ -138,6 +215,11 @@ def execute_tests(native, temporary, source, work, env, deadline, groups, lifecy
                 work, clipped=isinstance(error, native.Rejected) and error.kind == 'output_limit')
         except BaseException:
             pass  # This optional observer never replaces the actual actor failure.
+        try:
+            report['fs_compiler_diagnostic'] = compiler_refusal(
+                native, work, clipped=isinstance(error, native.Rejected) and error.kind == 'output_limit')
+        except BaseException:
+            pass  # The original actor failure also wins over this new observer.
         raise
     report['rust_test_binary_executed'] = True
     raw = native.read_file(work / 'logs/native-cargo.log', 16 * 1024 * 1024, modes=(0o600,))
@@ -176,7 +258,8 @@ def main():
         fs_manifest_sha256=PINS[HERE / 'manifest.json'], fs_patch_sha256=None,
         source_files_sha256=None, source_unchanged=False, compiler_payload_verified=False,
         full_offline_locked_metadata_passed=False, server_lib_tests_passed=False,
-        test_result=None, compiler_diagnostic=None, rust_test_binary_executed=False, compiled_target_retained=False,
+        test_result=None, compiler_diagnostic=None, fs_compiler_diagnostic=None,
+        rust_test_binary_executed=False, compiled_target_retained=False,
         owned_group_count=0, owned_groups_joined=False, owner_scope='proof_process_groups',
         private_tool_tree_removed=False, **{name: False for name in FALSE_FLAGS})
     try:
