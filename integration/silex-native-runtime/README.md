@@ -53,3 +53,16 @@ runner cause or proof of the runner's APT source/version. The
 also shows why a held-package message must remain a message observation.
 The existing SDK manifest already includes xdotool and bubblewrap; a base-image
 inventory absence does not establish a need to extend that package closure.
+
+The separate explicit `runtime-sdk-inventory` profile first provisions the exact
+already reviewed 182-package SDK closure using the unchanged hash-bound fetch
+and offline namespace installer, then runs this same strict collector. Both
+missing base-image tools are already in that closure; no package pin, parser,
+accepted exit or `--no-remove --no-download` flag changes. This tests inventory
+against its actual future SDK environment. The standalone base-image profile
+retains its failure and remains available unchanged. The collector itself still
+installs nothing; the workflow installation is explicitly evidenced by three
+separate SDK receipts plus the inventory receipt. There is no compiler, Node,
+display, inventoried-tool or application execution. Exact-source SDK controls
+from native compile40817046553 are reused for unchanged installer/fetch source.
+No runtime-isolation or GUI acceptance follows from a complete inventory.
