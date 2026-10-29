@@ -157,3 +157,12 @@ with finite phase diagnostics. It performs no package-index update, download,
 archive access, cache creation, policy creation or installation. Its separate
 root/outer receipts keep every installation and native acceptance flag false.
 Only this bounded diagnostic is selected while the first refusal is investigated.
+
+The shape-only follow-up [run40814124602](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/40814124602)
+on `821d1e6f73802127fccf54e782533d5317d8c6d8` passed sixteen controls and
+confirmed the causal input: the fresh namespace returned exactly zero bytes
+for its IPv4 route file. The previous one-header-line check rejected that empty
+form. The local parser now accepts only the observed empty byte string or one
+known header line; whitespace-only data, unknown lines, extra headers and route
+entries are refused. Other namespace, source, SDK and installation guards stay
+unchanged. The next normal installation result remains required.

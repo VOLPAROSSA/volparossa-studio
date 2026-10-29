@@ -418,6 +418,8 @@ ADMISSION_STAGES = ('python_identity', 'hosted_identity', 'source_identity_value
     'directory_runner', 'directory_studio', 'directory_helper', 'helper_owner', 'release_path',
     'release_file', 'release_identity', 'namespace_identity', 'network_read', 'network_state',
     'baseline_absence', 'manifest', 'complete')
+IPV4_ROUTE_HEADER = (b'Iface', b'Destination', b'Gateway', b'Flags', b'RefCnt', b'Use',
+                     b'Metric', b'Mask', b'MTU', b'Window', b'IRTT')
 
 
 def admission_stage(report, stage):
@@ -426,14 +428,23 @@ def admission_stage(report, stage):
     return report['admission_diagnostic']
 
 
+def ipv4_routes_absent(raw):
+    """Accept the observed empty new-netns file or one exact legacy header."""
+    if type(raw) is not bytes or len(raw) > 16384:
+        return False
+    if raw == b'':
+        return True
+    lines = raw.splitlines()
+    return len(lines) == 1 and tuple(lines[0].split()) == IPV4_ROUTE_HEADER
+
+
 def ipv4_shape(raw):
     """Public shape ONLY; this diagnostic never grants route acceptance."""
     require(type(raw) is bytes)
     bytes_clipped = len(raw) > 16384
     nonempty = [line for line in raw[:16384].splitlines() if line.strip()]
     lines_clipped = len(nonempty) > 32
-    header = (b'Iface', b'Destination', b'Gateway', b'Flags', b'RefCnt', b'Use',
-              b'Metric', b'Mask', b'MTU', b'Window', b'IRTT')
+    header = IPV4_ROUTE_HEADER
     complete = not bytes_clipped and not lines_clipped
     return dict(ipv4_bytes=min(len(raw), 16384), ipv4_bytes_clipped=bytes_clipped,
                 ipv4_line_count=min(len(nonempty), 32), ipv4_lines_clipped=lines_clipped,
@@ -489,11 +500,11 @@ def root_admission(report, privileged_argument):
     report['admission_diagnostic'].update(ipv4_shape(routes4))
     report['admission_diagnostic'].update(kernel_bytes_bounded=max(len(interfaces), len(routes4), len(routes6)) <= 16384,
         loopback_only={line.split(b':', 1)[0].strip() for line in interfaces.splitlines() if b':' in line} == {b'lo'},
-        ipv4_routes_absent=len(routes4.splitlines()) == 1,
+        ipv4_routes_absent=ipv4_routes_absent(routes4),
         ipv6_routes_loopback_only=all(line.split()[-1] == b'lo' for line in routes6.splitlines()))
     require(max(len(interfaces), len(routes4), len(routes6)) <= 16384
             and {line.split(b':', 1)[0].strip() for line in interfaces.splitlines() if b':' in line} == {b'lo'}
-            and len(routes4.splitlines()) == 1
+            and ipv4_routes_absent(routes4)
             and all(line.split()[-1] == b'lo' for line in routes6.splitlines()))
     admission_stage(report, 'baseline_absence')
     require(not Path('/nonexistent').exists() and not POLICY.exists() and not POLICY.is_symlink())

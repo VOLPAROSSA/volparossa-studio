@@ -473,6 +473,18 @@ class InstallSdkTests(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(sdk.Rejected):
                 sdk.check_admission_diagnostic(dict(substage='network_state', **bad))
 
+    def test_ipv4_absence_accepts_only_observed_empty_or_single_known_header(self):
+        header = b'Iface\tDestination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT\n'
+        entry = b'public-fixture 00000000 0100007F 0003 0 0 0 00000000 0 0 0\n'
+        self.assertIs(sdk.ipv4_routes_absent(b''), True)
+        self.assertIs(sdk.ipv4_routes_absent(header), True)
+        for raw in (b'\n', b' \t\n', header + b'\n', header + header, header + entry, entry,
+                    b'arbitrary single line\n', header.replace(b'Gateway', b'Unknown'),
+                    header.replace(b' IRTT', b''), b' ' * 16385, header + b' ' * 16385,
+                    bytearray(), None):
+            with self.subTest(raw=raw):
+                self.assertIs(sdk.ipv4_routes_absent(raw), False)
+
 
 if __name__ == '__main__':
     unittest.main()
