@@ -17,7 +17,7 @@ on:
       native_followup:
         description: 'Explicit native prerequisite; no native GUI application execution'
         type: choice
-        options: [none, bridge, verify-lock, sdk-admission, sdk-baseline, sdk-fetch, sdk-install, native-build, dashboard-unit, fs-identifier-rename, dashboard-compose-unit]
+        options: [none, bridge, verify-lock, sdk-admission, sdk-baseline, sdk-fetch, sdk-install, native-build, dashboard-unit, fs-identifier-rename, local-native-build, dashboard-compose-unit]
         default: none
 
 permissions:
@@ -468,6 +468,131 @@ jobs:
           test -z "$(git -C studio status --porcelain=v1 --untracked-files=all)"
       - name: Execute only the original asset adapter controls
         run: python3 -I -B studio/integration/silex-native-dashboard/test_compose.py -v
+
+  original-dashboard-build:
+    if: >-
+      github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'local-native-build' &&
+      github.repository == 'VOLPAROSSA/volparossa-studio' &&
+      github.ref == 'refs/heads/feature/native-local-dashboard-20261029'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: studio
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: silexlabs/Silex
+          ref: 672efed69dda04c0a1e968859239e042f00d9538
+          path: silex
+          persist-credentials: false
+      - name: Bind source and the existing authenticated compiler carrier
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(id -u)" != 0
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$(git -C studio rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C silex rev-parse HEAD)" = 672efed69dda04c0a1e968859239e042f00d9538
+          python3 -I -B - <<'PYTHON'
+          import hashlib, os, pathlib
+          root = pathlib.Path('studio/integration/silex-publication/toolchain')
+          expected = {
+            'provision-rust199.py': '73183c57744925c962cfb2bd7414ac2c20df8848ddad20e6240ba3257a2f8fcd',
+            'rust199-components.json': '5cf2439e109e9fa92a25037130a20f903282e703ddb0ce192d7c06a8ec2737ba',
+            'test-provision-rust199.py': '7683044d41b47a1cd3bc488368f63c15973e54b4154fe834696def2b4a3903f3',
+          }
+          for name, digest in expected.items():
+              assert hashlib.sha256((root / name).read_bytes()).hexdigest() == digest
+          for name in ('RUSTC', 'RUSTDOC', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER', 'RUSTUP_TOOLCHAIN'):
+              assert name not in os.environ
+          PYTHON
+      - name: Test local composition, FS source, compiler and build boundaries before provisioning
+        run: |
+          set -euo pipefail
+          python3 -I -B studio/integration/silex-native-bootstrap/test_prepare.py -v
+          python3 -I -B studio/integration/silex-native-bootstrap/test_native_build.py -v
+          python3 -I -B studio/integration/silex-fs-identifier-rename/test_prepare.py -v
+          python3 -I -B studio/integration/silex-fs-identifier-rename/test_proof.py -v
+          python3 -I -B studio/integration/silex-native-dashboard/test_compose.py -v
+          python3 -I -B studio/integration/silex-native-dashboard/test_local_build.py -v
+          python3 -I -B studio/integration/silex-native-dashboard/test_check.py -v
+          python3 -I -B studio/integration/silex-publication/toolchain/test-provision-rust199.py -v
+          python3 -I -B studio/integration/silex-publication/toolchain/provision-rust199.py runner
+      - name: Prepare a fresh public-only Cargo home without inherited configuration
+        run: |
+          python3 -I -B - <<'PYTHON'
+          import os, pathlib
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'silex-native-cargo-public-v1'
+          root.mkdir(mode=0o700)
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write('CARGO_HOME=' + str(root) + '\n')
+              output.write('CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse\n')
+          PYTHON
+      - name: Acquire only the exact base lock sources before removing native memberships
+        run: |
+          set -euo pipefail
+          python3 -I -B studio/integration/silex-publication/prepare.py verify-baseline --source "$GITHUB_WORKSPACE/silex"
+          python3 -I -B studio/integration/silex-publication/prepare.py apply --source "$GITHUB_WORKSPACE/silex"
+          python3 -I -B - <<'PYTHON'
+          import hashlib, pathlib, tomllib
+          raw = pathlib.Path('silex/Cargo.lock').read_bytes()
+          assert hashlib.sha256(raw).hexdigest() == '35d0ea429b62f5cd2bc8533f75f997c05e787ad3355a40c1de0eba5fd3233536'
+          data = tomllib.loads(raw.decode())
+          assert len(data['package']) == 607
+          assert all(p.get('source') in (None, 'registry+https://github.com/rust-lang/crates.io-index') for p in data['package'])
+          PYTHON
+          python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/resolve_lock.py" --source "$GITHUB_WORKSPACE/silex" --fetch-base
+      - name: Apply only the exact reviewed Native6 and FS overlays before SDK admission
+        run: |
+          set -euo pipefail
+          python3 -I -B studio/integration/silex-native-bootstrap/prepare.py verify-baseline --source "$GITHUB_WORKSPACE/silex"
+          python3 -I -B studio/integration/silex-native-bootstrap/prepare.py apply --source "$GITHUB_WORKSPACE/silex"
+          python3 -I -B studio/integration/silex-fs-identifier-rename/prepare.py verify-baseline --source "$GITHUB_WORKSPACE/silex"
+          python3 -I -B studio/integration/silex-fs-identifier-rename/prepare.py apply --source "$GITHUB_WORKSPACE/silex"
+          python3 -I -B studio/integration/silex-fs-identifier-rename/prepare.py verify-patched --source "$GITHUB_WORKSPACE/silex"
+      - name: Bind the exact source and update only signed public package metadata
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(id -u)" != 0
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$(git -C studio rev-parse HEAD)" = "$GITHUB_SHA"
+          sudo apt-get -o APT::Get::AllowUnauthenticated=false \
+            -o Acquire::AllowInsecureRepositories=false \
+            -o Acquire::AllowDowngradeToInsecureRepositories=false \
+            -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
+            -o Acquire::Retries=0 -o APT::Update::Error-Mode=any update
+      - name: Test SDK manifest and archive boundaries without installation
+        run: python3 -I -B studio/integration/silex-native-bootstrap/test_fetch_sdk.py -v
+      - name: Test the exact offline SDK installation boundaries
+        run: python3 -I -B studio/integration/silex-native-bootstrap/test_install_sdk.py -v
+      - name: Acquire and verify the exact SDK archives without extracting or executing them
+        run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/fetch_sdk.py"
+      - name: Install only the reviewed SDK closure offline on this disposable runner
+        run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/install_sdk.py"
+      - name: Compile the FS plus original local dashboard release without starting or distributing it
+        run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-dashboard/local_build.py"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: silex-original-dashboard-build-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/silex-native-sdk-fetch.json
+            ${{ runner.temp }}/silex-native-sdk-install.json
+            ${{ runner.temp }}/silex-native-sdk-install-root.json
+            ${{ runner.temp }}/silex-native-base-fetch.json
+            ${{ runner.temp }}/silex-original-dashboard-build.json
+          retention-days: 14
+          if-no-files-found: warn
 
   original-dashboard-unit:
     if: >-

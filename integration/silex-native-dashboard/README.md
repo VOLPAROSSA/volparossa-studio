@@ -56,3 +56,20 @@ FD ownership, cancellation, observed directory replacement and source drift.
 Any adapter exception requires abandoning the disposable source tree; complete
 rollback and cross-process race immunity are not claimed. A future native build
 composition remains separate and requires its own review and actual evidence.
+
+The explicit `local-native-build` profile composes the separately verified FS
+overlay and three original application assets, then builds the frontend and an
+offline locked native release using the existing authenticated carriers and SDK.
+The normal SDK receipts and fresh installed-version query gate the build helper.
+Full metadata has its own single-group scope; all owned groups participate in
+terminal cleanup. Accounting and terminal handoff preserve the first failure and
+reject queued cancellation before committing a success receipt. Sixteen caller
+controls include the actual shared source-checker hook and cancellation seams.
+
+The source snapshot allows only four existing generated schema paths to change;
+all other tracked inputs, the nine added FS/publication helper paths, root and
+nested locks, and the exact original assets remain bound. The ELF is inspected
+privately and never launched or uploaded. Five JSON receipts only are artifacts.
+Application execution, GUI/privacy, actual dashboard CRUD, native signing consent,
+publication, redistribution, release and full Studio acceptance remain false.
+The earlier native66f genuine-dashboard build remains separate evidence.
