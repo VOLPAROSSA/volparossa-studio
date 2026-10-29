@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Explicit hosted-only trial; no publication keys, daemon, external deployment or AI."""
+"""Explicit hosted-only synthetic trial; no production keys, external deployment or AI."""
 import base64
 import hashlib
 import json
@@ -19,11 +19,16 @@ import urllib.request
 from extract import extract
 from lifecycle import GroupCaptureFailure, drain_group, start_group
 from runtime_context import write_context
+from viewer_receipt import (validate_viewer_proof, read_viewer_cleanup, read_viewer_diagnostic,
+                            read_viewer_unit_diagnostic)
+from signed_site_profile import MODE as SIGNED_SITE_MODE, arguments
+from signed_site_controller import execute as execute_signed_site
+from signed_site_receipt import read_signed_diagnostic
 
 FIXTURE = Path(__file__).resolve().parent
 PINS = json.loads((FIXTURE / 'manifest.json').read_text())
 OPERATIONS = frozenset(('install-silex', 'install-driver', 'build-client', 'build-server',
-                        'build-public', 'runtime', 'core-pack'))
+                        'build-public', 'runtime', 'core-pack', 'core-build', 'viewer-runtime', 'marker-unit', 'core-cli-build'))
 FAILURES = frozenset(('exit_nonzero', 'signal_terminated', 'deadline_exceeded',
                       'output_limit_exceeded', 'spawn_failed', 'cleanup_failed', 'cancelled'))
 DIAGNOSTIC_COUNTS = frozenset(('page_errors', 'console_errors', 'failed_requests',
@@ -278,11 +283,27 @@ def run(command, temporary, env, label, timeout=600, cwd=None):
     return path
 
 
+def run_viewer_units(node, runtime_fixture, temporary, env, receipt):
+    """Run only fixed tests; retain closed failed case IDs, never raw TAP."""
+    try:
+        run([node, '--test', '--test-reporter=tap', runtime_fixture / 'test_marker_failure.mjs',
+             runtime_fixture / 'test_viewer_handoff.mjs'], temporary, env, 'marker-unit', timeout=10)
+    except OperationFailure:
+        try:
+            receipt['viewer_unit_diagnostic'] = read_viewer_unit_diagnostic(temporary / 'marker-unit.log')
+            print('STUDIO_VIEWER_UNIT_FAILURE ' + json.dumps(receipt['viewer_unit_diagnostic'], sort_keys=True), flush=True)
+        except Exception:
+            receipt.setdefault('viewer_unit_diagnostic',
+                dict(schema=1, status='invalid', failed_case_ids=[], case_count=0))
+        raise
+    print('STUDIO_MARKER_UNIT {"schema":1,"status":"passed","diagnostic_only":true}', flush=True)
+
+
 def main():
     if (os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted'
             or os.environ.get('RUNNER_OS') != 'Linux' or os.environ.get('RUNNER_ARCH') != 'X64'):
         raise RuntimeError('approved disposable GitHub Linux X64 runner required')
-    core, source, receipt_path = map(Path, sys.argv[1:])
+    (core, source, receipt_path), proof_mode = arguments(sys.argv[1:])
     studio = FIXTURE.parents[1]
     refs = {key: os.environ[key] for key in ('STUDIO_CORE_REVISION', 'STUDIO_REVISION')}
     if (any(not re.fullmatch('[0-9a-f]{40}', value) for value in refs.values())
@@ -291,9 +312,11 @@ def main():
             or hashlib.sha256((source / 'pnpm-lock.yaml').read_bytes()).hexdigest() != PINS['silex']['lock_sha256']):
         raise ValueError('exact source binding')
     check_font_source_contract(source)
-    receipt = dict(schema=1, status='failed', stage='prepare', **refs,
+    receipt = dict(schema=2, status='failed', stage='prepare', **refs,
                    silex_revision=PINS['silex']['commit'], network_published=False,
                    full_studio_acceptance=False, synthetic_only=True)
+    if proof_mode == SIGNED_SITE_MODE:
+        receipt.update(schema=3, proof_mode=SIGNED_SITE_MODE)
     temporary = Path(tempfile.mkdtemp(prefix='studio-export-', dir=os.environ['RUNNER_TEMP']))
     # Give SIGTERM the same finally/cleanup behavior as normal failure.
     def cancel(_signum, _frame):
@@ -334,6 +357,10 @@ def main():
                    CI='true', HUSKY='0', DO_NOT_TRACK='1', PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD='1',
                    NPM_CONFIG_UPDATE_NOTIFIER='false', PNPM_DISABLE_SELF_UPDATE_CHECK='1',
                    COREPACK_ENABLE_NETWORK='0')
+        # Pure finite-label behavior tests use the same authenticated Node, fixed
+        # copied fixture path and bounded owned-group runner as this actual trial.
+        # They run before dependency installation or any editor/viewer work.
+        run_viewer_units(node, runtime_fixture, temporary, env, receipt)
         receipt['stage'] = 'frozen_install'
         options = ['install', '--frozen-lockfile', '--ignore-scripts', '--store-dir', str(temporary / 'store'),
                    '--config.manage-package-manager-versions=false', '--config.update-notifier=false']
@@ -360,17 +387,10 @@ def main():
         receipt['runtime_cleanup'] = json.loads((temporary / 'runtime-cleanup.json').read_text())
         receipt['stage'] = 'bounded_actual_zip_extraction'
         extract(temporary / 'actual-export.zip', temporary / 'export', temporary / 'inventory.json')
-        receipt['stage'] = 'actual_core_pack_and_decode'
-        env['VOLPAROSSA_STUDIO_EXPORT_DIRECTORY'] = str(temporary / 'export')
-        env['VOLPAROSSA_STUDIO_EXPORT_INVENTORY'] = str(temporary / 'inventory.json')
-        log = run(['cargo', 'test', '--locked', '--offline', '-p', 'volparossa', '--test', 'studio_site_pack',
-                   'actual_silex_export_packs_and_decodes_without_publication', '--', '--ignored', '--exact', '--nocapture'],
-                  temporary, env, 'core-pack', timeout=900, cwd=core)
-        proofs = [json.loads(line.removeprefix('STUDIO_SITE_PACK_PROOF '))
-                  for line in log.read_text().splitlines() if line.startswith('STUDIO_SITE_PACK_PROOF ')]
-        if len(proofs) != 1 or proofs[0]['network_published'] is not False or proofs[0]['status'] != 'passed':
-            raise ValueError('core proof absent')
-        receipt['core_pack'] = proofs[0]
+        if proof_mode == SIGNED_SITE_MODE:
+            execute_signed_site(core, temporary, runtime_fixture, env, receipt, run)
+        else:
+            run_legacy_viewer(core, temporary, runtime_fixture, env, receipt)
         receipt['status'], receipt['stage'] = 'passed', 'complete'
     except Exception as error:
         receipt['error_type'] = type(error).__name__
@@ -383,19 +403,72 @@ def main():
             receipt['browser_export'] = read_browser_receipt(browser_receipt)
         raise
     finally:
-        cleanup = temporary / 'runtime-cleanup.json'
-        if cleanup.is_file() and cleanup.stat().st_size <= 4096:
-            receipt['runtime_cleanup'] = json.loads(cleanup.read_text())
+        # These logs belong to the exact child invocation. New mode never reads
+        # an old viewer proof/diagnostic or falls back to its acceptance schema.
         try:
-            shutil.rmtree(temporary)
-        except OSError as error:
-            receipt.update(status='failed', stage='cleanup', cleanup_error_type=type(error).__name__)
+            if proof_mode == SIGNED_SITE_MODE:
+                receipt['signed_site_diagnostic'] = read_signed_diagnostic(temporary / 'signed-site-core.log')
+            else:
+                receipt['viewer_diagnostic'] = read_viewer_diagnostic(temporary / 'viewer-core.log')
+            viewer_cleanup = temporary / 'viewer-cleanup.json'
+            if viewer_cleanup.is_file() and viewer_cleanup.stat().st_size <= 4096:
+                receipt['viewer_cleanup'] = read_viewer_cleanup(viewer_cleanup, require_success=False)
+            cleanup = temporary / 'runtime-cleanup.json'
+            if cleanup.is_file() and cleanup.stat().st_size <= 4096:
+                receipt['runtime_cleanup'] = json.loads(cleanup.read_text())
+        except Exception as error:
+            receipt.update(status='failed', stage='cleanup_receipt', cleanup_error_type=type(error).__name__)
             raise
         finally:
-            receipt['temporary_outputs_removed'] = not temporary.exists()
-            with receipt_path.open('x') as output:
-                json.dump(receipt, output, sort_keys=True)
-                output.write('\n')
+            try:
+                shutil.rmtree(temporary)
+            except OSError as error:
+                receipt.update(status='failed', stage='cleanup', cleanup_error_type=type(error).__name__)
+                raise
+            finally:
+                receipt['temporary_outputs_removed'] = not temporary.exists()
+                with receipt_path.open('x') as output:
+                    json.dump(receipt, output, sort_keys=True)
+                    output.write('\n')
+
+
+def run_legacy_viewer(core, temporary, runtime_fixture, env, receipt):
+    receipt['stage'] = 'build_actual_core_viewer_fixture'
+    build_log = run(['cargo', 'test', '--locked', '--offline', '-p', 'volparossa', '--test',
+                     'studio_site_pack', '--no-run', '--message-format=json'],
+                    temporary, env, 'core-build', timeout=900, cwd=core)
+    artifacts = []
+    for line in build_log.read_text().splitlines():
+        try:
+            message = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if (message.get('reason') == 'compiler-artifact'
+                and message.get('target', {}).get('name') == 'studio_site_pack'
+                and message.get('executable')):
+            artifacts.append(Path(message['executable']))
+    if (len(artifacts) != 1 or artifacts[0].parent != core.resolve() / 'target/debug/deps'
+            or artifacts[0].is_symlink() or not artifacts[0].is_file()
+            or not re.fullmatch(r'studio_site_pack-[0-9a-f]+', artifacts[0].name)):
+        raise ValueError('exact actual Core compiler artifact required')
+    descriptor = os.open(temporary / 'viewer-context.json',
+                         os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600)
+    with os.fdopen(descriptor, 'w') as output:
+        json.dump({'schema': 1, 'executable': str(artifacts[0])}, output)
+    receipt['stage'] = 'actual_core_pack_signed_local_viewer_and_independent_browser'
+    run([core / 'scripts/run-isolated-test.sh', '--studio-nonroot-command', '/usr/bin/python3',
+         'studio_export', 'VOLPAROSSA_HANDOFF_TEST_PARENT_NETNS', 'loopback', '-B', runtime_fixture / 'viewer_runtime.py'],
+        temporary, env, 'viewer-runtime', timeout=100)
+    log = temporary / 'viewer-core.log'
+    if log.stat().st_size > 4 * 1024 * 1024:
+        raise ValueError('bounded viewer proof log required')
+    proofs = [json.loads(line.removeprefix('STUDIO_SITE_PACK_PROOF '))
+              for line in log.read_text().splitlines() if line.startswith('STUDIO_SITE_PACK_PROOF ')]
+    if len(proofs) != 1:
+        raise ValueError('single Core proof required')
+    validate_viewer_proof(proofs[0])
+    receipt['core_pack'] = proofs[0]
+    receipt['viewer_cleanup'] = read_viewer_cleanup(temporary / 'viewer-cleanup.json')
 
 
 if __name__ == '__main__':

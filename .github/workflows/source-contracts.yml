@@ -25,5 +25,32 @@ jobs:
       - name: Check Python syntax and inert contracts
         working-directory: integration/silex-export
         # test_contract parses every fixture Python source without running it.
-        # test_wrapper_guard requires Core and stays in the separate Core trial.
-        run: python3 -B -m unittest -v test_contract test_lifecycle test_runtime_context
+        # The viewer writer cross-check and test_wrapper_guard require Core and
+        # stay in the separate Core trial; remaining viewer contracts run here.
+        run: python3 -B -m unittest -v test_contract test_lifecycle test_runtime_context test_viewer_receipt test_signed_site_profile test_signed_site_receipt
+      - name: Check viewer units with the existing authenticated Node
+        working-directory: integration/silex-export
+        run: |
+          python3 -B - <<'PY'
+          import os
+          from pathlib import Path
+          import signal
+          import tempfile
+          import run as fixture
+          if (os.environ.get('GITHUB_ACTIONS') != 'true'
+                  or os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted'
+                  or os.environ.get('RUNNER_OS') != 'Linux'
+                  or os.environ.get('RUNNER_ARCH') != 'X64'
+                  or fixture.revision(fixture.FIXTURE.parents[1]) != os.environ['GITHUB_SHA']):
+              raise RuntimeError('exact-source approved hosted runner required')
+          def cancel(_signum, _frame):
+              raise InterruptedError('cancelled')
+          signal.signal(signal.SIGTERM, cancel)
+          signal.signal(signal.SIGINT, cancel)
+          with tempfile.TemporaryDirectory(prefix='studio-viewer-units-', dir=os.environ['RUNNER_TEMP']) as root:
+              temporary = Path(root)
+              node, _pnpm = fixture.prepare(temporary)
+              env = {key: os.environ[key] for key in ('PATH', 'HOME', 'LANG', 'LC_ALL', 'RUNNER_TEMP')
+                     if key in os.environ}
+              fixture.run_viewer_units(node, fixture.FIXTURE, temporary, env, {})
+          PY
