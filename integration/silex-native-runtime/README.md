@@ -66,3 +66,24 @@ separate SDK receipts plus the inventory receipt. There is no compiler, Node,
 display, inventoried-tool or application execution. Exact-source SDK controls
 from native compile40817046553 are reused for unchanged installer/fetch source.
 No runtime-isolation or GUI acceptance follows from a complete inventory.
+
+The separate manual `sdk-isolation` choice uses the existing
+`.github/workflows/silex-publication-bounds.yml`, restricted to the same exact
+runtime branch and source SHA. It authenticates the four reviewed isolation
+source/control files and the frozen lifecycle helper, then runs seventeen
+isolation controls before any APT or SDK action. It reuses the unchanged signed
+metadata update, exact 182-package SDK acquisition/offline installation and fresh
+strict inventory from `runtime-sdk-inventory`. Only then does the absolute,
+no-argument isolation controller run. Its fixed internal environment and typed
+protocol remain the authority boundary; no caller-supplied tool, command or path
+override is added. The new job is bounded to twenty minutes, reserving time for
+the isolation controller after SDK preparation; existing job budgets stay fixed.
+
+This profile attempts only disposable namespace admission and public synthetic
+network-observer calibration. It starts no compiler, Node, display, browser or
+native application. The five allowed JSON artifacts are the three SDK receipts,
+fresh runtime inventory and `silex-native-isolation.json`; no raw process logs,
+archives, screenshots or binaries are uploaded. Before an exact-source hosted
+result, this is an unexecuted source candidate. Isolation/calibration evidence
+does not establish WebKit sandbox behavior, native GUI, whole-application
+privacy, authorized updates or full Studio acceptance.
