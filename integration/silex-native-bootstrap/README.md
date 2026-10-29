@@ -64,7 +64,7 @@ needed to inspect these source files.
 
 ## Offline lock resolution
 
-The separate opt-in `native_followup=resolve-lock` profile authenticates the existing
+The historical source at `6a7406f` used the opt-in `native_followup=resolve-lock` profile authenticates the existing
 Rust1.99.1 compiler carrier and acquires the exact607-package base-lock sources into
 a fresh private Cargo home before applying this native overlay. The first network
 fetch uses the same explicit environment and preflight configuration/credential
@@ -80,3 +80,30 @@ unused registry records may disappear. Unexpected changes fail closed. This is a
 lock candidate, not native build, runtime, publication, update or full Studio
 acceptance. The final six-path overlay must apply its lock delta after the existing
 bounded-publication lock (`35d0…`), rather than against the original upstream lock.
+
+## Exact reviewed lock candidate
+
+The first resolver run40807343802 correctly failed its strict retained-record rule.
+The original and candidate locks remain separate evidence. Independent review
+accepts only the exact candidate SHA256
+`de04aaf5ff1acbdde421e3447ea67f3eb7a00a7d5ed118f4387a180e84590118`
+for the additive six-file source overlay, after the base lock SHA256
+`35d0ea429b62f5cd2bc8533f75f997c05e787ad3355a40c1de0eba5fd3233536`.
+
+The607→563 record delta adds no package identity and changes no retained version,
+source or checksum. Dependency spelling/order normalizations preserve their
+concrete targets. The desktop loses its five memberships. Three additional
+feature reductions follow the removed updater/Sentry dependency closures:
+libredox loses redox_syscall0.7.1; rustls loses the ring edge; objc2-ui-kit loses
+nine optional framework edges. This is not an assertion that only the desktop
+dependency record changed, and the generic resolver's failed result is retained.
+
+A separate exact-candidate offline locked query, unchanged-source verification
+and native build/runtime remain required. The source overlay manifest continues
+to mark those acceptance boundaries false. Original component licenses and
+notices remain unchanged; no SDK or application binary is committed.
+
+The current `native_followup=verify-lock` profile selects only the exact reviewed
+candidate in the six-path overlay and performs an actual full offline locked
+query plus unchanged-source checks. It does not reinterpret the historical
+resolver failure as success or allow arbitrary dependency changes.

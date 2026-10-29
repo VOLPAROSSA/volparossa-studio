@@ -11,6 +11,18 @@
   "base_publication_manifest_sha256": "9d7ab28754d77e681dae5adc7c19046be9f15798b05eb6f518ca2ee480ea5790",
   "base_publication_patch_sha256": "30901a10f6b2d09967f553820ea642f83e087fa66a55533b1b683da26306926a",
   "files": {
+    "Cargo.lock": {
+      "after": {
+        "bytes": 146807,
+        "mode": "100644",
+        "sha256": "de04aaf5ff1acbdde421e3447ea67f3eb7a00a7d5ed118f4387a180e84590118"
+      },
+      "before": {
+        "bytes": 159405,
+        "mode": "100644",
+        "sha256": "35d0ea429b62f5cd2bc8533f75f997c05e787ad3355a40c1de0eba5fd3233536"
+      }
+    },
     "desktop/src-tauri/Cargo.toml": {
       "after": {
         "bytes": 953,
@@ -73,9 +85,9 @@
     }
   },
   "patch": {
-    "bytes": 20747,
+    "bytes": 40907,
     "path": "patches/native-bootstrap-privacy.patch",
-    "sha256": "e97d00191dbaa68ef4047e06040e525da15b1d1953f8b54e554a862a207d6db9"
+    "sha256": "e927749533958b9ab3dda95b0378baa1649ec5e2b5409c7b73d5a729fbe67bd2"
   },
   "schema": 1,
   "upstream_commit": "672efed69dda04c0a1e968859239e042f00d9538"

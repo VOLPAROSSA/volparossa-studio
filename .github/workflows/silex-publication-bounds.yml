@@ -17,7 +17,7 @@ on:
       native_followup:
         description: 'Explicit source-only native follow-up; no GTK or native application execution'
         type: choice
-        options: [none, bridge, resolve-lock]
+        options: [none, bridge, verify-lock, sdk-fetch]
         default: none
 
 permissions:
@@ -150,7 +150,7 @@ jobs:
 
   native-lock:
     if: >-
-      github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'resolve-lock' &&
+      github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'verify-lock' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
       github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029'
     runs-on: ubuntu-24.04
@@ -194,7 +194,7 @@ jobs:
       - name: Test the locked graph validator and authenticate only the reviewed compiler
         run: |
           set -euo pipefail
-          python3 -I -B studio/integration/silex-native-bootstrap/test_resolve_lock.py -v
+          python3 -I -B studio/integration/silex-native-bootstrap/test_verify_reviewed_lock.py -v
           python3 -I -B studio/integration/silex-publication/toolchain/test-provision-rust199.py -v
           python3 -I -B studio/integration/silex-publication/toolchain/provision-rust199.py runner
       - name: Prepare a fresh public-only Cargo home without inherited configuration
@@ -221,19 +221,58 @@ jobs:
           assert all(p.get('source') in (None, 'registry+https://github.com/rust-lang/crates.io-index') for p in data['package'])
           PYTHON
           python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/resolve_lock.py" --source "$GITHUB_WORKSPACE/silex" --fetch-base
-      - name: Apply only the reviewed privacy source and resolve offline without builds
+      - name: Apply the exact reviewed six-path source and verify its lock offline
         run: |
           set -euo pipefail
           python3 -I -B studio/integration/silex-native-bootstrap/prepare.py verify-baseline --source "$GITHUB_WORKSPACE/silex"
           python3 -I -B studio/integration/silex-native-bootstrap/prepare.py apply --source "$GITHUB_WORKSPACE/silex"
-          python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/resolve_lock.py" --source "$GITHUB_WORKSPACE/silex"
+          python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/verify_reviewed_lock.py" --source "$GITHUB_WORKSPACE/silex"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: silex-native-lock-${{ github.run_id }}
           path: |
-            ${{ runner.temp }}/silex-native-lock/
+            ${{ runner.temp }}/silex-native-reviewed-lock.json
             ${{ runner.temp }}/silex-native-base-fetch.json
+          retention-days: 14
+          if-no-files-found: warn
+
+  native-sdk-fetch:
+    if: >-
+      github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'sdk-fetch' &&
+      github.repository == 'VOLPAROSSA/volparossa-studio' &&
+      github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: studio
+          persist-credentials: false
+      - name: Bind the exact source and update only signed public package metadata
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(id -u)" != 0
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$(git -C studio rev-parse HEAD)" = "$GITHUB_SHA"
+          sudo apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
+            -o Acquire::Retries=2 -o APT::Update::Error-Mode=any update
+      - name: Test SDK manifest and archive boundaries without installation
+        run: python3 -I -B studio/integration/silex-native-bootstrap/test_fetch_sdk.py -v
+      - name: Acquire and verify the exact SDK archives without extracting or executing them
+        run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/fetch_sdk.py"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: silex-native-sdk-fetch-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/silex-native-sdk-fetch.json
+            ${{ runner.temp }}/silex-native-sdk-fetch-diagnostic.json
           retention-days: 14
           if-no-files-found: warn
 

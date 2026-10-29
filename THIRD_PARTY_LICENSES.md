@@ -106,8 +106,11 @@ and Rust1.99.1 carriers remain separate transient tools with their original noti
 
 This source delta removes native install-ID/telemetry instrumentation, frontend SDK
 injection and upstream Silex updater registration/key/feed. It removes their unused
-direct dependency memberships. The authoritative root Cargo lock must separately
-be resolved and checked without changing retained versions or checksums; native
+direct dependency memberships. The authoritative root Cargo candidate removes44 obsolete registry records,
+preserves all retained versions/sources/checksums and records three independently
+reviewed feature reductions plus dependency-reference normalization. Its exact
+before/after hashes are bound by the overlay manifest; the original failed strict
+resolver report remains evidence. Offline locked verification, native
 compile/runtime and general editor-plugin privacy acceptance are pending. Removal
 of upstream updater authority does not fulfill the required independently
 authorized VOLPAROSSA client updates, which remain open. No distribution, network
