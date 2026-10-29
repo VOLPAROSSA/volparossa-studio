@@ -342,6 +342,107 @@ except S.Rejected:
             self.assertEqual(joined.read_text(), 'joined')
             self.assertEqual((owner.started, owner.joined), (1, 1))
 
+    def entry_failure(self, **changes):
+        value = dict(schema=1, operation='root_isolation_entry_failure', status='failed',
+            studio_revision='b' * 40, stage='identity', failure_kind='identity',
+            source_verified=False, source_sha256=None, source_groups_started=None,
+            source_groups_joined=None, owned_groups_started=None, owned_groups_joined=None,
+            root_carrier_removed=None, host_before_sha256=None, host_after_sha256=None)
+        value.update(changes)
+        return value
+
+    def test_entry_failure_observation_is_closed_nullable_and_source_stage_bound(self):
+        state = dict(stage='identity', source_verified=False, source_sha256=None,
+                     source_owner=None, root_carrier_removed=None)
+        with patch.dict(S.ENTRY_STATE, state, clear=True), patch.dict(os.environ, GITHUB_SHA='b' * 40):
+            produced = S.entry_failure(S.Rejected('identity'))
+            self.assertEqual(produced, self.entry_failure())
+            projected = C.root_failure(S.encoded(produced), 'b' * 40, {'public': 'c' * 64})
+            self.assertEqual(projected['layer'], 'root_entry')
+            self.assertIsNone(projected['source_groups_started'])
+            self.assertIsNone(projected['host_before_sha256'])
+            # Exception text/attributes are never inspected or serialized.
+            opaque = RuntimeError('PRIVATE path https://private.invalid secret')
+            self.assertNotIn('PRIVATE', json.dumps(S.entry_failure(opaque)))
+        complete = self.entry_failure(stage='carrier_write', failure_kind='filesystem',
+            source_verified=True, source_sha256={'public': 'c' * 64},
+            source_groups_started=8, source_groups_joined=8, root_carrier_removed=True)
+        self.assertIs(C.root_failure(S.encoded(complete), 'b' * 40, {'public': 'c' * 64})['source_verified'], True)
+
+    def test_failed_supervisor_observation_retains_only_counts_hashes_and_finite_worker_stage(self):
+        value = passed_root()
+        value.update(status='failed', stage='namespace_worker', failure_kind='child',
+                     namespace_parent_joined=False, namespace_init_exit_confirmed=False,
+                     host_after_sha256=None, host_network_configuration_unchanged=False)
+        value['worker'] = dict(schema=1, operation='namespace_isolation_worker', status='failed',
+            stage='admission_actor', failure_kind='child', namespace_groups_started=10,
+            namespace_groups_joined=10, actors_started=1, actors_joined=1,
+            owner_scope='namespace_process_groups', actor_failure_predicate='private_mqueue')
+        projected = C.root_failure(S.encoded(value), 'b' * 40, {'public': 'c' * 64})
+        self.assertEqual(projected['worker_failure']['actor_failure_predicate'], 'private_mqueue')
+        self.assertEqual(projected['host_before_sha256'], value['host_before_sha256'])
+        self.assertIsNone(projected['host_after_sha256'])
+        self.assertNotIn('namespace_parent_joined', projected)
+        for key, bad in (('stage', 'PRIVATE/path'), ('actors_started', True),
+                         ('actor_failure_predicate', 'PRIVATE/path'),
+                         ('namespace_groups_joined', 11), ('actors_started', 3), ('actors_joined', 2)):
+            changed = copy.deepcopy(value); changed['worker'][key] = bad
+            with self.assertRaises(S.Rejected):
+                C.root_failure(S.encoded(changed), 'b' * 40, {'public': 'c' * 64})
+
+    def test_root_failure_refuses_unknown_fields_types_revision_and_cross_phase_output(self):
+        for changes in ({'stage': 'PRIVATE stage'}, {'stage': 'host_before'}, {'raw_error': 'PRIVATE'},
+                {'schema': True}, {'source_verified': 1}, {'source_verified': True},
+                {'source_groups_started': True, 'source_groups_joined': 0},
+                {'source_groups_started': 129, 'source_groups_joined': 0},
+                {'source_groups_started': 1, 'source_groups_joined': 2},
+                {'studio_revision': 'd' * 40}, {'failure_kind': 'PRIVATE'},
+                {'stage': 'carrier_exec'}, {'host_before_sha256': {'raw': 'PRIVATE'}}):
+            with self.subTest(changes=changes), self.assertRaises(S.Rejected):
+                C.root_failure(S.encoded(self.entry_failure(**changes)), 'b' * 40, {'public': 'c' * 64})
+        for raw in (b'', b'{', b'{"schema":1,"schema":1}', S.encoded(passed_root()),
+                    b'PRIVATE stderr\n', b'x' * (S.MAX_JSON + 1)):
+            with self.assertRaises(S.Rejected):
+                C.root_failure(raw, 'b' * 40, {'public': 'c' * 64})
+
+    def test_optional_observation_never_changes_first_error_or_missing_ack_cleanup(self):
+        primary = S.Rejected('child')
+        report = dict(root_failure=None, root_result=None, cleanup_confirmed=False,
+                      private_work_removed=False, host_ipc_canary_removed=False)
+        self.assertIs(C.retain_root_failure(primary, report, S.encoded(self.entry_failure()),
+                        'b' * 40, {'public': 'c' * 64}), primary)
+        self.assertEqual(report['root_failure']['stage'], 'identity')
+        self.assertIsNone(report['root_result'])
+        self.assertTrue(all(report[name] is False for name in
+            ('cleanup_confirmed', 'private_work_removed', 'host_ipc_canary_removed')))
+        for raw in (b'', b'corrupt'):
+            empty = dict(report, root_failure=None)
+            self.assertIs(C.retain_root_failure(primary, empty, raw, 'b' * 40, {}), primary)
+            self.assertIsNone(empty['root_failure'])
+        with patch.object(C, 'root_failure', side_effect=InterruptedError('observer cancelled')):
+            self.assertIs(C.retain_root_failure(primary, report, b'public', 'b' * 40, {}), primary)
+
+    def test_actual_entry_failure_and_owned_rejection_retain_closed_request_bound_stdout(self):
+        self.assertEqual(os.environ.get('GITHUB_ACTIONS'), 'true')
+        self.assertEqual(os.environ.get('RUNNER_ENVIRONMENT'), 'github-hosted')
+        self.assertNotEqual(os.geteuid(), 0)
+        # Nonroot staged entry rejects BEFORE any carrier, namespace or host
+        # action. Only a new Python process/group is created by this control.
+        now = time.monotonic_ns()
+        environment = dict(S.ENV, GITHUB_SHA='b' * 40,
+            VP_ISOLATION_WORK_NS=str(now + 5_000_000_000), VP_ISOLATION_END_NS=str(now + 35_000_000_000))
+        owner = S.Owner(L, time.monotonic() + 5, time.monotonic() + 8, control=False)
+        with self.assertRaises(S.Rejected) as caught:
+            owner.run(['/usr/bin/python3', '-I', '-B', HERE / 'isolation_root.py', '--supervisor-staged'],
+                      environment=environment, seconds=4)
+        self.assertEqual(caught.exception.kind, 'child')
+        report = dict(root_failure=None)
+        self.assertIs(C.retain_root_failure(caught.exception, report, owner.last_output,
+                        'b' * 40, {'public': 'c' * 64}), caught.exception)
+        self.assertEqual(report['root_failure']['stage'], 'staged_source')
+        self.assertIsNone(report['root_failure']['root_carrier_removed'])
+        self.assertEqual((owner.started, owner.joined), (1, 1))
+
 
 if __name__ == '__main__':
     unittest.main()

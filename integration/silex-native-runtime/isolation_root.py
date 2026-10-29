@@ -60,6 +60,13 @@ RESOLVER = b'nameserver 127.0.0.53\noptions attempts:1 timeout:1\n'
 # cooperative EOF + <=3s TERM/KILL/join; root owner gets 20s, then <=3s drain.
 # No owner may renew a deadline or treat a missing closed cleanup ack as success.
 COOPERATIVE_GRACE = {'namespace': 6.0, 'root': 20.0}
+ROOT_ENTRY_STAGES = frozenset(('entry', 'admission', 'identity', 'carrier_create',
+    'lifecycle_authentication', 'source_verification', 'carrier_write', 'carrier_exec', 'staged_source'))
+ROOT_SUPERVISOR_STAGES = frozenset(('host_before', 'namespace_worker', 'host_after', 'complete'))
+# Request-local state only. Unknown observations remain null, never successful.
+ENTRY_STATE = dict(stage='entry', source_verified=False, source_sha256=None,
+                   source_owner=None, root_carrier_removed=None)
+ROOT_REPORT_EMITTED = False
 DNS_QUERY = bytes.fromhex('475001000001000000000000') + b'\x0bcalibration\x07invalid\0\0\x01\0\x01'
 DNS_REPLY = DNS_QUERY[:2] + bytes.fromhex('81830001000000000000') + DNS_QUERY[12:]
 
@@ -668,6 +675,8 @@ def namespace_init():
 
 
 def staged_supervisor():
+    global ROOT_REPORT_EMITTED
+    ENTRY_STATE['stage'] = 'staged_source'
     require(os.getuid() == os.geteuid() == 0)
     work, end = deadlines()
     stage = Path(__file__).resolve().parent
@@ -734,34 +743,42 @@ def staged_supervisor():
             report.update(status='passed', stage='complete')
         else:
             report['failure_kind'] = primary.kind if isinstance(primary, Rejected) else 'cleanup'
-    print(json.dumps(report, sort_keys=True))
+    print(json.dumps(report, sort_keys=True), flush=True)
+    ROOT_REPORT_EMITTED = True
     require(primary is None, 'cleanup')
 
 
 def supervisor_entry():
+    ENTRY_STATE['stage'] = 'admission'
     require(os.getuid() == os.geteuid() == 0)
     root, revision = admission_environment()
     require(Path(__file__).resolve() == root / SOURCES['root'], 'source')
     work, end = deadlines()
     boot_read(min(work, time.monotonic() + 5))
+    ENTRY_STATE['stage'] = 'identity'
     uid, gid = owner_identity(root)
     stage = stage_path()
+    ENTRY_STATE['stage'] = 'carrier_create'
     directory(Path('/run'), 0)
     require(not stage.exists() and not stage.is_symlink(), 'filesystem')
     stage.mkdir(mode=0o700)
+    ENTRY_STATE['root_carrier_removed'] = False
     primary = None
     owner = None
     try:
         # The one approved frozen lifecycle is authenticated before import, then
         # copied to the root-only carrier. All subsequent Git actors are bounded
         # and joined by that immutable copy, not subprocess.run/communicate.
+        ENTRY_STATE['stage'] = 'lifecycle_authentication'
         frozen = read(root / LIFECYCLE, MAX_SOURCE, owner=uid, modes=(0o644,))
         require(hashlib.sha256(frozen).hexdigest() == LIFECYCLE_SHA, 'source')
         write_new(stage / 'lifecycle.py', frozen)
         lifecycle = load_lifecycle(stage / 'lifecycle.py', LIFECYCLE_SHA, 0)
         owner = Owner(lifecycle, work, end)
+        ENTRY_STATE.update(stage='source_verification', source_owner=owner)
         payloads = source_payloads(owner, root, revision, uid)
         hashes = {label: hashlib.sha256(raw).hexdigest() for label, raw in payloads.items()}
+        ENTRY_STATE.update(source_verified=True, source_sha256=hashes, stage='carrier_write')
         for label, raw in payloads.items():
             if label != 'lifecycle':
                 write_new(stage / FILENAMES[label], raw)
@@ -776,6 +793,7 @@ def supervisor_entry():
         env = dict(os.environ)
         # All descriptors except stdio are opened/closed locally; exec consumes
         # only root-owned files. No user module path or bytecode is enabled.
+        ENTRY_STATE['stage'] = 'carrier_exec'
         os.execve('/usr/bin/python3', ['/usr/bin/python3', '-I', '-B',
                   str(stage / 'isolation_root.py'), '--supervisor-staged'], env)
     except BaseException as error:
@@ -784,8 +802,25 @@ def supervisor_entry():
         require(owner is None or owner.started == owner.joined, 'cleanup')
         directory(stage, 0, private=True)
         shutil.rmtree(stage)
+        ENTRY_STATE['root_carrier_removed'] = True
     primary = masked_cleanup(primary, remove)
     raise primary
+
+
+def entry_failure(error):
+    """Closed observation only; it never acknowledges namespace cleanup."""
+    owner = ENTRY_STATE['source_owner']
+    revision = os.environ.get('GITHUB_SHA', '')
+    require(re.fullmatch('[0-9a-f]{40}', revision), 'source')
+    return dict(schema=1, operation='root_isolation_entry_failure', status='failed',
+        studio_revision=revision, stage=ENTRY_STATE['stage'],
+        failure_kind=error.kind if isinstance(error, Rejected) else 'admission',
+        source_verified=ENTRY_STATE['source_verified'], source_sha256=ENTRY_STATE['source_sha256'],
+        source_groups_started=owner.started if owner is not None else None,
+        source_groups_joined=owner.joined if owner is not None else None,
+        owned_groups_started=None, owned_groups_joined=None,
+        root_carrier_removed=ENTRY_STATE['root_carrier_removed'],
+        host_before_sha256=None, host_after_sha256=None)
 
 
 def entry():
@@ -804,5 +839,12 @@ def entry():
 if __name__ == '__main__':
     try:
         entry()
-    except BaseException:
+    except BaseException as error:
+        # Namespace worker already has its own bounded closed failure report.
+        # Never append a second JSON document to a completed root report.
+        if sys.argv[1:] != ['--namespace-init'] and not ROOT_REPORT_EMITTED:
+            try:
+                print(json.dumps(entry_failure(error), sort_keys=True), flush=True)
+            except BaseException:
+                pass  # Observation failure must not change the original exit.
         raise SystemExit(1) from None

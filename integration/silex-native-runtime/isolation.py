@@ -173,6 +173,86 @@ def verify_root(value, revision, hashes):
     return worker
 
 
+def root_failure(raw, revision, hashes):
+    """Validate request-bound failed stdout, project only a closed vocabulary.
+
+    This is an observation after the original backend rejection, never an ack
+    and never a reason to accept a child exit or mark cleanup confirmed.
+    """
+    value = S.parse(raw)
+    S.require(type(value) is dict and type(value.get('schema')) is int and value['schema'] == 1
+        and value.get('status') == 'failed' and value.get('studio_revision') == revision
+        and value.get('failure_kind') in S.KINDS, 'protocol')
+    common = {'schema', 'operation', 'status', 'studio_revision', 'stage', 'failure_kind',
+        'source_groups_started', 'source_groups_joined', 'owned_groups_started', 'owned_groups_joined',
+        'root_carrier_removed', 'host_before_sha256', 'host_after_sha256'}
+    entry = value.get('operation') == 'root_isolation_entry_failure'
+    worker = None
+    if entry:
+        S.require(value.keys() == common | {'source_verified', 'source_sha256'}
+            and value['stage'] in S.ROOT_ENTRY_STAGES and type(value['source_verified']) is bool, 'protocol')
+        verified = value['source_verified']
+        S.require(value['source_sha256'] == (hashes if verified else None), 'source')
+        S.require(verified is (value['stage'] in ('carrier_write', 'carrier_exec')), 'source')
+        S.require(value['owned_groups_started'] is None and value['owned_groups_joined'] is None
+                  and value['host_before_sha256'] is None and value['host_after_sha256'] is None, 'protocol')
+    else:
+        S.require(value.keys() == common | {'source_sha256', 'worker', 'namespace_parent_joined',
+            'namespace_init_exit_confirmed', 'host_network_configuration_unchanged'}
+            and value['operation'] == 'root_isolation_supervisor'
+            and value['stage'] in S.ROOT_SUPERVISOR_STAGES and value['source_sha256'] == hashes, 'source')
+        verified = True
+        S.require(all(type(value[name]) is bool for name in ('namespace_parent_joined',
+            'namespace_init_exit_confirmed', 'host_network_configuration_unchanged')), 'protocol')
+        candidate = value['worker']
+        if candidate is not None:
+            S.require(type(candidate) is dict, 'protocol')
+            if candidate.get('status') == 'failed':
+                keys = {'schema', 'operation', 'status', 'stage', 'failure_kind',
+                    'namespace_groups_started', 'namespace_groups_joined', 'actors_started',
+                    'actors_joined', 'owner_scope', 'actor_failure_predicate'}
+                S.require(candidate.keys() == keys and type(candidate['schema']) is int and candidate['schema'] == 1
+                    and candidate['operation'] == 'namespace_isolation_worker'
+                    and candidate['stage'] in S.WORKER_STAGES and candidate['failure_kind'] in S.KINDS
+                    and candidate['owner_scope'] == 'namespace_process_groups'
+                    and candidate['actor_failure_predicate'] in S.ACTOR_PREDICATES | {None}, 'protocol')
+                S.require(all(type(candidate[name]) is int and 0 <= candidate[name] <= 128 for name in
+                    ('namespace_groups_started', 'namespace_groups_joined', 'actors_started', 'actors_joined')), 'protocol')
+                S.require(0 <= candidate['namespace_groups_joined'] <= candidate['namespace_groups_started'] <= 128
+                    and 0 <= candidate['actors_joined'] <= candidate['actors_started'] <= 2, 'protocol')
+                worker = {name: candidate[name] for name in ('stage', 'failure_kind',
+                    'namespace_groups_started', 'namespace_groups_joined', 'actors_started',
+                    'actors_joined', 'actor_failure_predicate')}
+            else:
+                # No successful worker detail is copied into a failure receipt.
+                S.require(candidate.get('status') == 'passed', 'protocol')
+    for prefix in ('source_groups', 'owned_groups'):
+        started, joined = value[prefix + '_started'], value[prefix + '_joined']
+        S.require((started is None and joined is None and entry)
+            or (type(started) is int and type(joined) is int and 0 <= joined <= started <= 128), 'protocol')
+    S.require(value['root_carrier_removed'] is None or type(value['root_carrier_removed']) is bool, 'protocol')
+    for name in ('host_before_sha256', 'host_after_sha256'):
+        host = value[name]
+        S.require(host is None or (type(host) is dict and host.keys() == {
+            'routes_sha256', 'resolver_sha256', 'firewall_configuration_sha256'}
+            and all(type(v) is str and re.fullmatch('[0-9a-f]{64}', v) for v in host.values())), 'protocol')
+    return dict(schema=1, operation='root_isolation_failure_observation',
+        layer='root_entry' if entry else 'root_supervisor', stage=value['stage'],
+        failure_kind=value['failure_kind'], source_verified=verified,
+        source_groups_started=value['source_groups_started'], source_groups_joined=value['source_groups_joined'],
+        owned_groups_started=value['owned_groups_started'], owned_groups_joined=value['owned_groups_joined'],
+        root_carrier_removed=value['root_carrier_removed'], host_before_sha256=value['host_before_sha256'],
+        host_after_sha256=value['host_after_sha256'], worker_failure=worker)
+
+
+def retain_root_failure(primary, report, raw, revision, hashes):
+    try:
+        report['root_failure'] = root_failure(raw, revision, hashes)
+    except BaseException:
+        pass
+    return primary
+
+
 def publish_receipt(path, report, primary):
     """Terminal, no-replace commit after all actors/cleanup have completed.
 
@@ -249,7 +329,7 @@ def main():
     root_acknowledged = False
     report = dict(schema=1, operation='native_isolation_admission_calibration', status='failed', stage='source',
         studio_revision=revision, source_sha256=None, sdk_manifest_sha256=S.SDK,
-        runtime_inventory_sha256=None, root_result=None,
+        runtime_inventory_sha256=None, root_result=None, root_failure=None,
         failure_kind=None,
         controller_groups_started=0, controller_groups_joined=0,
         private_work_removed=False, host_ipc_canary_removed=False, cleanup_confirmed=False,
@@ -283,6 +363,8 @@ def main():
     except BaseException as error:
         primary = error
         report['failure_kind'] = error.kind if isinstance(error, S.Rejected) else 'admission'
+        if report['stage'] == 'root_supervisor':
+            primary = retain_root_failure(primary, report, owner.last_output, revision, report['source_sha256'])
     finally:
         def finish():
             S.require(owner.started == owner.joined, 'cleanup')

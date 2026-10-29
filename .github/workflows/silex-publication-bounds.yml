@@ -570,16 +570,16 @@ jobs:
           import hashlib, pathlib
           root = pathlib.Path('studio/integration')
           expected = {
-            'silex-native-runtime/isolation.py': '7da81d24e86c02132b6b029285c810b507379d5058f48010697d1b1d4170830e',
-            'silex-native-runtime/isolation_root.py': '141604a7838432d65f520465c43e557771816f45573252fd7a201d056e176e03',
+            'silex-native-runtime/isolation.py': 'a51983104ecca1b3f697f0057dc44960b332a0667cb4f997258a70184fbad99a',
+            'silex-native-runtime/isolation_root.py': '1ef18348718bd7f559b92963148aca0e8bd8eda407e66b8573155cfdae0f64b7',
             'silex-native-runtime/isolation_actor.py': 'e659a2eb6edfe6df7ca75523bb5ae2f8645667e0751f35ad3afa953308f5e9d2',
-            'silex-native-runtime/test_isolation.py': 'a8578a547eb8a1012de05276facffcd823c95170230566a64979224303af02e4',
+            'silex-native-runtime/test_isolation.py': 'aacb9f4cefba5e7875a753019c900a9c402454848fd3f74be5bb9e87014d83d7',
             'silex-export/lifecycle.py': 'a3fe1d2fe7ba51c7f63a73ad505161d73e0d8f5b112a9af575f62e70f467da9e',
           }
           for name, digest in expected.items():
               assert hashlib.sha256((root / name).read_bytes()).hexdigest() == digest
           PYTHON
-      - name: Test seventeen isolation protocol and ownership controls before APT or SDK actions
+      - name: Test twenty-two isolation protocol and ownership controls before APT or SDK actions
         run: python3 -I -B studio/integration/silex-native-runtime/test_isolation.py -v
       - name: Bind the exact source and update signed metadata only
         run: |

@@ -70,7 +70,7 @@ No runtime-isolation or GUI acceptance follows from a complete inventory.
 The separate manual `sdk-isolation` choice uses the existing
 `.github/workflows/silex-publication-bounds.yml`, restricted to the same exact
 runtime branch and source SHA. It authenticates the four reviewed isolation
-source/control files and the frozen lifecycle helper, then runs seventeen
+source/control files and the frozen lifecycle helper, then runs twenty-two
 isolation controls before any APT or SDK action. It reuses the unchanged signed
 metadata update, exact 182-package SDK acquisition/offline installation and fresh
 strict inventory from `runtime-sdk-inventory`. Only then does the absolute,
@@ -87,3 +87,13 @@ archives, screenshots or binaries are uploaded. Before an exact-source hosted
 result, this is an unexecuted source candidate. Isolation/calibration evidence
 does not establish WebKit sandbox behavior, native GUI, whole-application
 privacy, authorized updates or full Studio acceptance.
+
+The first isolation run40834747079 failed after SDK and fresh inventory passed.
+Its root child supplied no retained acknowledgement; controller9/9 joins alone
+leave nested cleanup unconfirmed. A new nullable closed failure observation
+records fixed root-entry/supervisor stages, counts and configuration hashes when
+available. It cannot change the original error, accepted exit or cleanup flags.
+Five additional controls cover request binding, invalid observations, preserved
+first errors and an actual harmless nonroot entry rejection. No raw error text,
+paths or process output become artifact fields. The diagnostic source change
+requires a fresh directed hosted probe; no cause or runtime success is inferred.
