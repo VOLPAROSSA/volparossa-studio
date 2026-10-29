@@ -93,3 +93,36 @@ checksum is `146c9e247ccc180c1f61615433868c99f3de3ae256a30a43b49f67c2d9171f34`.
 declares `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT`; retain its COPYRIGHT
 and LICENSE files with the acquired source and applicable distribution notices.
 No package version update or complete transitive dependency audit is included.
+
+## Native bootstrap overlay — 2026-10-29
+
+The additive [native overlay manifest](integration/silex-native-bootstrap/manifest.json)
+and its complete source patch bind five desktop paths after the preceding bounded
+publication patch. Original Silex desktop GPL-3.0-or-later notices, its Rust package
+AGPL-3.0-or-later declaration, embedded server notices and licenses remain unchanged.
+No upstream checkout, SDK or application binary is committed. Independent drivers,
+fixtures and documentation use GPL-3.0-only. The existing authenticated Node24.19.0
+and Rust1.99.1 carriers remain separate transient tools with their original notices.
+
+This source delta removes native install-ID/telemetry instrumentation, frontend SDK
+injection and upstream Silex updater registration/key/feed. It removes their unused
+direct dependency memberships. The authoritative root Cargo candidate removes44 obsolete registry records,
+preserves all retained versions/sources/checksums and records three independently
+reviewed feature reductions plus dependency-reference normalization. Its exact
+before/after hashes are bound by the overlay manifest; the original failed strict
+resolver report remains evidence. Offline locked verification, native
+compile/runtime and general editor-plugin privacy acceptance are pending. Removal
+of upstream updater authority does not fulfill the required independently
+authorized VOLPAROSSA client updates, which remain open. No distribution, network
+service, native publication-consent or full Studio approval is inferred.
+
+### Dashboard input for the private native compile fixture
+
+The fixture fetches Silex's existing `silex-dashboard-2026` gitlink at
+`cb36b01a609915facfb1c134f96a98eabcdd3374` from
+https://gitlab.com/silexlabs/silex_silex-dashboard-2026.git . Its nine public assets
+are bound by `integration/silex-native-bootstrap/dashboard-source.json`. No
+license file or explicit license declaration was observed at that commit; no
+license is inferred here. The fixture does not upload its assets, compiled ELF
+or generated frontend. Product redistribution remains unaccepted. Existing
+upstream notices and the Silex project license records above remain preserved.

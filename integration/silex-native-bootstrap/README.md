@@ -1,0 +1,236 @@
+# Hosted desktop bridge regression checks
+
+This finite Node builtin VM fixture executes the actual patched
+`desktop/src-tauri/scripts/desktop-bridge.js`. It tests the retained project,
+native-menu and MCP helper callbacks while refusing bootstrap telemetry. It adds
+no npm dependency and performs no real network request, browser launch, native
+Tauri execution, SDK load or external application launch.
+
+Run only on an approved disposable GitHub-hosted Linux X64 runner, as its original
+nonroot account, with the existing authenticated **Node 24.19.0** executable:
+
+```sh
+AUTH_NODE --test-reporter=tap ABS_TEST_BRIDGE_MJS \
+  --source-root ABS_PATCHED_SILEX_ROOT \
+  --bridge-sha256 f51c34bb965e69ba7f907b2473b4aa310faef1fa98ba20003e49e6b8c824a482 \
+  --baseline-bridge ABS_PRISTINE_BRIDGE
+```
+
+Use the script directly with the explicit TAP reporter; the owning Python
+`check_bridge.py` caller supplies this flag and checks every case and total. The
+fixed script argument order is required. Both sources must be canonical, owned regular
+single-link files under `GITHUB_WORKSPACE` or `RUNNER_TEMP`, without group/world
+write permission. One descriptor supplies bounded bytes and stable before/after
+metadata. Each source is capped at 64 KiB and SHA-256 checked before execution.
+There are nine tests, each with a five-second test deadline and a 200 ms bound on
+every VM evaluation, including its context-owned Promise microtasks. Apply the
+owning workflow's outer process/job timeout too; this is not a native cleanup test.
+
+Before applying the overlay, the owning driver retains the pristine bridge from
+the exact upstream source:
+
+```sh
+git show 672efed69dda04c0a1e968859239e042f00d9538:desktop/src-tauri/scripts/desktop-bridge.js
+```
+
+Write that output into the private hosted temporary tree. Its required digest is
+`f91e9debbe5a67175ce93bdcd17c29b8b13ba1ae5616ffa450bea4d315d90fa3`.
+The positive control executes those real pristine bytes against the same stubs
+and detects the stale native telemetry context, SDK insertion, install-ID handoff,
+listener-error reporting and project open/save/publish timing. This prevents an
+inert or incomplete mock from making the privacy assertions pass vacuously.
+
+Patched-source cases retain dashboard reset, project metadata/fallback, dirty
+tracking, all four native-menu callbacks, local/external link routing, editor
+polling, component lookup, selection, capability discovery, fallback states and
+delegated data-source helpers. The stale telemetry response remains available in
+the mock, while a throwing Sentry property and SDK-insertion refusal detect any
+attempt to use it. Unexpected fetches/native commands fail closed. All fixture
+values are explicitly public synthetic values; no real identity or project is
+opened.
+
+The VM is a behavior fixture, not a security sandbox for arbitrary code. Exact
+source hashes are mandatory. Green VM tests establish only these bridge behavior
+and bootstrap boundaries. They do not establish GTK/WebView runtime behavior,
+whole-application log privacy, arbitrary imported-page SDK absence, human consent,
+native signing/publication, hosting, or full Studio acceptance. Existing debug
+logging and the OS-link bridge remain in scope as retained functionality, not as
+privacy acceptance. Core's separately required independently authorized automatic
+updates remain open; removal of Silex upstream updater authority does not satisfy
+that requirement.
+
+All execution belongs to hosted evidence. No local Node/test/native execution is
+needed to inspect these source files.
+
+## Offline lock resolution
+
+The historical source at `6a7406f` used the opt-in `native_followup=resolve-lock` profile authenticates the existing
+Rust1.99.1 compiler carrier and acquires the exact607-package base-lock sources into
+a fresh private Cargo home before applying this native overlay. The first network
+fetch uses the same explicit environment and preflight configuration/credential
+refusal as the resolver, through its fixed `--fetch-base` mode. It then resolves
+metadata offline and requires a second offline locked query. A fixed target-cache
+location under the runner temporary directory keeps generated metadata out of the
+source tree. No GTK package is installed and no application is compiled or run.
+
+The original lock, result lock and closed receipt are retained for independent
+review. Retained package records must stay identical, including version, source,
+checksum and dependencies. Only the five removed desktop memberships may change;
+unused registry records may disappear. Unexpected changes fail closed. This is a
+lock candidate, not native build, runtime, publication, update or full Studio
+acceptance. The final six-path overlay must apply its lock delta after the existing
+bounded-publication lock (`35d0…`), rather than against the original upstream lock.
+
+## Exact reviewed lock candidate
+
+The first resolver run40807343802 correctly failed its strict retained-record rule.
+The original and candidate locks remain separate evidence. Independent review
+accepts only the exact candidate SHA256
+`de04aaf5ff1acbdde421e3447ea67f3eb7a00a7d5ed118f4387a180e84590118`
+for the additive six-file source overlay, after the base lock SHA256
+`35d0ea429b62f5cd2bc8533f75f997c05e787ad3355a40c1de0eba5fd3233536`.
+
+The607→563 record delta adds no package identity and changes no retained version,
+source or checksum. Dependency spelling/order normalizations preserve their
+concrete targets. The desktop loses its five memberships. Three additional
+feature reductions follow the removed updater/Sentry dependency closures:
+libredox loses redox_syscall0.7.1; rustls loses the ring edge; objc2-ui-kit loses
+nine optional framework edges. This is not an assertion that only the desktop
+dependency record changed, and the generic resolver's failed result is retained.
+
+The separate exact-candidate offline locked query and unchanged-source verification
+passed in run40809750188 on Studio d64b6731ea3e54aa84e0b1cd00da50658667e8de.
+Both base-fetch and verification receipts report nine direct children joined.
+Native build/runtime remain required. The source overlay manifest continues
+to mark those acceptance boundaries false. Original component licenses and
+notices remain unchanged; no SDK or application binary is committed.
+
+The current `native_followup=verify-lock` profile selects only the exact reviewed
+candidate in the six-path overlay and performs an actual full offline locked
+query plus unchanged-source checks. It does not reinterpret the historical
+resolver failure as success or allow arbitrary dependency changes.
+
+## SDK acquisition and disposable installation
+
+The fetch-only profile passed in [run40810185163](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/40810185163)
+on Studio `f5dce206a4da22b90ba83a2f0e4f054e42f900df`: twelve controls and
+182 actual archives, totaling 63,772,228 bytes. Every archive name, version,
+architecture, length and SHA-256 matched `ubuntu-sdk.json`. Three owned process
+groups joined; the private archives stayed on that disposable runner. The artifact
+contains only the receipt, never SDK archives. No installation, extraction or
+native application execution occurred.
+
+The original [run40809752563](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/40809752563)
+failed before download because the mirror descriptor contained two previously
+unobserved Ubuntu fallbacks. The correction binds the exact observed 144 bytes,
+including ordering and priorities, to SHA-256
+`e0d6b0af979e4662d16357a27ae456cc6f21e26da031540f4df8706ebed1d583`.
+HTTP and HTTPS redirects stay disabled. No wildcard host admission or package-pin
+change was made, and the first failure remains retained evidence.
+
+The explicit `sdk-install` profile is a separate, unverified candidate. It first
+reacquires the same verified archives in that job, then admits only the frozen
+closure to offline installation on an approved disposable hosted runner. It
+never authorizes development-host changes, GUI execution, publication, release
+or mandatory Core update acceptance. Its bounded privileged helper and receipt
+require independent review and a real hosted result before installation claims.
+
+The installation helper uses a separate network namespace with no usable route,
+a root-owned copy of each verified archive and fixed APT arguments
+`--no-remove --no-download --no-install-recommends`. It simulates the exact
+closure, rejects downgrades with dpkg version ordering and checks every installed
+version plus `dpkg --audit` afterward. A newly created service-start denial policy
+is removed only after the owned privileged process groups have stopped; an
+existing policy is preserved by refusing the trial. Root and outer receipts keep
+failed or unconfirmed cleanup visible. No rollback of an interrupted disposable
+runner package transaction is claimed.
+
+The first installation [run40812264217](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/40812264217)
+on `3b40eaa3394400f5dd3ac27e80ede87d9952ed9f` passed both sets of twelve controls,
+including the real harmless TERM-resistant descendant, then reverified all SDK
+archives. The privileged helper refused admission before archive staging or APT.
+The original failed root/outer receipts remain separate evidence; no SDK install
+acceptance follows from the controls.
+
+The explicit `sdk-admission` profile reads the identical privileged predicates
+with finite phase diagnostics. It performs no package-index update, download,
+archive access, cache creation, policy creation or installation. Its separate
+root/outer receipts keep every installation and native acceptance flag false.
+Only this bounded diagnostic is selected while the first refusal is investigated.
+
+The shape-only follow-up [run40814124602](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/40814124602)
+on `821d1e6f73802127fccf54e782533d5317d8c6d8` passed sixteen controls and
+confirmed the causal input: the fresh namespace returned exactly zero bytes
+for its IPv4 route file. The previous one-header-line check rejected that empty
+form. The local parser now accepts only the observed empty byte string or one
+known header line; whitespace-only data, unknown lines, extra headers and route
+entries are refused. Other namespace, source, SDK and installation guards stay
+unchanged. The next normal installation result remains required.
+
+The causal normal run40814570186 on `ae2ae118…` passed 12 fetch and 17 installer
+controls. Namespace admission and independent root archive staging succeeded.
+It then failed at the first dpkg baseline query/parser, before audit, planning,
+policy creation or installation. Its query exit and actual row shapes were not
+retained, so that failure does not establish a parser cause.
+
+The separate `sdk-baseline` profile performs the identical admission checks and
+one read-only dpkg query with unchanged parser guards. Only bounded exit/output
+counts and first-failing-row classifications are retained; no package names,
+versions, raw rows or environment values. It performs no package-index update,
+fetch, archive/cache handling, APT operation, policy creation or installation.
+Its baseline result cannot satisfy the normal SDK installation gate.
+
+Read-only baseline run40815773094 on `b5477b9…` passed twenty controls and
+identified the actual first-row refusal: a known `unknown ok not-installed` row
+with both Version and Architecture empty. The query exited normally with status
+1; its owned process group joined. No SDK effects occurred. The parser now skips
+only that exact absent tuple in incomplete baseline mode, after known-name and
+uniqueness checks. It never inserts the row into installed evidence. Complete
+mode still requires all 182 installed records with exact versions/architectures.
+Two diagnostic negatives now use a nonempty version with empty architecture;
+the original seventeen controls remain unchanged.
+
+## Verified SDK prerequisite
+
+[Run40816249905](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/40816249905)
+on `cfc3922bbc69792259f6b378a73b43a58d032951` passed 12 fetch and 21 installer
+controls and the real offline installation. All 182 archive identities matched
+the frozen manifest; 176 packages were planned for installation, and all 182
+installed versions and architectures were verified afterward. The package
+database audit was clean, the temporary service-start policy was restored and
+eight privileged groups, one outer group and three fetch groups joined.
+
+The artifact contains three JSON receipts only. This establishes SDK provisioning
+on the approved disposable Ubuntu24.04 runner. It establishes neither Debian13
+runtime compatibility nor Silex native compilation, GUI/privacy behavior,
+publication consent, release authority, Core updates or full Studio acceptance.
+The original failed reports remain preserved.
+
+## Private native compile candidate
+
+The explicit `native-build` profile first provisions the verified SDK on its own
+fresh disposable runner. It reuses the authenticated Rust1.99.1 and Node24.19.0 /
+pnpm10.34.4 carriers and the exact six-path overlay. The helper requires matching
+normal installation receipts and a live check of all 182 installed versions.
+Admission-only and baseline-only receipts cannot satisfy that gate.
+
+Before any native-helper acquisition/build effect, it verifies the full reviewed
+lock graph offline and preserves source inputs. It obtains the parent Silex
+gitlink dashboard commit `cb36b01a609915facfb1c134f96a98eabcdd3374`, verifies
+its nine public assets / 79,203 bytes, builds only the real client/public frontend
+from the frozen pnpm lock with install scripts disabled, then executes only
+`cargo build --offline --locked --release -p silex-desktop --bin silex-desktop`.
+The app is never started, installed, bundled or signed. The ELF is inspected from
+one stable descriptor; Cargo hardlinks are recorded without modifying output.
+
+All tracked source inputs and the five new server inputs remain byte-checked.
+Only four existing Tauri-generated schema paths may change, with before/after
+hashes recorded separately; no whole-source-tree unchanged claim is made.
+Compiler failure diagnostics contain only bounded error codes/counts/marker flags
+and log hash/size. Raw build logs are not durable artifacts.
+
+The dashboard commit has no verified license declaration and still references
+external petite-vue. This profile is private compile evidence only: six JSON
+artifact paths, no ELF, frontend assets, dashboard bytes or raw build-log uploads.
+Native GUI/privacy, offline functional dashboard, product distribution, native
+publication consent, hosting and full Studio acceptance remain open.
