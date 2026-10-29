@@ -166,3 +166,16 @@ form. The local parser now accepts only the observed empty byte string or one
 known header line; whitespace-only data, unknown lines, extra headers and route
 entries are refused. Other namespace, source, SDK and installation guards stay
 unchanged. The next normal installation result remains required.
+
+The causal normal run40814570186 on `ae2ae118…` passed 12 fetch and 17 installer
+controls. Namespace admission and independent root archive staging succeeded.
+It then failed at the first dpkg baseline query/parser, before audit, planning,
+policy creation or installation. Its query exit and actual row shapes were not
+retained, so that failure does not establish a parser cause.
+
+The separate `sdk-baseline` profile performs the identical admission checks and
+one read-only dpkg query with unchanged parser guards. Only bounded exit/output
+counts and first-failing-row classifications are retained; no package names,
+versions, raw rows or environment values. It performs no package-index update,
+fetch, archive/cache handling, APT operation, policy creation or installation.
+Its baseline result cannot satisfy the normal SDK installation gate.

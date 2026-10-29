@@ -485,6 +485,109 @@ class InstallSdkTests(unittest.TestCase):
             with self.subTest(raw=raw):
                 self.assertIs(sdk.ipv4_routes_absent(raw), False)
 
+    def test_baseline_diagnostic_binds_first_failure_to_same_row_without_changing_parser_guards(self):
+        cases = ((b'aa\t\t\tunknown ok not-installed\n', 'arch', 'empty', True, 'not_installed', True),
+                 (b'aa\t1.0\tarm64\tinstall ok installed\n', 'arch', 'other', False, 'installed', True),
+                 (b'aa\t1.0\tamd64\tinstall ok unpacked\n', 'state', 'amd64', False, 'other', True),
+                 (b'cc\t1.0\tamd64\tinstall ok installed\n', 'name', 'amd64', False, 'installed', False),
+                 (b'wrong columns\n', 'columns', 'other', False, 'other', False))
+        for raw, predicate, arch, empty, state, known in cases:
+            with self.subTest(predicate=predicate, arch=arch):
+                diagnostic = {}
+                with self.assertRaises(sdk.Rejected):
+                    sdk.dpkg_rows(raw, records(), complete=False, diagnostic=diagnostic)
+                self.assertEqual(diagnostic, dict(failure_predicate=predicate, row_index=0, row_index_clipped=False,
+                    known_package=known, arch_class=arch, version_empty=empty, state_class=state))
+                sdk.check_baseline_diagnostic(diagnostic)
+                # A subsequent failure cannot overwrite the FIRST joint row.
+                original = dict(diagnostic)
+                sdk.row_failure(diagnostic, 'exact', 999, [], records())
+                self.assertEqual(diagnostic, original)
+        diagnostic = {}
+        duplicated = dpkg([('aa', '1:2.0-1', 'amd64', 'install ok installed')] * 2)
+        with self.assertRaises(sdk.Rejected):
+            sdk.dpkg_rows(duplicated, records(), complete=False, diagnostic=diagnostic)
+        self.assertEqual(diagnostic['failure_predicate'], 'duplicate')
+        self.assertEqual(diagnostic['row_index'], 1)
+        # The old parser already accepted known architecture on an absent row;
+        # the diagnostic must not silently extend this to an empty architecture.
+        self.assertEqual(sdk.dpkg_rows(b'aa\t\tamd64\tunknown ok not-installed\n', records(), complete=False), {})
+        for bad in ({'raw': 'private'}, {'package': 'aa'}, {'version': '1.0'},
+                    {'failure_predicate': 'unreviewed'}, {'arch_class': 'arm64'},
+                    {'state_class': 'install ok installed'}, {'stdout_bytes': 4 * 1024 * 1024 + 1},
+                    {'row_index': 183}, {'row_index': True}, {'query_exit_code': 256}):
+            with self.subTest(bad=bad), self.assertRaises(sdk.Rejected):
+                sdk.check_baseline_diagnostic(bad)
+
+    def test_readonly_baseline_runs_one_exact_query_and_never_fetches_stages_or_installs(self):
+        def admitted(report, argument):
+            self.assertEqual(argument, '--privileged-baseline')
+            report.update(studio_revision='a' * 40, run_id='123', run_attempt='1', network_namespace_isolated=True)
+            sdk.admission_stage(report, 'complete')
+            return Path('/tmp/unused'), 'a' * 40, 1001, '123', '1', records()
+        for raw, passes in ((b'aa\t\t\tunknown ok not-installed\n', False),
+                (dpkg([('aa', '1:2.0-1', 'amd64', 'install ok installed'),
+                       ('bb', '2.0-1', 'all', 'install ok installed')]), True)):
+            with self.subTest(passes=passes):
+                output = io.BytesIO()
+                def query(argv, _end, cleanups, *, accepted, diagnostic):
+                    self.assertEqual(argv, ['/usr/bin/dpkg-query', '-W',
+                        '-f=${Package}\t${Version}\t${Architecture}\t${Status}\n', 'aa', 'bb'])
+                    self.assertEqual(accepted, (0, 1))
+                    cleanups.append(True)
+                    diagnostic.update(query_exit_class='normal', query_exit_code=0, stdout_bytes=len(raw),
+                                      stderr_bytes=0, query_output_capped=False)
+                    return raw, 0
+                with patch.object(sdk, 'root_admission', side_effect=admitted), \
+                     patch.object(sdk.sys, 'stdout', SimpleNamespace(buffer=output)), \
+                     patch.object(sdk, 'root_actor', side_effect=query) as actor, \
+                     patch.object(sdk, 'check_fetch') as fetch, patch.object(sdk, 'stage_archives') as stage, \
+                     patch.object(sdk, 'policy_begin') as policy, patch.object(sdk.Path, 'mkdir') as mkdir, \
+                     patch.object(sdk, 'finish_policy', return_value=True):
+                    self.assertEqual(sdk.root_main(baseline_only=True), 0)
+                value = sdk.parse(output.getvalue())
+                actor.assert_called_once()
+                for mock in (fetch, stage, policy, mkdir):
+                    mock.assert_not_called()
+                for key in ('packages_installed', 'sdk_installed', 'installation_attempted',
+                            'root_cache_retained', 'policy_created', *sdk.FALSE_FLAGS):
+                    self.assertIs(value[key], False)
+                self.assertEqual(value['baseline_passed'], passes)
+                self.assertEqual(value['status'], 'passed' if passes else 'failed')
+                self.assertIs(value['owned_groups_joined'], True)
+                self.assertEqual(value['owned_group_count'], 1)
+                if passes:
+                    sdk.check_root_baseline(value, 'a' * 40)
+                else:
+                    self.assertEqual(value['baseline_diagnostic']['arch_class'], 'empty')
+                    self.assertEqual(value['baseline_diagnostic']['state_class'], 'not_installed')
+                    with self.assertRaises(sdk.Rejected):
+                        sdk.check_root_baseline(value, 'a' * 40)
+                with self.assertRaises(sdk.Rejected):
+                    sdk.check_root(value, 'a' * 40, records())
+
+    def test_query_exit_observer_precedes_rejection_and_never_retains_raw_output(self):
+        child = SimpleNamespace(pid=12345, stdout=Mock(), stderr=Mock(), wait=Mock())
+        child.stdout.fileno.return_value = 8
+        child.stderr.fileno.return_value = 9
+        selector = Mock()
+        selector.__enter__ = Mock(return_value=selector)
+        selector.__exit__ = Mock(return_value=False)
+        selector.get_map.return_value = {}
+        observed = SimpleNamespace(si_pid=12345, si_code=os.CLD_EXITED, si_status=2)
+        diagnostic = {}
+        with patch.object(sdk.subprocess, 'Popen', return_value=child), \
+             patch.object(sdk.selectors, 'DefaultSelector', return_value=selector), \
+             patch.object(sdk.os, 'set_blocking'), patch.object(sdk.os, 'waitid', return_value=observed), \
+             patch.object(sdk.os, 'killpg'), patch.object(sdk, 'live_group', return_value=False):
+            cleanups = []
+            with self.assertRaises(sdk.Rejected):
+                sdk.root_actor(['/fixed'], sdk.time.monotonic() + 30, cleanups, accepted=(0, 1), diagnostic=diagnostic)
+        self.assertEqual(diagnostic, dict(query_exit_class='normal', query_exit_code=2,
+                                         stdout_bytes=0, stderr_bytes=0, query_output_capped=False))
+        self.assertEqual(cleanups, [True])
+        sdk.check_baseline_diagnostic(diagnostic)
+
 
 if __name__ == '__main__':
     unittest.main()

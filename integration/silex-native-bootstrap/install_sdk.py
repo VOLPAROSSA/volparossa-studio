@@ -131,20 +131,48 @@ def check_fetch(value, records, revision):
                                                    'archive_contents_executed', 'archive_contents_extracted')))
 
 
-def dpkg_rows(raw, records, *, complete):
+def row_failure(diagnostic, predicate, index, fields, records):
+    if diagnostic is None or 'failure_predicate' in diagnostic:
+        return
+    valid = len(fields) == 4
+    name, version, architecture, state = fields if valid else ('', '', '?', '?')
+    diagnostic.update(failure_predicate=predicate, row_index=min(index, 182), row_index_clipped=index > 182,
+        known_package=valid and name in records, arch_class=architecture if architecture in ('amd64', 'all') else
+        'empty' if architecture == '' else 'other', version_empty=valid and version == '',
+        state_class={'install ok installed': 'installed', 'unknown ok not-installed': 'not_installed',
+                     'deinstall ok config-files': 'config_only'}.get(state, 'other'))
+
+
+def dpkg_rows(raw, records, *, complete, diagnostic=None):
+    if len(raw) > 1024 * 1024:
+        row_failure(diagnostic, 'exact', 0, [], records)
     require(len(raw) <= 1024 * 1024)
     found = {}
-    for line in raw.decode('utf-8', errors='strict').splitlines():
+    for index, line in enumerate(raw.decode('utf-8', errors='strict').splitlines()):
         fields = line.split('\t')
+        if len(fields) != 4:
+            row_failure(diagnostic, 'columns', index, fields, records)
         require(len(fields) == 4)
         name, version, architecture, state = fields
+        if name not in records:
+            row_failure(diagnostic, 'name', index, fields, records)
+        elif name in found:
+            row_failure(diagnostic, 'duplicate', index, fields, records)
+        elif architecture not in ('amd64', 'all'):
+            row_failure(diagnostic, 'arch', index, fields, records)
         require(name in records and name not in found and architecture in ('amd64', 'all'))
         if state == 'install ok installed':
             found[name] = (version, architecture)
         else:
+            if complete or state not in ('unknown ok not-installed', 'deinstall ok config-files'):
+                row_failure(diagnostic, 'state', index, fields, records)
             require(not complete and state in ('unknown ok not-installed', 'deinstall ok config-files'))
     if complete:
+        if set(found) != set(records):
+            row_failure(diagnostic, 'exact', len(found), [], records)
         require(set(found) == set(records))
+        if not all(found[name] == (row['Version'], row['Architecture']) for name, row in records.items()):
+            row_failure(diagnostic, 'exact', len(found), [], records)
         require(all(found[name] == (row['Version'], row['Architecture']) for name, row in records.items()))
     return found
 
@@ -266,11 +294,14 @@ def live_group(group):
     return False
 
 
-def root_actor(argv, end, cleanups, *, accepted=(0,)):
+def root_actor(argv, end, cleanups, *, accepted=(0,), diagnostic=None):
     child = None
     primary = None
     raw = bytearray()
     code = None
+    if diagnostic is not None:
+        diagnostic.update(query_exit_class='unobserved', query_exit_code=0, stdout_bytes=0,
+                          stderr_bytes=0, query_output_capped=False)
     try:
         require(time.monotonic() < end - 4)
         child = subprocess.Popen(argv, env=ENV, cwd='/', stdin=subprocess.DEVNULL,
@@ -288,6 +319,10 @@ def root_actor(argv, end, cleanups, *, accepted=(0,)):
                         selector.unregister(key.fileobj)
                     else:
                         size += len(chunk)
+                        if diagnostic is not None:
+                            key_name = 'stdout_bytes' if key.fileobj is child.stdout else 'stderr_bytes'
+                            diagnostic[key_name] = min(4 * 1024 * 1024, diagnostic[key_name] + len(chunk))
+                            diagnostic['query_output_capped'] = size > 4 * 1024 * 1024
                         require(size <= 4 * 1024 * 1024)
                         if key.fileobj is child.stdout:
                             raw.extend(chunk)
@@ -297,6 +332,10 @@ def root_actor(argv, end, cleanups, *, accepted=(0,)):
                 if observed is not None:
                     break
                 time.sleep(0.01)
+        if diagnostic is not None:
+            diagnostic.update(query_exit_class='normal' if observed.si_code == os.CLD_EXITED else
+                'signalled' if observed.si_code in (os.CLD_KILLED, os.CLD_DUMPED) else 'other',
+                query_exit_code=max(0, min(255, observed.si_status)))
         require(observed.si_pid == child.pid and observed.si_code == os.CLD_EXITED)
         code = observed.si_status
         require(code in accepted)
@@ -455,7 +494,7 @@ def ipv4_shape(raw):
 def root_admission(report, privileged_argument):
     """The SAME read-only guards for installation and explicit admission proof."""
     admission_stage(report, 'python_identity')
-    require(privileged_argument in ('--privileged-install', '--privileged-admission')
+    require(privileged_argument in ('--privileged-install', '--privileged-admission', '--privileged-baseline')
             and sys.flags.isolated == 1 and sys.flags.dont_write_bytecode == 1 and os.getuid() == os.geteuid() == 0
             and sys.argv == [str(HERE / 'install_sdk.py'), privileged_argument])
     admission_stage(report, 'hosted_identity')
@@ -515,7 +554,7 @@ def root_admission(report, privileged_argument):
     return temporary, revision, owner, run, attempt, records
 
 
-def root_main(*, admission_only=False):
+def root_main(*, admission_only=False, baseline_only=False):
     report = dict(schema=1, mode='native-sdk-offline-root-install', status='failed', stage='admission',
         sdk_manifest_sha256=MANIFEST, packages_installed=False, sdk_installed=False,
         network_namespace_isolated=False, root_archive_cache_verified=False,
@@ -524,14 +563,26 @@ def root_main(*, admission_only=False):
         owned_group_count=0, **dict.fromkeys(FALSE_FLAGS, False))
     if admission_only:
         report.update(mode='native-sdk-root-admission', admission_passed=False)
+    if baseline_only:
+        report.update(mode='native-sdk-root-baseline', baseline_passed=False)
     cleanups, policy, cache, cache_created = [], None, None, False
     primary = None
     end = time.monotonic() + 240
     try:
+        require(not (admission_only and baseline_only))
         temporary, revision, owner, run, attempt, records = root_admission(
-            report, '--privileged-admission' if admission_only else '--privileged-install')
+            report, '--privileged-admission' if admission_only else '--privileged-baseline' if baseline_only else '--privileged-install')
         if admission_only:
             report['stage'] = 'admission_complete'
+        elif baseline_only:
+            report['stage'] = 'baseline_packages'
+            diagnostic = {}
+            report['baseline_diagnostic'] = diagnostic
+            query = ['/usr/bin/dpkg-query', '-W', '-f=${Package}\t${Version}\t${Architecture}\t${Status}\n', *records]
+            raw, _code = root_actor(query, end, cleanups, accepted=(0, 1), diagnostic=diagnostic)
+            installed = dpkg_rows(raw, records, complete=False, diagnostic=diagnostic)
+            diagnostic['parsed_installed_count'] = len(installed)
+            report['stage'] = 'baseline_complete'
         else:
             check_fetch(parse(read_owned(temporary / 'silex-native-sdk-fetch.json', owner, 65536)), records, revision)
             cache = Path('/var/tmp') / ('silex-native-sdk-' + run + '-' + attempt)
@@ -546,8 +597,13 @@ def root_main(*, admission_only=False):
                 return root_actor(argv, end, cleanups, accepted=accepted)
             report['stage'] = 'baseline_packages'
             query = ['/usr/bin/dpkg-query', '-W', '-f=${Package}\t${Version}\t${Architecture}\t${Status}\n', *records]
-            raw, _code = invoke(query, accepted=(0, 1))
-            installed = dpkg_rows(raw, records, complete=False)
+            diagnostic = {}
+            try:
+                raw, _code = root_actor(query, end, cleanups, accepted=(0, 1), diagnostic=diagnostic)
+                installed = dpkg_rows(raw, records, complete=False, diagnostic=diagnostic)
+            except BaseException:
+                report['baseline_diagnostic'] = diagnostic
+                raise
             audit, _code = invoke(['/usr/bin/dpkg', '--audit'])
             require(not audit.strip())
             report['stage'] = 'simulation'
@@ -605,6 +661,12 @@ def root_main(*, admission_only=False):
                     report.update(status='passed', stage='complete', admission_passed=True)
                 else:
                     report.update(status='failed', admission_passed=False)
+                    report.setdefault('failure_stage', 'cleanup')
+            elif baseline_only:
+                if primary is None and joined and report['policy_restored'] is True and policy is None and not cache_created:
+                    report.update(status='passed', stage='complete', baseline_passed=True)
+                else:
+                    report.update(status='failed', baseline_passed=False)
                     report.setdefault('failure_stage', 'cleanup')
             elif primary is None and joined and report['policy_restored'] and report['post_install_exact_versions'] and report['dpkg_audit_clean']:
                 report.update(status='passed', stage='complete', sdk_installed=True)
@@ -670,6 +732,44 @@ def check_root_admission(value, revision):
     require(value['admission_diagnostic'] == {'substage': 'complete'})
 
 
+def check_baseline_diagnostic(value):
+    require(type(value) is dict and value.keys() <= {'query_exit_class', 'query_exit_code', 'stdout_bytes',
+        'stderr_bytes', 'query_output_capped', 'failure_predicate', 'row_index', 'row_index_clipped',
+        'known_package', 'arch_class', 'version_empty', 'state_class', 'parsed_installed_count'})
+    enums = {'query_exit_class': ('unobserved', 'normal', 'signalled', 'other'),
+        'failure_predicate': ('columns', 'name', 'duplicate', 'arch', 'state', 'exact'),
+        'arch_class': ('empty', 'amd64', 'all', 'other'),
+        'state_class': ('installed', 'not_installed', 'config_only', 'other')}
+    bounds = {'query_exit_code': 255, 'stdout_bytes': 4 * 1024 * 1024, 'stderr_bytes': 4 * 1024 * 1024,
+              'row_index': 182, 'parsed_installed_count': 182}
+    for key, item in value.items():
+        if key in enums:
+            require(type(item) is str and item in enums[key])
+        elif key in bounds:
+            require(type(item) is int and 0 <= item <= bounds[key])
+        else:
+            require(type(item) is bool)
+
+
+def check_root_baseline(value, revision):
+    require(type(value) is dict and type(value.get('schema')) is int and value.get('schema') == 1
+        and value.get('mode') == 'native-sdk-root-baseline' and value.get('status') == 'passed'
+        and value.get('stage') == 'complete' and value.get('studio_revision') == revision
+        and value.get('sdk_manifest_sha256') == MANIFEST and value.get('baseline_passed') is True
+        and value.get('network_namespace_isolated') is True and value.get('policy_restored') is True
+        and type(value.get('owned_group_count')) is int and value['owned_group_count'] == 1
+        and value.get('owned_groups_joined') is True
+        and all(value.get(key) is False for key in (*FALSE_FLAGS, 'packages_installed', 'sdk_installed',
+            'root_archive_cache_verified', 'post_install_exact_versions', 'dpkg_audit_clean',
+            'installation_attempted', 'policy_created', 'root_cache_retained')))
+    check_baseline_diagnostic(value.get('baseline_diagnostic'))
+    diagnostic = value['baseline_diagnostic']
+    require(diagnostic.get('query_exit_class') == 'normal' and diagnostic.get('query_exit_code') in (0, 1)
+            and diagnostic.get('query_output_capped') is False and 'failure_predicate' not in diagnostic
+            and type(diagnostic.get('parsed_installed_count')) is int)
+    require(value.get('admission_diagnostic') == {'substage': 'complete'})
+
+
 def drain_install_owner(drain_group, process, identity, *, grace=1.0, kill_grace=1.0):
     # The root owner must finish its independent APT group TERM/KILL/join and
     # restore policy before its own outer group can be force-killed. The outer
@@ -679,7 +779,7 @@ def drain_install_owner(drain_group, process, identity, *, grace=1.0, kill_grace
     return drain_group(process, identity, grace=15.0, kill_grace=3.0)
 
 
-def main(*, admission_only=False):
+def main(*, admission_only=False, baseline_only=False):
     # Only this unprivileged path imports previously reviewed sibling helpers.
     sys.path.insert(0, str(HERE))
     try:
@@ -691,11 +791,15 @@ def main(*, admission_only=False):
                   **dict.fromkeys(FALSE_FLAGS, False))
     if admission_only:
         report.update(mode='native-sdk-admission', admission_passed=False)
+    if baseline_only:
+        report.update(mode='native-sdk-baseline', baseline_passed=False)
     primary, artifact, root_artifact, root_value = None, None, None, None
     cleanups = []
     started = time.monotonic()
     try:
-        require(sys.argv == [str(HERE / 'install_sdk.py'), *(['--admission-only'] if admission_only else [])])
+        require(not (admission_only and baseline_only))
+        require(sys.argv == [str(HERE / 'install_sdk.py'),
+                *(['--admission-only'] if admission_only else ['--baseline-only'] if baseline_only else [])])
         # Reuse the fetcher's exact source/host admission with only its fixed
         # entrypoint adapter after independently enforcing our own no-arg path.
         original = sys.argv
@@ -706,11 +810,13 @@ def main(*, admission_only=False):
             sys.argv = original
         run, attempt = (os.environ.get(key, '') for key in ('GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT'))
         require(re.fullmatch(r'[1-9][0-9]{0,19}', run) and re.fullmatch(r'[1-9][0-9]{0,5}', attempt))
-        artifact = temporary / ('silex-native-sdk-admission.json' if admission_only else 'silex-native-sdk-install.json')
-        root_artifact = temporary / ('silex-native-sdk-admission-root.json' if admission_only else 'silex-native-sdk-install-root.json')
+        artifact = temporary / ('silex-native-sdk-admission.json' if admission_only else
+                                'silex-native-sdk-baseline.json' if baseline_only else 'silex-native-sdk-install.json')
+        root_artifact = temporary / ('silex-native-sdk-admission-root.json' if admission_only else
+                                     'silex-native-sdk-baseline-root.json' if baseline_only else 'silex-native-sdk-install-root.json')
         require(all(not path.exists() and not path.is_symlink() for path in (artifact, root_artifact)))
         records = records_from_manifest(fetch.support.read(HERE / 'ubuntu-sdk.json', 1024 * 1024, expected=MANIFEST))
-        if not admission_only:
+        if not admission_only and not baseline_only:
             check_fetch(parse(fetch.support.read(temporary / 'silex-native-sdk-fetch.json', 65536)), records, revision)
             require(fetch.verify_archives(temporary / 'silex-native-sdk-archives', records) == expected_hashes(records))
             require(not POLICY.exists() and not POLICY.is_symlink())
@@ -722,16 +828,17 @@ def main(*, admission_only=False):
         argv = ['/usr/bin/sudo', '-n', '/usr/bin/unshare', '--net', '--', '/usr/bin/env', '-i',
                 *[key + '=' + value for key, value in sorted(environment.items())],
                 '/usr/bin/python3', '-I', '-B', str(HERE / 'install_sdk.py'),
-                '--privileged-admission' if admission_only else '--privileged-install']
+                '--privileged-admission' if admission_only else '--privileged-baseline' if baseline_only else '--privileged-install']
         sys.path.insert(0, str(HERE.parent / 'silex-export'))
         try:
             from lifecycle import start_group, drain_group
         finally:
             sys.path.remove(str(HERE.parent / 'silex-export'))
-        report.update(studio_revision=revision, stage='privileged_admission' if admission_only else 'privileged_offline_install')
+        report.update(studio_revision=revision, stage='privileged_admission' if admission_only else
+                      'privileged_baseline' if baseline_only else 'privileged_offline_install')
         def owner_drain(process, identity, **options):
             return drain_install_owner(drain_group, process, identity, **options)
-        seconds = 60 if admission_only else 265
+        seconds = 60 if admission_only or baseline_only else 265
         raw = fetch.actor(argv, ENV, ROOT, start_group, owner_drain, started + seconds, seconds, cleanups)
         # Retain the actual bounded closed root response before validating its
         # success claim. It contains only package identities and cleanup flags.
@@ -740,8 +847,13 @@ def main(*, admission_only=False):
         if type(root_value) is dict and 'admission_diagnostic' in root_value:
             check_admission_diagnostic(root_value['admission_diagnostic'])
             report['admission_diagnostic'] = root_value['admission_diagnostic']
+        if type(root_value) is dict and 'baseline_diagnostic' in root_value:
+            check_baseline_diagnostic(root_value['baseline_diagnostic'])
+            report['baseline_diagnostic'] = root_value['baseline_diagnostic']
         if admission_only:
             check_root_admission(root_value, revision)
+        elif baseline_only:
+            check_root_baseline(root_value, revision)
         else:
             check_root(root_value, revision, records)
         require(root_value.get('run_id') == run and root_value.get('run_attempt') == attempt)
@@ -750,6 +862,8 @@ def main(*, admission_only=False):
         report.update(status='passed', stage='complete')
         if admission_only:
             report['admission_passed'] = True
+        elif baseline_only:
+            report['baseline_passed'] = True
         else:
             report.update(packages_installed=True, sdk_installed=True,
                           verified_package_count=182, archive_bytes=63772228, hashes=expected_hashes(records))
@@ -774,6 +888,7 @@ def main(*, admission_only=False):
         print('native SDK offline installation rejected', file=sys.stderr)
         return 1
     print('SILEX_NATIVE_SDK_ADMISSION=true; SDK_INSTALLED=false' if admission_only else
+          'SILEX_NATIVE_SDK_BASELINE=true; SDK_INSTALLED=false' if baseline_only else
           'SILEX_NATIVE_SDK_INSTALLED=true; NATIVE_BUILD=false; NATIVE_RUNTIME=false')
     return 0
 
@@ -784,8 +899,8 @@ if __name__ == '__main__':
     for _number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGALRM):
         signal.signal(_number, cancel)
     _mode = sys.argv[1:]
-    _seconds = 50 if _mode == ['--privileged-admission'] else 90 if _mode == ['--admission-only'] else 245 if _mode == ['--privileged-install'] else 300
+    _seconds = 50 if _mode in (['--privileged-admission'], ['--privileged-baseline']) else 90 if _mode in (['--admission-only'], ['--baseline-only']) else 245 if _mode == ['--privileged-install'] else 300
     signal.setitimer(signal.ITIMER_REAL, _seconds)
-    raise SystemExit(root_main(admission_only=_mode == ['--privileged-admission'])
-                     if _mode in (['--privileged-install'], ['--privileged-admission'])
-                     else main(admission_only=_mode == ['--admission-only']))
+    raise SystemExit(root_main(admission_only=_mode == ['--privileged-admission'], baseline_only=_mode == ['--privileged-baseline'])
+                     if _mode in (['--privileged-install'], ['--privileged-admission'], ['--privileged-baseline'])
+                     else main(admission_only=_mode == ['--admission-only'], baseline_only=_mode == ['--baseline-only']))
