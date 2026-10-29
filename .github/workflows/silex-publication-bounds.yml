@@ -17,7 +17,7 @@ on:
       native_followup:
         description: 'Explicit native prerequisite; no native GUI application execution'
         type: choice
-        options: [none, bridge, verify-lock, sdk-admission, sdk-baseline, sdk-fetch, sdk-install, native-build, dashboard-unit, fs-identifier-rename]
+        options: [none, bridge, verify-lock, sdk-admission, sdk-baseline, sdk-fetch, sdk-install, native-build, dashboard-unit, fs-identifier-rename, dashboard-compose-unit]
         default: none
 
 permissions:
@@ -441,6 +441,33 @@ jobs:
             ${{ runner.temp }}/silex-native-build.json
           retention-days: 14
           if-no-files-found: warn
+
+  dashboard-compose-unit:
+    if: >-
+      github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'dashboard-compose-unit' &&
+      github.repository == 'VOLPAROSSA/volparossa-studio' &&
+      github.ref == 'refs/heads/feature/native-local-dashboard-20261029'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: studio
+          persist-credentials: false
+      - name: Bind the exact composition control source without provisioning
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(id -u)" != 0
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$(git -C studio rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git -C studio status --porcelain=v1 --untracked-files=all)"
+      - name: Execute only the original asset adapter controls
+        run: python3 -I -B studio/integration/silex-native-dashboard/test_compose.py -v
 
   original-dashboard-unit:
     if: >-

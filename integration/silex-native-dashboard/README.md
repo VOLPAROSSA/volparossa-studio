@@ -36,3 +36,12 @@ original manifest. It exercises the older full-metadata rename client and does n
 verify this name-only/capability source. Its evidence remains separate; the updated
 27-case manifest requires a new exact-source hosted run. No local JavaScript,
 browser, application or build execution is part of preparing this change.
+
+The separate explicit `dashboard-compose-unit` profile executes eighteen Python
+controls for copying only the three authenticated original application assets
+into an empty disposable Silex dashboard directory. It provisions no SDK, Node,
+compiler or Silex checkout. These controls cover bounded reads, exact assets,
+FD ownership, cancellation, observed directory replacement and source drift.
+Any adapter exception requires abandoning the disposable source tree; complete
+rollback and cross-process race immunity are not claimed. A future native build
+composition remains separate and requires its own review and actual evidence.
