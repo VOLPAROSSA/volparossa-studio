@@ -115,3 +115,14 @@ compile/runtime and general editor-plugin privacy acceptance are pending. Remova
 of upstream updater authority does not fulfill the required independently
 authorized VOLPAROSSA client updates, which remain open. No distribution, network
 service, native publication-consent or full Studio approval is inferred.
+
+### Dashboard input for the private native compile fixture
+
+The fixture fetches Silex's existing `silex-dashboard-2026` gitlink at
+`cb36b01a609915facfb1c134f96a98eabcdd3374` from
+https://gitlab.com/silexlabs/silex_silex-dashboard-2026.git . Its nine public assets
+are bound by `integration/silex-native-bootstrap/dashboard-source.json`. No
+license file or explicit license declaration was observed at that commit; no
+license is inferred here. The fixture does not upload its assets, compiled ELF
+or generated frontend. Product redistribution remains unaccepted. Existing
+upstream notices and the Silex project license records above remain preserved.

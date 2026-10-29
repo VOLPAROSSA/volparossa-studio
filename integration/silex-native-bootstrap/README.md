@@ -189,3 +189,48 @@ uniqueness checks. It never inserts the row into installed evidence. Complete
 mode still requires all 182 installed records with exact versions/architectures.
 Two diagnostic negatives now use a nonempty version with empty architecture;
 the original seventeen controls remain unchanged.
+
+## Verified SDK prerequisite
+
+[Run40816249905](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/40816249905)
+on `cfc3922bbc69792259f6b378a73b43a58d032951` passed 12 fetch and 21 installer
+controls and the real offline installation. All 182 archive identities matched
+the frozen manifest; 176 packages were planned for installation, and all 182
+installed versions and architectures were verified afterward. The package
+database audit was clean, the temporary service-start policy was restored and
+eight privileged groups, one outer group and three fetch groups joined.
+
+The artifact contains three JSON receipts only. This establishes SDK provisioning
+on the approved disposable Ubuntu24.04 runner. It establishes neither Debian13
+runtime compatibility nor Silex native compilation, GUI/privacy behavior,
+publication consent, release authority, Core updates or full Studio acceptance.
+The original failed reports remain preserved.
+
+## Private native compile candidate
+
+The explicit `native-build` profile first provisions the verified SDK on its own
+fresh disposable runner. It reuses the authenticated Rust1.99.1 and Node24.19.0 /
+pnpm10.34.4 carriers and the exact six-path overlay. The helper requires matching
+normal installation receipts and a live check of all 182 installed versions.
+Admission-only and baseline-only receipts cannot satisfy that gate.
+
+Before any native-helper acquisition/build effect, it verifies the full reviewed
+lock graph offline and preserves source inputs. It obtains the parent Silex
+gitlink dashboard commit `cb36b01a609915facfb1c134f96a98eabcdd3374`, verifies
+its nine public assets / 79,203 bytes, builds only the real client/public frontend
+from the frozen pnpm lock with install scripts disabled, then executes only
+`cargo build --offline --locked --release -p silex-desktop --bin silex-desktop`.
+The app is never started, installed, bundled or signed. The ELF is inspected from
+one stable descriptor; Cargo hardlinks are recorded without modifying output.
+
+All tracked source inputs and the five new server inputs remain byte-checked.
+Only four existing Tauri-generated schema paths may change, with before/after
+hashes recorded separately; no whole-source-tree unchanged claim is made.
+Compiler failure diagnostics contain only bounded error codes/counts/marker flags
+and log hash/size. Raw build logs are not durable artifacts.
+
+The dashboard commit has no verified license declaration and still references
+external petite-vue. This profile is private compile evidence only: six JSON
+artifact paths, no ELF, frontend assets, dashboard bytes or raw build-log uploads.
+Native GUI/privacy, offline functional dashboard, product distribution, native
+publication consent, hosting and full Studio acceptance remain open.
