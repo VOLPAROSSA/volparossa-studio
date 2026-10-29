@@ -1,0 +1,523 @@
+diff --git a/desktop/src-tauri/Cargo.toml b/desktop/src-tauri/Cargo.toml
+index cb1836c2..74f42a4a 100644
+--- a/desktop/src-tauri/Cargo.toml
++++ b/desktop/src-tauri/Cargo.toml
+@@ -12,8 +12,6 @@ tauri-build = { version = "2", features = [] }
+ [dependencies]
+ tauri = { version = "2", features = [] }
+ tauri-plugin-dialog = "2"
+-tauri-plugin-updater = "2"
+-tauri-plugin-process = "2"
+ serde = { version = "1", features = ["derive"] }
+ serde_json = "1"
+ base64 = "0.22"
+@@ -31,14 +29,5 @@ schemars = "1"
+ # Open files/folders in the OS default application
+ open = "5"
+ 
+-# Platform-specific directories (for telemetry consent before Tauri init)
+-dirs = "6"
+-
+-# Anonymous install id (persistent UUID for telemetry user count)
+-uuid = { version = "1", features = ["v4"] }
+-
+-# Error tracking / telemetry (GlitchTip / Sentry-compatible)
+-sentry = { version = "0.35", features = ["tracing"] }
+-
+ # Silex server as a library
+ silex-server = { path = "../../server-rust", features = ["embed-frontend"] }
+diff --git a/desktop/src-tauri/scripts/desktop-bridge.js b/desktop/src-tauri/scripts/desktop-bridge.js
+index 3d7b7d1f..7c20fc7b 100644
+--- a/desktop/src-tauri/scripts/desktop-bridge.js
++++ b/desktop/src-tauri/scripts/desktop-bridge.js
+@@ -5,39 +5,8 @@
+   const { invoke } = window.__TAURI__.core;
+   const { listen } = window.__TAURI__.event;
+ 
+-  // Frontend error tracking (GlitchTip / Sentry-compatible).
+-  // Real version, channel, anonymous install id and OS/arch come from Rust so the
+-  // webview reports the same identity as the native side (not a hardcoded 0.1.0).
+-  invoke('get_telemetry_context').then((ctx) => {
+-    if (!ctx?.dsn) return;
+-    const script = document.createElement('script');
+-    script.src = 'https://browser.sentry-cdn.com/8.46.0/bundle.tracing.min.js';
+-    script.crossOrigin = 'anonymous';
+-    script.onload = () => {
+-      if (!window.Sentry) return;
+-      window.Sentry.init({
+-        dsn: ctx.dsn,
+-        release: ctx.release,
+-        environment: ctx.environment,
+-        tracesSampleRate: 1.0,
+-        integrations: [window.Sentry.browserTracingIntegration()],
+-      });
+-      window.Sentry.setUser({ id: ctx.user_id });
+-      window.Sentry.setTag('os', ctx.os);
+-      window.Sentry.setTag('arch', ctx.arch);
+-      window.Sentry.setTag('context', 'webview');
+-    };
+-    document.head.appendChild(script);
+-  }).catch(() => { /* no consent / DSN not set — telemetry disabled */ });
+-
+-  // Wrap listen() so a rejected Tauri IPC (plugin:event|listen) becomes a breadcrumb +
+-  // handled capture with a culprit, instead of an UnhandledRejection with an empty one.
+-  const safeListen = (event, handler) => {
+-    window.Sentry?.addBreadcrumb?.({ category: 'tauri', message: `listen ${event}`, level: 'info' });
+-    return listen(event, handler).catch((err) => {
+-      window.Sentry?.captureException?.(err, { tags: { tauri_command: `plugin:event|listen:${event}` } });
+-    });
+-  };
++  // Event-listener rejection remains handled locally.
++  const safeListen = (event, handler) => listen(event, handler).catch(() => {});
+ 
+   const TEXT_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'a', 'li', 'td', 'th', 'label', 'blockquote'];
+ 
+@@ -270,17 +239,8 @@
+     return;
+   }
+ 
+-  // Track project_open: from navigation to editor ready
+-  const openStart = Date.now() / 1000;
+-
+   // On the editor page, wire up the bridge
+   waitForEditor((editor) => {
+-    // Finish project_open transaction
+-    if (window.Sentry?.startInactiveSpan) {
+-      const span = window.Sentry.startInactiveSpan({ name: 'project_open', op: 'lifecycle', startTime: openStart, forceTransaction: true });
+-      span?.end();
+-    }
+-
+     // Report current project to Tauri
+     fetch(`/api/website/meta?websiteId=${encodeURIComponent(websiteId)}`)
+       .then(r => r.json())
+@@ -300,30 +260,6 @@
+     // Track unsaved changes
+     editor.on('change:changesCount', () => invoke('mark_unsaved'));
+ 
+-    // Track project_save
+-    editor.on('storage:start:store', () => {
+-      editor.__saveSpan = window.Sentry?.startInactiveSpan?.({ name: 'project_save', op: 'lifecycle', forceTransaction: true });
+-    });
+-    editor.on('storage:end:store', () => {
+-      editor.__saveSpan?.end();
+-      editor.__saveSpan = null;
+-    });
+-    editor.on('storage:error:store', () => {
+-      if (editor.__saveSpan) { editor.__saveSpan.setStatus({ code: 2, message: 'internal_error' }); editor.__saveSpan.end(); editor.__saveSpan = null; }
+-    });
+-
+-    // Track project_publish
+-    editor.on('silex:publish:start', () => {
+-      editor.__publishSpan = window.Sentry?.startInactiveSpan?.({ name: 'project_publish', op: 'lifecycle', forceTransaction: true });
+-    });
+-    editor.on('silex:publish:end', () => {
+-      editor.__publishSpan?.end();
+-      editor.__publishSpan = null;
+-    });
+-    editor.on('silex:publish:error', () => {
+-      if (editor.__publishSpan) { editor.__publishSpan.setStatus({ code: 2, message: 'internal_error' }); editor.__publishSpan.end(); editor.__publishSpan = null; }
+-    });
+-
+     // Listen for menu events from Tauri (triggered by MCP or quit dialog)
+     safeListen('menu-save', () => editor.store());
+     safeListen('menu-undo', () => editor.UndoManager.undo());
+diff --git a/desktop/src-tauri/src/main.rs b/desktop/src-tauri/src/main.rs
+index e4bf7832..ac014a42 100644
+--- a/desktop/src-tauri/src/main.rs
++++ b/desktop/src-tauri/src/main.rs
+@@ -11,7 +11,6 @@
+ #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+ 
+ use std::net::SocketAddr;
+-use std::path::PathBuf;
+ use std::sync::Mutex;
+ 
+ use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+@@ -19,59 +18,9 @@ use tokio::net::TcpListener;
+ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+ 
+ use silex_server::Config;
+-use tauri_plugin_updater::UpdaterExt;
+ 
+ mod mcp;
+ 
+-// ==================
+-// Telemetry consent
+-// ==================
+-
+-fn telemetry_consent_path(data_dir: &PathBuf) -> PathBuf {
+-    data_dir.join("telemetry_consent")
+-}
+-
+-/// Returns Some(true) if opted in, Some(false) if opted out, None if never asked.
+-fn read_telemetry_consent(data_dir: &PathBuf) -> Option<bool> {
+-    std::fs::read_to_string(telemetry_consent_path(data_dir))
+-        .ok()
+-        .map(|s| s.trim() == "true")
+-}
+-
+-fn write_telemetry_consent(data_dir: &PathBuf, accepted: bool) {
+-    let _ = std::fs::create_dir_all(data_dir);
+-    let _ = std::fs::write(
+-        telemetry_consent_path(data_dir),
+-        if accepted { "true" } else { "false" },
+-    );
+-}
+-
+-/// Prompt the user for telemetry consent (non-blocking, saves result for next launch).
+-fn prompt_telemetry_consent(app: &tauri::AppHandle, data_dir: PathBuf) {
+-    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+-
+-    app.dialog()
+-        .message(
+-            "Help improve Silex by sending anonymous crash reports and basic usage data?\n\n\
+-             No personal data or website content is ever collected.\n\
+-             You can change this later in Settings.",
+-        )
+-        .title("Telemetry")
+-        .kind(MessageDialogKind::Info)
+-        .buttons(MessageDialogButtons::OkCancelCustom(
+-            "Yes, help improve Silex".into(),
+-            "No thanks".into(),
+-        ))
+-        .show(move |accepted| {
+-            write_telemetry_consent(&data_dir, accepted);
+-            if accepted {
+-                tracing::info!("Telemetry opted in");
+-            } else {
+-                tracing::info!("Telemetry opted out");
+-            }
+-        });
+-}
+-
+ // ==================
+ // App State
+ // ==================
+@@ -146,66 +95,6 @@ fn log_debug(message: String) {
+     tracing::debug!("[webview] {message}");
+ }
+ 
+-/// Map a release version to a GlitchTip environment channel (canary/alpha/beta/stable).
+-fn telemetry_environment(version: &str) -> &'static str {
+-    if cfg!(debug_assertions) {
+-        "development"
+-    } else if version.contains("canary") {
+-        "canary"
+-    } else if version.contains("alpha") {
+-        "alpha"
+-    } else if version.contains("beta") {
+-        "beta"
+-    } else {
+-        "stable"
+-    }
+-}
+-
+-/// Persistent anonymous install id (UUID v4), generated on first launch. No PII.
+-fn get_or_create_install_id(data_dir: &PathBuf) -> String {
+-    let path = data_dir.join("install_id");
+-    if let Ok(existing) = std::fs::read_to_string(&path) {
+-        let existing = existing.trim();
+-        if !existing.is_empty() {
+-            return existing.to_string();
+-        }
+-    }
+-    let id = uuid::Uuid::new_v4().to_string();
+-    let _ = std::fs::create_dir_all(data_dir);
+-    let _ = std::fs::write(&path, &id);
+-    id
+-}
+-
+-/// Telemetry config handed to the frontend Sentry init (real version, channel, install id, OS).
+-#[derive(serde::Serialize)]
+-struct TelemetryContext {
+-    dsn: String,
+-    release: String,
+-    environment: String,
+-    user_id: String,
+-    os: String,
+-    arch: String,
+-}
+-
+-#[tauri::command]
+-fn get_telemetry_context(app: tauri::AppHandle) -> Option<TelemetryContext> {
+-    // Only expose telemetry config to the frontend if the user has opted in
+-    let data_dir = dirs::data_dir()?.join("org.silex.desktop");
+-    if read_telemetry_consent(&data_dir) != Some(true) {
+-        return None;
+-    }
+-    let dsn = option_env!("GLITCHTIP_DSN")?.to_string();
+-    let version = app.package_info().version.to_string();
+-    Some(TelemetryContext {
+-        dsn,
+-        release: version.clone(),
+-        environment: telemetry_environment(&version).to_string(),
+-        user_id: get_or_create_install_id(&data_dir),
+-        os: std::env::consts::OS.to_string(),
+-        arch: std::env::consts::ARCH.to_string(),
+-    })
+-}
+-
+ fn show_quit_dialog(app: &tauri::AppHandle) {
+     use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+ 
+@@ -235,59 +124,6 @@ fn show_quit_dialog(app: &tauri::AppHandle) {
+         });
+ }
+ 
+-// ==================
+-// Auto-update
+-// ==================
+-
+-fn check_for_updates(app: tauri::AppHandle) {
+-    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+-
+-    tauri::async_runtime::spawn(async move {
+-        tracing::info!("Checking for updates...");
+-        match app.updater().expect("updater not configured").check().await {
+-            Ok(Some(update)) => {
+-                let version = update.version.clone();
+-                tracing::info!("Update available: v{}", version);
+-                let app_clone = app.clone();
+-
+-                app.dialog()
+-                    .message(format!(
+-                        "Silex {} is available. Do you want to update now?",
+-                        version
+-                    ))
+-                    .title("Update Available")
+-                    .kind(MessageDialogKind::Info)
+-                    .buttons(MessageDialogButtons::OkCancelCustom(
+-                        "Update & Restart".into(),
+-                        "Later".into(),
+-                    ))
+-                    .show(move |accepted| {
+-                        if accepted {
+-                            tauri::async_runtime::spawn(async move {
+-                                tracing::info!("Downloading update v{}...", version);
+-                                match update.download_and_install(|_, _| {}, || {}).await {
+-                                    Ok(_) => {
+-                                        tracing::info!("Update installed, restarting...");
+-                                        app_clone.restart();
+-                                    }
+-                                    Err(e) => {
+-                                        tracing::error!("Update failed: {}", e);
+-                                    }
+-                                }
+-                            });
+-                        }
+-                    });
+-            }
+-            Ok(None) => {
+-                tracing::info!("No update available");
+-            }
+-            Err(e) => {
+-                tracing::warn!("Update check failed: {}", e);
+-            }
+-        }
+-    });
+-}
+-
+ // ==================
+ // Server
+ // ==================
+@@ -344,63 +180,9 @@ fn main() {
+         }
+     }
+ 
+-    // Resolve the app data dir early so we can check telemetry consent before Tauri starts.
+-    // This mirrors the path Tauri uses: ~/.local/share/org.silex.desktop (Linux),
+-    // ~/Library/Application Support/org.silex.desktop (macOS),
+-    // %APPDATA%/org.silex.desktop (Windows).
+-    let app_data_dir = dirs::data_dir()
+-        .unwrap_or_else(|| PathBuf::from("."))
+-        .join("org.silex.desktop");
+-    let _ = std::fs::create_dir_all(&app_data_dir);
+-
+-    // Real app version comes from tauri.conf.json (patched from the tag in CI), not
+-    // CARGO_PKG_VERSION (stuck at the 0.1.0 placeholder). The context is built once here
+-    // and moved into .run() below.
++    // Build the local application context without telemetry or an upstream updater.
++    // Independently authorized VOLPAROSSA release updates remain a separate requirement.
+     let context = tauri::generate_context!();
+-    let app_version = context.package_info().version.to_string();
+-    let install_id = get_or_create_install_id(&app_data_dir);
+-
+-    // Initialize error tracking (GlitchTip / Sentry-compatible).
+-    // Sentry is always initialized when GLITCHTIP_DSN is set, but events are only
+-    // sent if the user has opted in. This way consent takes effect immediately
+-    // (no need to restart after opting in on first launch).
+-    let consent_dir_for_send = app_data_dir.clone();
+-    let consent_dir_for_traces = app_data_dir.clone();
+-    let _sentry_guard = sentry::init(sentry::ClientOptions {
+-        dsn: option_env!("GLITCHTIP_DSN")
+-            .and_then(|s| s.parse().ok()),
+-        release: Some(app_version.clone().into()),
+-        environment: Some(telemetry_environment(&app_version).into()),
+-        before_send: Some(std::sync::Arc::new(move |event| {
+-            if read_telemetry_consent(&consent_dir_for_send) == Some(true) {
+-                Some(event)
+-            } else {
+-                None
+-            }
+-        })),
+-        // Sample 100% of transactions (volume is low for a desktop app),
+-        // but only if the user has opted in.
+-        traces_sampler: Some(std::sync::Arc::new(move |_ctx| {
+-            if read_telemetry_consent(&consent_dir_for_traces) == Some(true) {
+-                1.0
+-            } else {
+-                0.0
+-            }
+-        })),
+-        // Track sessions for user count and crash-free rate
+-        auto_session_tracking: true,
+-        session_mode: sentry::SessionMode::Application,
+-        ..Default::default()
+-    });
+-    sentry::configure_scope(|scope| {
+-        scope.set_tag("os", std::env::consts::OS);
+-        scope.set_tag("arch", std::env::consts::ARCH);
+-        // Anonymous install id → distinguishes distinct installs from repeat crashes.
+-        scope.set_user(Some(sentry::protocol::User {
+-            id: Some(install_id.clone()),
+-            ..Default::default()
+-        }));
+-    });
+ 
+     tracing_subscriber::registry()
+         .with(
+@@ -408,13 +190,10 @@ fn main() {
+                 .unwrap_or_else(|_| "silex_server=info,silex_desktop=info".into()),
+         )
+         .with(tracing_subscriber::fmt::layer())
+-        .with(sentry::integrations::tracing::layer())
+         .init();
+ 
+     tauri::Builder::default()
+         .plugin(tauri_plugin_dialog::init())
+-        .plugin(tauri_plugin_updater::Builder::new().build())
+-        .plugin(tauri_plugin_process::init())
+         .manage(AppState::default())
+         .invoke_handler(tauri::generate_handler![
+             set_current_project,
+@@ -422,21 +201,8 @@ fn main() {
+             mark_unsaved,
+             open_folder,
+             log_debug,
+-            get_telemetry_context,
+         ])
+         .setup(|app| {
+-            // Log app launch with OS/arch info (visible in Issues even without errors)
+-            sentry::capture_event(sentry::protocol::Event {
+-                message: Some("app_started".into()),
+-                level: sentry::Level::Info,
+-                ..Default::default()
+-            });
+-
+-            // Start a performance transaction for app startup
+-            let tx_ctx = sentry::TransactionContext::new("app_startup", "lifecycle");
+-            let transaction = sentry::start_transaction(tx_ctx);
+-            sentry::configure_scope(|scope| scope.set_span(Some(transaction.clone().into())));
+-
+             // Silex website data lives under app_data_dir/"websites".
+             // NOT "storage": WebKitGTK uses app_data_dir/"storage" for the webview's own
+             // localStorage/IndexedDB origins, and FsStorage would then scan those origin
+@@ -445,16 +211,6 @@ fn main() {
+                 .expect("failed to resolve app data dir")
+                 .join("websites");
+ 
+-            // On first launch, ask the user for telemetry consent.
+-            // The choice is saved and takes effect on next launch.
+-            let consent_dir = app.path().app_data_dir()
+-                .expect("failed to resolve app data dir");
+-            if option_env!("GLITCHTIP_DSN").is_some()
+-                && read_telemetry_consent(&consent_dir).is_none()
+-            {
+-                prompt_telemetry_consent(app.handle(), consent_dir);
+-            }
+-
+             // Show splash screen while the app loads
+             let _splash = WebviewWindowBuilder::new(
+                 app,
+@@ -506,16 +262,6 @@ fn main() {
+                 });
+             }
+ 
+-            // Finish the startup transaction (sends to GlitchTip Performance)
+-            transaction.finish();
+-
+-            // Check for updates in the background — release builds only.
+-            // In dev (`cargo run` / `cargo watch`) the version is the placeholder 0.1.0,
+-            // so the updater would otherwise prompt "update to <latest release>" on every launch.
+-            if !cfg!(debug_assertions) {
+-                check_for_updates(app.handle().clone());
+-            }
+-
+             // Handle window close with unsaved changes
+             let app_handle = app.handle().clone();
+             window.on_window_event(move |event| {
+diff --git a/desktop/src-tauri/src/mcp.rs b/desktop/src-tauri/src/mcp.rs
+index 881d699b..b5e22715 100644
+--- a/desktop/src-tauri/src/mcp.rs
++++ b/desktop/src-tauri/src/mcp.rs
+@@ -388,17 +388,6 @@ impl SilexMcp {
+         }
+     }
+ 
+-    /// Start a Sentry transaction for an MCP tool call.
+-    fn start_tool_transaction(tool_name: &str, action: &str) -> sentry::TransactionOrSpan {
+-        let tx_ctx = sentry::TransactionContext::new(
+-            &format!("mcp/{}", tool_name),
+-            "mcp.tool",
+-        );
+-        let transaction = sentry::start_transaction(tx_ctx);
+-        transaction.set_data("action", serde_json::Value::String(action.to_string()));
+-        transaction.into()
+-    }
+-
+     // ----------------------------------------------------------------------
+     // website — list, create, delete, rename, duplicate, open, dashboard
+     // ----------------------------------------------------------------------
+@@ -408,7 +397,6 @@ impl SilexMcp {
+         &self,
+         Parameters(params): Parameters<WebsiteParams>,
+     ) -> Result<CallToolResult, McpError> {
+-        let _tx = Self::start_tool_transaction("website", &format!("{:?}", params.action));
+         let base_url = self.get_base_url();
+         let client = reqwest::Client::new();
+ 
+@@ -610,7 +598,6 @@ impl SilexMcp {
+         &self,
+         Parameters(params): Parameters<ScreenshotParams>,
+     ) -> Result<CallToolResult, McpError> {
+-        let _tx = Self::start_tool_transaction("screenshot", params.target.as_deref().unwrap_or("ui"));
+         let target = params.target.as_deref().unwrap_or("ui");
+ 
+         let screenshot_js = r#"
+diff --git a/desktop/src-tauri/tauri.conf.json b/desktop/src-tauri/tauri.conf.json
+index dc7c675d..e3d31cbc 100644
+--- a/desktop/src-tauri/tauri.conf.json
++++ b/desktop/src-tauri/tauri.conf.json
+@@ -20,7 +20,7 @@
+       "dmg",
+       "nsis"
+     ],
+-    "createUpdaterArtifacts": true,
++    "createUpdaterArtifacts": false,
+     "category": "DeveloperTool",
+     "icon": [
+       "icons/32x32.png",
+@@ -29,13 +29,5 @@
+       "icons/icon.icns",
+       "icons/icon.ico"
+     ]
+-  },
+-  "plugins": {
+-    "updater": {
+-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ0MjAzOUFERUFCQUMwQjAKUldTd3dMcnFyVGtnMUtCSFBvZ0Z4NnN1bG5MWEJsQkk2VU43Y05INi9qNDQvTWpPVVpxRUROaDgK",
+-      "endpoints": [
+-        "https://github.com/silexlabs/Silex/releases/latest/download/latest.json"
+-      ]
+-    }
+   }
+ }

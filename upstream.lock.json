@@ -44,6 +44,28 @@
       "dependency_change": "silex-server adds the existing rustix 1.1.3 package; all other package records unchanged",
       "native_publication_authorization": false,
       "runtime_accepted": false
+    },
+    {
+      "component": "Tauri desktop native bootstrap",
+      "recorded_at": "2026-10-29",
+      "license_notices_retained": [
+        "desktop GPL-3.0-or-later",
+        "Rust package AGPL-3.0-or-later"
+      ],
+      "manifest": "integration/silex-native-bootstrap/manifest.json",
+      "manifest_sha256": "b335b84a077fbe8e516099a5438408c3255a92ea3148f2d6a5d5434cac873dd8",
+      "path": "integration/silex-native-bootstrap/patches/native-bootstrap-privacy.patch",
+      "sha256": "e97d00191dbaa68ef4047e06040e525da15b1d1953f8b54e554a862a207d6db9",
+      "upstream_commit": "672efed69dda04c0a1e968859239e042f00d9538",
+      "applied_after_patch_sha256": "30901a10f6b2d09967f553820ea642f83e087fa66a55533b1b683da26306926a",
+      "root_cargo_lock_before": "35d0ea429b62f5cd2bc8533f75f997c05e787ad3355a40c1de0eba5fd3233536",
+      "root_cargo_lock_after": "35d0ea429b62f5cd2bc8533f75f997c05e787ad3355a40c1de0eba5fd3233536",
+      "dependency_change": "Five unused native direct memberships removed; root-lock resolution still pending",
+      "locked_dependency_acceptance": false,
+      "native_build": false,
+      "runtime_accepted": false,
+      "native_publication_authorization": false,
+      "independently_authorized_volparossa_updates": false
     }
   ],
   "vendored_code": false

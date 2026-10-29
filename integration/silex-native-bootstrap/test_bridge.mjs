@@ -21,7 +21,7 @@ function admittedSource() {
   assert.equal(process.env.RUNNER_ARCH, 'X64');
   assert.equal(process.platform, 'linux');
   assert.equal(process.arch, 'x64');
-  assert.equal(process.version, 'v22.17.0');
+  assert.equal(process.version, 'v24.19.0');
   assert.notEqual(process.getuid(), 0);
   assert.notEqual(process.geteuid(), 0);
   const args = process.argv.slice(2);

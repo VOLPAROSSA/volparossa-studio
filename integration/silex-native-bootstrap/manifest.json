@@ -1,0 +1,82 @@
+{
+  "acceptance": {
+    "full_studio": false,
+    "general_editor_plugin_privacy": false,
+    "independently_authorized_volparossa_updates": false,
+    "locked_dependency_acceptance": false,
+    "native_build": false,
+    "native_runtime_privacy": false
+  },
+  "base_patched_root_lock_sha256": "35d0ea429b62f5cd2bc8533f75f997c05e787ad3355a40c1de0eba5fd3233536",
+  "base_publication_manifest_sha256": "9d7ab28754d77e681dae5adc7c19046be9f15798b05eb6f518ca2ee480ea5790",
+  "base_publication_patch_sha256": "30901a10f6b2d09967f553820ea642f83e087fa66a55533b1b683da26306926a",
+  "files": {
+    "desktop/src-tauri/Cargo.toml": {
+      "after": {
+        "bytes": 953,
+        "mode": "100644",
+        "sha256": "b069583e50c1bae5376a9a5ad1feb4bf31a421a5109098f9e901044b607a898b"
+      },
+      "before": {
+        "bytes": 1320,
+        "mode": "100644",
+        "sha256": "48d4a0043b7faaa628e6dce75a35d731b4e99e210187617a174396447652bb60"
+      }
+    },
+    "desktop/src-tauri/scripts/desktop-bridge.js": {
+      "after": {
+        "bytes": 9454,
+        "mode": "100644",
+        "sha256": "f51c34bb965e69ba7f907b2473b4aa310faef1fa98ba20003e49e6b8c824a482"
+      },
+      "before": {
+        "bytes": 12320,
+        "mode": "100644",
+        "sha256": "f91e9debbe5a67175ce93bdcd17c29b8b13ba1ae5616ffa450bea4d315d90fa3"
+      }
+    },
+    "desktop/src-tauri/src/main.rs": {
+      "after": {
+        "bytes": 9868,
+        "mode": "100644",
+        "sha256": "7c326677af0064bf67599b4952db4718fcf4321d44e5cb790d104162610deb9b"
+      },
+      "before": {
+        "bytes": 19877,
+        "mode": "100644",
+        "sha256": "18e6fac2c2315214c393483bbd018febce00c639f167102d02708a382cd78d0a"
+      }
+    },
+    "desktop/src-tauri/src/mcp.rs": {
+      "after": {
+        "bytes": 37455,
+        "mode": "100644",
+        "sha256": "ed00562b6ae94babafab6e1143b0dc90beeb797f70731f9e685e8be59c862b98"
+      },
+      "before": {
+        "bytes": 38114,
+        "mode": "100644",
+        "sha256": "e4ae246b937348b7425c0debde02f13b75e8305dfcc3ad4e6ef91666caaaf7ab"
+      }
+    },
+    "desktop/src-tauri/tauri.conf.json": {
+      "after": {
+        "bytes": 682,
+        "mode": "100644",
+        "sha256": "bec943faa3ff4530a834ad611fd7bbad3de2ed7beda72a230f3f0486737bba54"
+      },
+      "before": {
+        "bytes": 1007,
+        "mode": "100644",
+        "sha256": "1323900e221d167259276278213beda757f3d140757e1a8ef25a874c1bfd322a"
+      }
+    }
+  },
+  "patch": {
+    "bytes": 20747,
+    "path": "patches/native-bootstrap-privacy.patch",
+    "sha256": "e97d00191dbaa68ef4047e06040e525da15b1d1953f8b54e554a862a207d6db9"
+  },
+  "schema": 1,
+  "upstream_commit": "672efed69dda04c0a1e968859239e042f00d9538"
+}

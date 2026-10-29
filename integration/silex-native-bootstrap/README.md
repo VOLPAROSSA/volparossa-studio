@@ -7,17 +7,18 @@ no npm dependency and performs no real network request, browser launch, native
 Tauri execution, SDK load or external application launch.
 
 Run only on an approved disposable GitHub-hosted Linux X64 runner, as its original
-nonroot account, with the existing authenticated **Node 22.17.0** executable:
+nonroot account, with the existing authenticated **Node 24.19.0** executable:
 
 ```sh
-AUTH_NODE ABS_TEST_BRIDGE_MJS \
+AUTH_NODE --test-reporter=tap ABS_TEST_BRIDGE_MJS \
   --source-root ABS_PATCHED_SILEX_ROOT \
   --bridge-sha256 f51c34bb965e69ba7f907b2473b4aa310faef1fa98ba20003e49e6b8c824a482 \
   --baseline-bridge ABS_PRISTINE_BRIDGE
 ```
 
-Use the script directly; builtin `node:test` emits TAP automatically. The fixed
-argument order is required. Both sources must be canonical, owned regular
+Use the script directly with the explicit TAP reporter; the owning Python
+`check_bridge.py` caller supplies this flag and checks every case and total. The
+fixed script argument order is required. Both sources must be canonical, owned regular
 single-link files under `GITHUB_WORKSPACE` or `RUNNER_TEMP`, without group/world
 write permission. One descriptor supplies bounded bytes and stable before/after
 metadata. Each source is capped at 64 KiB and SHA-256 checked before execution.

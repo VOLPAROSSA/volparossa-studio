@@ -93,3 +93,22 @@ checksum is `146c9e247ccc180c1f61615433868c99f3de3ae256a30a43b49f67c2d9171f34`.
 declares `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT`; retain its COPYRIGHT
 and LICENSE files with the acquired source and applicable distribution notices.
 No package version update or complete transitive dependency audit is included.
+
+## Native bootstrap overlay — 2026-10-29
+
+The additive [native overlay manifest](integration/silex-native-bootstrap/manifest.json)
+and its complete source patch bind five desktop paths after the preceding bounded
+publication patch. Original Silex desktop GPL-3.0-or-later notices, its Rust package
+AGPL-3.0-or-later declaration, embedded server notices and licenses remain unchanged.
+No upstream checkout, SDK or application binary is committed. Independent drivers,
+fixtures and documentation use GPL-3.0-only. The existing authenticated Node24.19.0
+and Rust1.99.1 carriers remain separate transient tools with their original notices.
+
+This source delta removes native install-ID/telemetry instrumentation, frontend SDK
+injection and upstream Silex updater registration/key/feed. It removes their unused
+direct dependency memberships. The authoritative root Cargo lock must separately
+be resolved and checked without changing retained versions or checksums; native
+compile/runtime and general editor-plugin privacy acceptance are pending. Removal
+of upstream updater authority does not fulfill the required independently
+authorized VOLPAROSSA client updates, which remain open. No distribution, network
+service, native publication-consent or full Studio approval is inferred.
