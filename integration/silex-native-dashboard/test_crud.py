@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import stat
 import sys
 import tempfile
 import time
@@ -55,6 +56,79 @@ def runtime():
 
 
 class CrudTests(unittest.TestCase):
+    def test_missing_or_noncanonical_fixed_chrome_is_identified_before_binary_read(self):
+        p = SimpleNamespace(with_fd=Mock())
+        diagnostic = {}
+        with patch.object(M.Path, 'is_file', return_value=False), self.assertRaises(RuntimeError):
+            M.installed_browser(p, diagnostic)
+        self.assertEqual(diagnostic, {'substage': 'chrome_launcher', 'launcher_present': False})
+        p.with_fd.assert_not_called()
+        diagnostic = {}
+        original = FileNotFoundError('PRIVATE path must not be retained')
+        with patch.object(M.Path, 'is_file', return_value=True), \
+                patch.object(M.Path, 'exists', return_value=False), \
+                patch.object(M.Path, 'resolve', side_effect=original), self.assertRaises(FileNotFoundError) as caught:
+            M.installed_browser(p, diagnostic)
+        self.assertIs(caught.exception, original)
+        self.assertEqual(diagnostic['substage'], 'chrome_binary_path')
+        self.assertIs(diagnostic['binary_exists'], False)
+        self.assertNotIn('PRIVATE', json.dumps(diagnostic))
+        p.with_fd.assert_not_called()
+        with patch.object(M.Path, 'is_file', return_value=True), \
+                patch.object(M.Path, 'exists', return_value=True), \
+                patch.object(M.Path, 'resolve', return_value=Path('/different')), self.assertRaises(RuntimeError):
+            M.installed_browser(p, diagnostic)
+        self.assertIs(diagnostic['binary_canonical'], False)
+        p.with_fd.assert_not_called()
+
+    def test_chrome_metadata_refusal_records_joint_predicates_without_changing_guards(self):
+        raw = b'PUBLIC browser identity control'
+        values = dict(st_mode=stat.S_IFREG | 0o755, st_uid=0, st_size=len(raw),
+                      st_dev=1, st_ino=2, st_mtime_ns=3, st_ctime_ns=4)
+        p = SimpleNamespace(with_fd=lambda _path, _flags, _mode, operation: operation(123))
+        for change, predicate in (({'st_uid': 1001}, 'binary_owner_root'),
+                ({'st_mode': stat.S_IFDIR | 0o755}, 'binary_regular'),
+                ({'st_mode': stat.S_IFREG | 0o777}, 'binary_mode_write_safe'),
+                ({'st_size': 0}, 'binary_size_bounded'),
+                ({'st_size': 512 * 1024 * 1024 + 1}, 'binary_size_bounded')):
+            diagnostic = {}
+            with patch.object(M.Path, 'resolve', return_value=Path('/opt/google/chrome/chrome')), \
+                    patch.object(M.os, 'fstat', return_value=SimpleNamespace(**dict(values, **change))), \
+                    patch.object(M.os, 'read') as read, self.assertRaises(RuntimeError):
+                M.browser_identity(p, Path('/opt/google/chrome/chrome'), diagnostic)
+            self.assertEqual(diagnostic['substage'], 'chrome_binary_metadata')
+            self.assertIs(diagnostic[predicate], False)
+            read.assert_not_called()
+            M.check_driver_diagnostic(diagnostic)
+        for mutated in (False, True):
+            diagnostic = {}
+            before = SimpleNamespace(**values)
+            after = SimpleNamespace(**dict(values, st_ctime_ns=999)) if mutated else before
+            with patch.object(M.Path, 'resolve', return_value=Path('/opt/google/chrome/chrome')), \
+                    patch.object(M.os, 'fstat', side_effect=[before, after]), \
+                    patch.object(M.os, 'read', side_effect=[raw, b'']):
+                if mutated:
+                    with self.assertRaises(RuntimeError):
+                        M.browser_identity(p, Path('/opt/google/chrome/chrome'), diagnostic)
+                else:
+                    self.assertEqual(M.browser_identity(p, Path('/opt/google/chrome/chrome'), diagnostic),
+                                     hashlib.sha256(raw).hexdigest())
+            self.assertEqual(diagnostic['substage'], 'chrome_binary_identity')
+            self.assertIs(diagnostic['binary_stable'], not mutated)
+            self.assertEqual(diagnostic['binary_read_bytes'], len(raw))
+            M.check_driver_diagnostic(diagnostic)
+
+    def test_driver_diagnostic_is_closed_bounded_and_distinguishes_unobserved_from_false(self):
+        value = {'substage': 'chrome_launcher', 'carrier_returned': True,
+            'driver_install_returned': True, 'fixture_files_copied': 3,
+            'lockfiles_copied': 2, 'launcher_present': False}
+        M.check_driver_diagnostic(value)
+        self.assertNotIn('binary_owner_root', value)
+        for bad in ({'substage': 'PRIVATE/path'}, dict(value, error='PRIVATE'),
+                dict(value, binary_bytes=True), dict(value, binary_bytes=512 * 1024 * 1024 + 1),
+                dict(value, launcher_present=0), dict(value, fixture_files_copied=4)):
+            with self.subTest(bad=bad), self.assertRaises(RuntimeError): M.check_driver_diagnostic(bad)
+
     def test_fixed_offline_server_example_command_has_no_desktop_sdk_or_production_cli(self):
         self.assertEqual(list(map(str, M.build_command(Path('/compiler')))),
             ['/compiler/bin/cargo', 'build', '--offline', '--locked', '-p', 'silex-server',

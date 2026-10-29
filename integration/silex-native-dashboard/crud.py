@@ -18,6 +18,10 @@ BOOTSTRAP = HERE.parent / 'silex-native-bootstrap'
 FS = HERE.parent / 'silex-fs-identifier-rename'
 EXAMPLE = 'server-rust/examples/volparossa_dashboard_crud.rs'
 WRAPPER_SECONDS = 140  # The unchanged wrapper owns 120s work + 5s forced cleanup.
+DRIVER_SUBSTAGES = frozenset(('not_started', 'carrier_authentication', 'fixture_source_copy',
+    'driver_lock_copy', 'driver_install', 'chrome_launcher', 'chrome_binary_path',
+    'chrome_binary_open', 'chrome_binary_metadata', 'chrome_binary_read', 'chrome_binary_identity',
+    'context_files', 'context_validate', 'context_write', 'complete', 'unavailable'))
 PINS = {
     BOOTSTRAP / 'native_build.py': '9d8d45fe88922ced9ee43a0465177343f7b3757f6e9a28dc30884b0e3a03f51c',
     HERE / 'local_build.py': '45e7ae0a59f6f3102931faef8b560ed86c62231bb880eed994c56413e1e4589c',
@@ -165,21 +169,72 @@ def runtime_failure(p, value, revision):
                 log_observations=check_logs(value.get('log_observations')))
 
 
-def browser_identity(p, path):
+def check_driver_diagnostic(value):
+    booleans = {'carrier_returned', 'driver_install_returned', 'launcher_present',
+        'binary_exists', 'binary_canonical', 'binary_path_regular', 'binary_regular', 'binary_owner_root',
+        'binary_mode_write_safe', 'binary_size_bounded', 'binary_bytes_clipped',
+        'binary_read_over_size', 'binary_stable'}
+    bounds = {'fixture_files_copied': 3, 'lockfiles_copied': 2,
+              'binary_bytes': 512 * 1024 * 1024, 'binary_read_bytes': 512 * 1024 * 1024}
+    require(type(value) is dict and value.keys() <= {'substage'} | booleans | bounds.keys()
+        and type(value.get('substage')) is str and value['substage'] in DRIVER_SUBSTAGES)
+    for key, item in value.items():
+        if key in booleans:
+            require(type(item) is bool)
+        elif key in bounds:
+            require(type(item) is int and 0 <= item <= bounds[key])
+
+
+def browser_identity(p, path, diagnostic=None):
     require(path.resolve(strict=True) == path)
+    if diagnostic is not None:
+        diagnostic['substage'] = 'chrome_binary_open'
     def operation(descriptor):
+        if diagnostic is not None:
+            diagnostic['substage'] = 'chrome_binary_metadata'
         before = os.fstat(descriptor)
+        if diagnostic is not None:
+            diagnostic.update(binary_regular=stat.S_ISREG(before.st_mode),
+                binary_owner_root=before.st_uid == 0, binary_mode_write_safe=not bool(before.st_mode & 0o022),
+                binary_size_bounded=4 <= before.st_size <= 512 * 1024 * 1024,
+                binary_bytes=min(512 * 1024 * 1024, max(0, before.st_size)),
+                binary_bytes_clipped=not 0 <= before.st_size <= 512 * 1024 * 1024)
         require(stat.S_ISREG(before.st_mode) and before.st_uid == 0 and not before.st_mode & 0o022
             and 4 <= before.st_size <= 512 * 1024 * 1024)
+        if diagnostic is not None:
+            diagnostic['substage'] = 'chrome_binary_read'
         digest = hashlib.sha256()
         count = 0
         while chunk := os.read(descriptor, 65536):
-            count += len(chunk); require(count <= before.st_size); digest.update(chunk)
+            count += len(chunk)
+            if diagnostic is not None:
+                diagnostic.update(binary_read_bytes=min(512 * 1024 * 1024, count),
+                                  binary_read_over_size=count > before.st_size)
+            require(count <= before.st_size); digest.update(chunk)
         after = os.fstat(descriptor)
+        if diagnostic is not None:
+            diagnostic.update(substage='chrome_binary_identity', binary_stable=count == before.st_size
+                and all(getattr(before, name) == getattr(after, name)
+                    for name in ('st_dev', 'st_ino', 'st_uid', 'st_mode', 'st_size', 'st_mtime_ns', 'st_ctime_ns')))
         require(count == before.st_size and all(getattr(before, name) == getattr(after, name)
             for name in ('st_dev', 'st_ino', 'st_uid', 'st_mode', 'st_size', 'st_mtime_ns', 'st_ctime_ns')))
         return digest.hexdigest()
     return p.with_fd(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, operation)
+
+
+def installed_browser(p, diagnostic):
+    diagnostic['substage'] = 'chrome_launcher'
+    chrome = next((path for path in ('/usr/bin/google-chrome', '/usr/bin/google-chrome-stable')
+                   if Path(path).is_file()), None)
+    diagnostic['launcher_present'] = chrome is not None
+    require(chrome is not None)
+    diagnostic['substage'] = 'chrome_binary_path'
+    chrome_binary = Path('/opt/google/chrome/chrome')
+    diagnostic['binary_exists'] = chrome_binary.exists()
+    diagnostic['binary_canonical'] = chrome_binary.resolve(strict=True) == chrome_binary
+    diagnostic['binary_path_regular'] = chrome_binary.is_file()
+    require(diagnostic['binary_canonical'] and diagnostic['binary_path_regular'])
+    return chrome, browser_identity(p, chrome_binary, diagnostic)
 
 
 def main():
@@ -222,6 +277,7 @@ def main():
         example_compile_actor_passed=False, example_binary={}, example_compiled=False,
         example_removed=False, immutable_source_inputs_preserved=False,
         runtime=None, runtime_failure=None, compiler_diagnostic=None, pid_namespace_joined=False,
+        driver_diagnostic={'substage': 'not_started'},
         owned_group_count=0, owned_groups_joined=False, private_tool_tree_removed=False,
         public_fixture_only=True, **{key: False for key in FALSE_FLAGS})
     primary = None
@@ -279,38 +335,47 @@ def main():
                     work / 'server', report['example_binary'])
         report['example_compiled'] = True
         report['stage'] = 'driver_prepare'
+        diagnostic = report['driver_diagnostic']
+        diagnostic['substage'] = 'carrier_authentication'
         node, pnpm, _ = native.export_carrier(work)
+        diagnostic.update(carrier_returned=True, substage='fixture_source_copy', fixture_files_copied=0)
         for original_name, destination in (('crud_runtime.py', 'runtime.py'),
                 ('crud_protocol.py', 'crud_protocol.py'), ('crud_browser.mjs', 'crud_browser.mjs')):
             with (work / 'fixture' / destination).open('xb') as output:
                 os.fchmod(output.fileno(), 0o600); output.write(native.read_file(HERE / original_name, 131072))
+            diagnostic['fixture_files_copied'] += 1
+        diagnostic.update(substage='driver_lock_copy', lockfiles_copied=0)
         for name in ('package.json', 'pnpm-lock.yaml'):
             with (work / 'fixture' / name).open('xb') as output:
                 os.fchmod(output.fileno(), 0o600); output.write(native.read_file(native.EXPORT / name, 65536))
+            diagnostic['lockfiles_copied'] += 1
         driver_env = dict(env, PATH=str(node.parent) + ':' + str(prefix / 'bin') + ':/usr/bin:/bin',
             HOME=str(work / 'home'), PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD='1', CI='true',
             NPM_CONFIG_USERCONFIG='/dev/null', NPM_CONFIG_GLOBALCONFIG='/dev/null',
             NPM_CONFIG_REGISTRY='https://registry.npmjs.org/', NPM_CONFIG_UPDATE_NOTIFIER='false',
             PNPM_DISABLE_SELF_UPDATE_CHECK='1', COREPACK_ENABLE_NETWORK='0')
+        diagnostic['substage'] = 'driver_install'
         native.actor([node, pnpm, '--dir', work / 'fixture', 'install', '--frozen-lockfile', '--ignore-scripts',
             '--store-dir', work / 'store', '--config.manage-package-manager-versions=false',
             '--config.update-notifier=false'], driver_env, work, deadline, groups, lifecycle,
             log=work / 'logs/driver-install.log', seconds=180)
-        chrome = next((path for path in ('/usr/bin/google-chrome', '/usr/bin/google-chrome-stable')
-                       if Path(path).is_file()), None)
-        require(chrome is not None)
-        chrome_binary = Path('/opt/google/chrome/chrome')
-        require(chrome_binary.resolve(strict=True) == chrome_binary and chrome_binary.is_file())
+        diagnostic['driver_install_returned'] = True
+        chrome, browser_sha = installed_browser(p, diagnostic)
         # Installed browser identity is observed, never represented as source authentication.
-        report['browser_binary_sha256'] = browser_identity(p, chrome_binary)
+        report['browser_binary_sha256'] = browser_sha
         value = dict(schema=1, revision=revision, root=str(work), node=str(node), chrome=chrome,
             server=str(work / 'server'), parent_net=os.readlink('/proc/self/ns/net'),
             parent_pid=os.readlink('/proc/self/ns/pid'), uid=os.getuid(), gid=os.getgid(),
             assets=report['dashboard_assets'], files={})
+        diagnostic['substage'] = 'context_files'
         for name in ('fixture/runtime.py', 'fixture/crud_protocol.py', 'fixture/crud_browser.mjs', 'server', 'node/node'):
             modes = (0o700,) if name in ('server', 'node/node') else (0o600,)
             value['files'][name] = hashlib.sha256(p.read(work / name, 256 * 1024 * 1024, modes)).hexdigest()
-        p.context(value, work); p.write(work / 'runtime-context.json', value)
+        diagnostic['substage'] = 'context_validate'
+        p.context(value, work)
+        diagnostic['substage'] = 'context_write'
+        p.write(work / 'runtime-context.json', value)
+        diagnostic['substage'] = 'complete'
         report['stage'] = 'actual_http_dom'
         wrapper_env = dict(driver_env, RUNNER_TEMP=str(temporary), GITHUB_ACTIONS='true',
             RUNNER_ENVIRONMENT='github-hosted', VOLPAROSSA_TEST_ALLOW_SUDO_NETNS='1')
@@ -345,6 +410,11 @@ def main():
         except BaseException as error:
             primary = primary or error
         try:
+            try:
+                check_driver_diagnostic(report['driver_diagnostic'])
+            except BaseException as error:
+                primary = primary or error
+                report['driver_diagnostic'] = {'substage': 'unavailable'}
             try:
                 example = source / EXAMPLE
                 if example_identity is not None:

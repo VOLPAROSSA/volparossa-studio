@@ -90,10 +90,18 @@ through the unchanged Core NET/PID fixture wrapper pinned to e58d1c9. Two server
 and browser runs exercise create, typed rename, raw unrelated-byte preservation,
 duplicate, persistence across restart and delete, plus42 invalid-ID HTTP denials.
 The temporary example is removed and exact source inputs rechecked before success.
-Eighteen Python controls precede provisioning. Only bounded JSON receipts leave
+Twenty-one Python controls precede provisioning. Only bounded JSON receipts leave
 the runner; no application binaries, payloads, screenshots or raw logs are artifacts.
 This profile installs no SDK and downloads no browser. Installed Chrome identity
 is observed rather than represented as source authentication. It does not prove
 native WebKit/GUI, mount/IPC/private-proc isolation, no external attempts, native
 privacy/consent, production server CLI, publication or full Studio acceptance.
 Actual hosted evidence remains required; source review alone is insufficient.
+
+First CRUD run40834571735 passed all54 controls and actual library-example
+compilation, then failed at driver preparation before a browser result. Its
+failed receipt and21 joined groups remain preserved. Directed diagnostic fields
+now separate carrier/source/lock/install completion from the same fixed Chrome
+launcher, path, metadata and stable identity checks. Unobserved predicates remain
+absent, finite values are checked before terminal reporting, and neither browser
+admission nor the original error is relaxed. Fresh hosted evidence is required.
