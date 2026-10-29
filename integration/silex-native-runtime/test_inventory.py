@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Hosted-only unit controls; no inventoried tool is executed by these tests."""
 import importlib.util
+import hashlib
 from contextlib import ExitStack
 import json
 import os
@@ -65,6 +66,84 @@ def collect_fixture(missing=()):
 
 
 class InventoryTests(unittest.TestCase):
+    def test_refusal_projection_keeps_joint_stream_markers_but_no_dynamic_tokens(self):
+        private = b'PRIVATE-package-9/path/token'
+        cases = ((b'Unable to fetch some archives', 'archive_fetch'),
+            (b'--no-download', 'no_download'), (b'unmet dependencies', 'unmet_dependencies'),
+            (b'held broken packages', 'held_message'), (b'Permission denied', 'permissions'),
+            (b'Could not get lock ', 'lock'), (b'has no installation candidate', 'candidate'),
+            (b'Internal Error,', 'internal_error'))
+        for marker, family in cases:
+            for stream in ('stdout', 'stderr'):
+                raw = b'E: ' + marker + b' ' + private + b'\n'
+                stdout, stderr = (raw, b'') if stream == 'stdout' else (b'', raw)
+                diagnostic = INVENTORY.apt_refusal_shape(stdout, stderr)
+                self.assertEqual(diagnostic['refusal_family'], family)
+                self.assertEqual(diagnostic['refusal_family_count'], 1)
+                self.assertIs(diagnostic[stream + '_' + family], True)
+                self.assertEqual(diagnostic[stream + '_error_lines'], 1)
+                self.assertEqual(diagnostic[stream + '_unknown_error_lines'], 0)
+                self.assertEqual(diagnostic['stdout_sha256'], hashlib.sha256(stdout).hexdigest())
+                self.assertEqual(diagnostic['stderr_sha256'], hashlib.sha256(stderr).hexdigest())
+                self.assertNotIn(private.decode(), json.dumps(diagnostic))
+                INVENTORY.check_simulation_diagnostic(diagnostic)
+        mixed = INVENTORY.apt_refusal_shape(b'E: unmet dependencies\n', b'E: Permission denied\n')
+        self.assertEqual(mixed['refusal_family'], 'multiple')
+        self.assertEqual(mixed['refusal_family_count'], 2)
+        self.assertIs(mixed['stdout_unmet_dependencies'], True)
+        self.assertIs(mixed['stderr_permissions'], True)
+        unknown = INVENTORY.apt_refusal_shape(b'\xff', (b'E: ' + private + b'\n') * 33)
+        self.assertEqual(unknown['refusal_family'], 'unknown')
+        self.assertEqual(unknown['stderr_unknown_error_lines'], 32)
+        self.assertIs(unknown['stderr_error_lines_clipped'], True)
+        self.assertEqual(INVENTORY.apt_refusal_shape(b'', b'')['refusal_family'], 'none')
+        INVENTORY.check_simulation_diagnostic(unknown)
+        for bad in ({'stderr_sha256': private.decode()}, {'stdout_sha256': 'A' * 64},
+                    {'stderr_permissions': 1}, {'refusal_family': private.decode()},
+                    {'stderr_error_lines': 33}, {'refusal_family_count': 9},
+                    {'stderr_error': private.decode()}):
+            with self.subTest(bad=bad), self.assertRaises(INVENTORY.Rejected):
+                INVENTORY.check_simulation_diagnostic(bad)
+        with self.assertRaises(INVENTORY.Rejected):
+            INVENTORY.apt_refusal_shape(b'x' * INVENTORY.MAX_OUTPUT, b'x')
+
+    def test_refusal_exit_stays_rejected_after_complete_stream_classification(self):
+        stdout, stderr = MagicMock(), MagicMock()
+        stdout.fileno.return_value, stderr.fileno.return_value = 10, 11
+        child = SimpleNamespace(pid=123456, stdout=stdout, stderr=stderr, wait=MagicMock())
+        selector = MagicMock()
+        selector.get_map.side_effect = [{10: True, 11: True}, {}]
+        out = b'Reading package lists...\n'
+        err = b'E: Unable to fetch some archives PRIVATE-package/path\n'
+        selector.select.return_value = [(SimpleNamespace(fd=10, fileobj=stdout), None),
+            (SimpleNamespace(fd=10, fileobj=stdout), None),
+            (SimpleNamespace(fd=11, fileobj=stderr), None),
+            (SimpleNamespace(fd=11, fileobj=stderr), None)]
+        diagnostic = {}
+        with patch.object(INVENTORY.subprocess, 'Popen', return_value=child), \
+                patch.object(INVENTORY.selectors, 'DefaultSelector', return_value=selector), \
+                patch.object(INVENTORY.os, 'set_blocking'), \
+                patch.object(INVENTORY.os, 'read', side_effect=[out, b'', err, b'']), \
+                patch.object(INVENTORY.os, 'waitid', return_value=SimpleNamespace(
+                    si_code=INVENTORY.os.CLD_EXITED, si_status=100)), \
+                patch.object(INVENTORY.os, 'killpg'), patch.object(INVENTORY, 'group_live', return_value=False), \
+                patch.object(INVENTORY.signal, 'pthread_sigmask', return_value=set()), \
+                patch.object(INVENTORY.signal, 'sigpending', return_value=set()):
+            commands = INVENTORY.Commands()
+            with self.assertRaises(INVENTORY.Rejected):
+                commands.run(['/usr/bin/apt-get', '--simulate', '--no-remove', '--no-download',
+                    '--no-install-recommends', 'install', 'xdotool=2'], diagnostic=diagnostic)
+        self.assertEqual(diagnostic['exit_code'], 100)
+        self.assertEqual(diagnostic['parser_failure'], 'not_run')
+        self.assertEqual(diagnostic['refusal_family'], 'archive_fetch')
+        self.assertIs(diagnostic['stderr_archive_fetch'], True)
+        self.assertIs(diagnostic['stdout_archive_fetch'], False)
+        self.assertEqual(diagnostic['stderr_sha256'], hashlib.sha256(err).hexdigest())
+        self.assertEqual(commands.started, 1)
+        self.assertEqual(commands.joined, 1)
+        self.assertNotIn('PRIVATE', json.dumps(diagnostic))
+        INVENTORY.check_simulation_diagnostic(diagnostic)
+
     def test_simulation_failure_projects_only_bounded_shape_and_first_closed_predicate(self):
         secret = 'DO-NOT-PERSIST-private-origin-https://private.invalid/token'
         raw = ('Inst private-fixture:amd64 (2 ' + secret + ')\n').encode()

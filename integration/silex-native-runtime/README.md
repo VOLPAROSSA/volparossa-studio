@@ -2,7 +2,7 @@
 
 This explicit hosted profile records nine fixed Ubuntu 24.04 package providers and ten runtime tools without executing those tools. It reads signed APT metadata, installed package state, package ownership and stable ELF bytes. Installed versions and candidate archive metadata remain separate. Binary hashes are observations, not independent archive-content verification. Missing prerequisites produce `readiness: not_ready`; a successful inventory is not runtime acceptance.
 
-Run only through the manual `runtime-inventory` choice on `feature/native-bootstrap-runtime-20261029`. The job checks the exact source, updates signed system APT metadata, runs sixteen protocol/lifecycle controls, then writes one bounded JSON receipt. It installs no packages, downloads no archives, creates no namespaces, and starts no display, application, compiler or Node process. No native GUI, privacy, Debian 13, publication or full Studio acceptance follows.
+Run only through the manual `runtime-inventory` choice on `feature/native-bootstrap-runtime-20261029`. The job checks the exact source, updates signed system APT metadata, runs eighteen protocol/lifecycle controls, then writes one bounded JSON receipt. It installs no packages, downloads no archives, creates no namespaces, and starts no display, application, compiler or Node process. No native GUI, privacy, Debian 13, publication or full Studio acceptance follows.
 
 The next runtime stage must separately establish the complete disposable isolation and cleanup contract before any native application starts. Existing private native compile evidence remains bound to source `66f512c444538127b7e59c34d5f618bb8a98d1cf`.
 
@@ -23,3 +23,33 @@ token, path or environment enters this diagnostic. Unknown diagnostic fields or
 types fail closed. The APT arguments, accepted exit codes, original Inst regex,
 removal denial and requested-package coverage checks remain unchanged. These
 observations grant no installation, namespace or native runtime authority.
+
+The first diagnostic [40824091640](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/40824091640)
+on `40d952361ce6b3a308588a77fa7f4ab84a08b4ee` retained the original failure:
+APT exited normally with code 100, 357 stdout bytes and 86 stderr bytes, without
+output caps. The simulation parser was not reached. All sixteen controls passed
+and all 46 owned groups joined. Its separate ZIP SHA256 is
+`cf7bda1b267e2d3de77ed22ecfbf9554a4c9cb1052ebc56f4d4d85a0a18753cb`.
+Byte lengths alone do not identify the refusal.
+
+The additional diagnostic retains stderr only in bounded process memory under
+the existing combined 2 MiB stream limit. Once both streams reach EOF and the
+owned leader's exit is observed, it records complete-stream SHA256 values and
+fixed marker booleans per stream for archive-fetch, no-download, unmet-dependency,
+held-message, permission, lock, candidate and internal-error messages. A closed
+family enum, distinct-family count and capped error-line/unknown-error counts
+describe the joint observation. No marker capture or raw text is serialized;
+unrecognized text remains `unknown`. Incomplete or capped streams receive no
+complete-stream hashes or refusal classification. Markers may appear in advice
+or describe more than one cause; `held_message` does not prove an actual hold,
+and `archive_fetch` alone does not prove a cache failure. No marker authorizes a
+retry, accepted exit, package installation or parser change.
+
+Primary upstream [APT 2.8.0 installation source](https://github.com/Debian/apt/blob/2.8.0/apt-private/private-install.cc#L167-L199)
+contains an archive-cache refusal before simulated installation output when
+downloads are disabled; this is a source-backed hypothesis, not the observed
+runner cause or proof of the runner's APT source/version. The
+[resolver source](https://github.com/Debian/apt/blob/2.8.0/apt-pkg/algorithms.cc#L1128-L1140)
+also shows why a held-package message must remain a message observation.
+The existing SDK manifest already includes xdotool and bubblewrap; a base-image
+inventory absence does not establish a need to extend that package closure.

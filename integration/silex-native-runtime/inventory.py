@@ -37,6 +37,20 @@ EFFECTS = ('packages_installed', 'archives_downloaded', 'archive_contents_verifi
            'inventoried_tools_executed', 'compiler_or_node_executed', 'application_executed',
            'native_runtime_acceptance', 'full_studio_acceptance')
 INST_PATTERN = r'Inst ([a-z0-9][a-z0-9+.-]*)(?: \[[^\]\r\n]+\])? \(([0-9A-Za-z.+:~\-]+) [^\r\n]+\)'
+# Observational markers only. A matched message never authorizes a retry or
+# changes accepted exits. In particular, held_message is not proof of a hold.
+REFUSAL_MARKERS = {
+    'archive_fetch': (b'Unable to fetch some archives', b'Some files failed to download'),
+    'no_download': (b'--no-download',),
+    'unmet_dependencies': (b'unmet dependencies', b'Broken packages'),
+    'held_message': (b'held broken packages', b'caused by held packages'),
+    'permissions': (b'Permission denied', b'are you root?'),
+    'lock': (b'Could not get lock ', b'Unable to acquire the dpkg frontend lock',
+             b'Unable to lock directory '),
+    'candidate': (b'has no installation candidate', b'Unable to locate package ',
+                  b' was not found'),
+    'internal_error': (b'Internal Error,', b'Internal error:'),
+}
 
 
 class Rejected(ValueError):
@@ -110,6 +124,7 @@ class Commands:
                                  stderr=subprocess.PIPE, env=self.env, cwd=ROOT,
                                  start_new_session=True)
         output = bytearray()
+        error_output = bytearray() if diagnostic is not None else None
         total = 0
         primary = None
         status = None
@@ -137,6 +152,8 @@ class Commands:
                     require(total <= MAX_OUTPUT and self.bytes <= 16 * MAX_OUTPUT)
                     if key.fileobj is child.stdout:
                         output.extend(chunk)
+                    elif error_output is not None:
+                        error_output.extend(chunk)
                 # Observe, but do not reap: the directly owned PGID stays reserved.
                 status = os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
                 if diagnostic is not None and status is not None:
@@ -145,6 +162,7 @@ class Commands:
                         exit_code=max(0, min(255, status.si_status)))
             if diagnostic is not None:
                 diagnostic.update(simulation_shape(bytes(output)))
+                diagnostic.update(apt_refusal_shape(bytes(output), bytes(error_output)))
             require(status.si_code == os.CLD_EXITED and status.si_status in accepted)
         except BaseException as error:
             primary = error
@@ -297,6 +315,34 @@ def binary_record(aliases):
                 links=info.st_nlink), [a for a, _ in found]
 
 
+def apt_refusal_shape(stdout, stderr):
+    """Closed projection of complete bounded streams, never their content."""
+    require(type(stdout) is bytes and type(stderr) is bytes
+            and len(stdout) + len(stderr) <= MAX_OUTPUT)
+    result = dict(stdout_sha256=hashlib.sha256(stdout).hexdigest(),
+                  stderr_sha256=hashlib.sha256(stderr).hexdigest())
+    families = set()
+    for stream, raw in (('stdout', stdout), ('stderr', stderr)):
+        lines = [line for line in raw.splitlines() if line.strip()]
+        error_lines = [line for line in lines if line.startswith(b'E:')]
+        matched_errors = 0
+        for family, markers in REFUSAL_MARKERS.items():
+            present = any(any(marker in line for marker in markers) for line in lines)
+            result[stream + '_' + family] = present
+            if present:
+                families.add(family)
+        for line in error_lines:
+            if any(marker in line for markers in REFUSAL_MARKERS.values() for marker in markers):
+                matched_errors += 1
+        result.update({stream + '_error_lines': min(len(error_lines), 32),
+            stream + '_error_lines_clipped': len(error_lines) > 32,
+            stream + '_unknown_error_lines': min(len(error_lines) - matched_errors, 32)})
+    result['refusal_family'] = ('none' if not families and not stdout.strip() and not stderr.strip()
+        else 'unknown' if not families else next(iter(families)) if len(families) == 1 else 'multiple')
+    result['refusal_family_count'] = len(families)
+    return result
+
+
 def simulation_shape(raw):
     """Finite public predicates only; no stdout line or package/version escapes."""
     try:
@@ -330,6 +376,7 @@ def simulation_failure(diagnostic, predicate, index=None, line=None):
 def check_simulation_diagnostic(value):
     enums = {'phase': ('actor', 'parser', 'parsed', 'metadata', 'complete', 'unavailable'),
         'exit_class': ('unobserved', 'normal', 'signalled', 'other'),
+        'refusal_family': ('none', 'unknown', 'multiple', *REFUSAL_MARKERS),
         'parser_failure': ('not_run', 'none', 'encoding', 'removal', 'inst_shape', 'duplicate', 'plan_bound', 'missing_membership'),
         'failure_line_class': ('inst', 'removal', 'other')}
     bounds = {'exit_code': 255, 'stdout_bytes': MAX_OUTPUT, 'stderr_bytes': MAX_OUTPUT,
@@ -337,15 +384,24 @@ def check_simulation_diagnostic(value):
         'inst_shape_mismatches': 256, 'conf_lines': 256, 'removal_lines': 256,
         'native_arch_qualified_inst': 256, 'failure_line': 1024, 'parsed_plan_count': 256,
         'requested_count': 9, 'requested_covered_count': 9}
+    bounds.update(refusal_family_count=len(REFUSAL_MARKERS))
+    for stream in ('stdout', 'stderr'):
+        bounds.update({stream + '_error_lines': 32, stream + '_unknown_error_lines': 32})
     booleans = {'output_limit_exceeded', 'cumulative_limit_exceeded', 'utf8_valid', 'lines_clipped',
         'inst_lines_clipped', 'failure_line_clipped', 'failure_inst_native_arch',
         'failure_has_version_parenthesis', 'failure_closing_parenthesis'}
-    require(type(value) is dict and value.keys() <= enums.keys() | bounds.keys() | booleans)
+    for stream in ('stdout', 'stderr'):
+        booleans.add(stream + '_error_lines_clipped')
+        booleans.update(stream + '_' + family for family in REFUSAL_MARKERS)
+    hashes = {'stdout_sha256', 'stderr_sha256'}
+    require(type(value) is dict and value.keys() <= enums.keys() | bounds.keys() | booleans | hashes)
     for key, item in value.items():
         if key in enums:
             require(type(item) is str and item in enums[key])
         elif key in bounds:
             require(type(item) is int and 0 <= item <= bounds[key])
+        elif key in hashes:
+            require(type(item) is str and re.fullmatch('[0-9a-f]{64}', item))
         else:
             require(type(item) is bool)
 
