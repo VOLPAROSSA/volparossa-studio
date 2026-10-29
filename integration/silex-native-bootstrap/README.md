@@ -144,3 +144,16 @@ is removed only after the owned privileged process groups have stopped; an
 existing policy is preserved by refusing the trial. Root and outer receipts keep
 failed or unconfirmed cleanup visible. No rollback of an interrupted disposable
 runner package transaction is claimed.
+
+The first installation [run40812264217](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/40812264217)
+on `3b40eaa3394400f5dd3ac27e80ede87d9952ed9f` passed both sets of twelve controls,
+including the real harmless TERM-resistant descendant, then reverified all SDK
+archives. The privileged helper refused admission before archive staging or APT.
+The original failed root/outer receipts remain separate evidence; no SDK install
+acceptance follows from the controls.
+
+The explicit `sdk-admission` profile reads the identical privileged predicates
+with finite phase diagnostics. It performs no package-index update, download,
+archive access, cache creation, policy creation or installation. Its separate
+root/outer receipts keep every installation and native acceptance flag false.
+Only this bounded diagnostic is selected while the first refusal is investigated.

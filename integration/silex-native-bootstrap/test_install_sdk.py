@@ -2,6 +2,7 @@
 """Hosted-only inert SDK installation controls: no sudo/APT/package execution."""
 import copy
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -355,6 +356,94 @@ class InstallSdkTests(unittest.TestCase):
                         pass
             finally:
                 self.assertEqual(libc.prctl(36, previous.value, 0, 0, 0), 0)
+
+    def test_shared_admission_failure_has_same_closed_substage_and_no_later_effects_in_both_modes(self):
+        environment = dict(GITHUB_ACTIONS='true', RUNNER_ENVIRONMENT='github-hosted', RUNNER_OS='Linux',
+            RUNNER_ARCH='X64', GITHUB_REPOSITORY='VOLPAROSSA/volparossa-studio', SILEX_SDK_OWNER='1001',
+            GITHUB_RUN_ID='123', GITHUB_RUN_ATTEMPT='1', GITHUB_SHA='a' * 40, GITHUB_WORKFLOW_SHA='a' * 40,
+            GITHUB_WORKSPACE=str(sdk.ROOT.parent), RUNNER_TEMP='/tmp/public-synthetic-unused')
+        def refuse_directory(_path, _owners, *, diagnostic):
+            diagnostic.update(canonical=True, owner_allowed=True, mode_safe=False, ancestor_depth=2)
+            raise sdk.Rejected('synthetic directory guard refused')
+        for admission_only in (False, True):
+            with self.subTest(admission_only=admission_only):
+                output = io.BytesIO()
+                argument = '--privileged-admission' if admission_only else '--privileged-install'
+                with patch.dict(os.environ, environment, clear=True), \
+                     patch.object(sdk.sys, 'argv', [str(HERE / 'install_sdk.py'), argument]), \
+                     patch.object(sdk.sys, 'stdout', SimpleNamespace(buffer=output)), \
+                     patch.object(sdk.os, 'getuid', return_value=0), patch.object(sdk.os, 'geteuid', return_value=0), \
+                     patch.object(sdk, 'canonical_directory', side_effect=refuse_directory), \
+                     patch.object(sdk, 'records_from_manifest') as manifest, \
+                     patch.object(sdk, 'check_fetch') as fetch, patch.object(sdk, 'stage_archives') as stage, \
+                     patch.object(sdk, 'root_actor') as actor, patch.object(sdk, 'policy_begin') as policy, \
+                     patch.object(sdk.Path, 'mkdir') as mkdir, patch.object(sdk, 'finish_policy', return_value=True):
+                    self.assertEqual(sdk.root_main(admission_only=admission_only), 0)
+                report = sdk.parse(output.getvalue())
+                self.assertEqual(report['status'], 'failed')
+                self.assertEqual(report['failure_stage'], 'admission')
+                self.assertEqual(report['admission_diagnostic'], dict(substage='directory_runner',
+                    canonical=True, owner_allowed=True, mode_safe=False, ancestor_depth=2))
+                sdk.check_admission_diagnostic(report['admission_diagnostic'])
+                for mock in (manifest, fetch, stage, actor, policy, mkdir):
+                    mock.assert_not_called()
+                for key in ('packages_installed', 'sdk_installed', 'installation_attempted',
+                            'root_cache_retained', 'root_archive_cache_verified', 'policy_created', *sdk.FALSE_FLAGS):
+                    self.assertIs(report[key], False)
+
+    def test_successful_admission_profile_is_readonly_and_cannot_be_installation_evidence(self):
+        output = io.BytesIO()
+        def admitted(report, argument):
+            self.assertEqual(argument, '--privileged-admission')
+            report.update(studio_revision='a' * 40, run_id='123', run_attempt='1', network_namespace_isolated=True)
+            sdk.admission_stage(report, 'complete')
+            return Path('/tmp/unused'), 'a' * 40, 1001, '123', '1', records()
+        with patch.object(sdk, 'root_admission', side_effect=admitted), \
+             patch.object(sdk.sys, 'stdout', SimpleNamespace(buffer=output)), \
+             patch.object(sdk, 'check_fetch') as fetch, patch.object(sdk, 'stage_archives') as stage, \
+             patch.object(sdk, 'root_actor') as actor, patch.object(sdk, 'policy_begin') as policy, \
+             patch.object(sdk.Path, 'mkdir') as mkdir, patch.object(sdk, 'finish_policy', return_value=True) as finish:
+            self.assertEqual(sdk.root_main(admission_only=True), 0)
+        value = sdk.parse(output.getvalue())
+        sdk.check_root_admission(value, 'a' * 40)
+        with self.assertRaises(sdk.Rejected):
+            sdk.check_root(value, 'a' * 40, records())
+        for mock in (fetch, stage, actor, policy, mkdir):
+            mock.assert_not_called()
+        finish.assert_called_once_with(None, [])
+        for key, bad in (('policy_created', True), ('root_cache_retained', True), ('owned_group_count', 1),
+                         ('sdk_installed', True), ('admission_passed', False), ('native_gui_verified', True)):
+            with self.subTest(key=key), self.assertRaises(sdk.Rejected):
+                sdk.check_root_admission(dict(value, **{key: bad}), 'a' * 40)
+        # A completed guard sequence is not PASS until final read-only cleanup
+        # acknowledgement succeeds. Both a false acknowledgement and its error
+        # must leave an internally consistent failed root artifact.
+        for outcome in (False, OSError('synthetic cleanup failure')):
+            with self.subTest(cleanup=type(outcome).__name__):
+                output = io.BytesIO()
+                options = {'side_effect': outcome} if isinstance(outcome, BaseException) else {'return_value': outcome}
+                with patch.object(sdk, 'root_admission', side_effect=admitted), \
+                     patch.object(sdk.sys, 'stdout', SimpleNamespace(buffer=output)), \
+                     patch.object(sdk, 'finish_policy', **options):
+                    self.assertEqual(sdk.root_main(admission_only=True), 0)
+                failed = sdk.parse(output.getvalue())
+                self.assertEqual(failed['status'], 'failed')
+                self.assertIs(failed['admission_passed'], False)
+                self.assertIs(failed['policy_restored'], False)
+                self.assertEqual(failed['admission_diagnostic'], {'substage': 'complete'})
+                self.assertEqual(failed['failure_stage'], 'policy_cleanup' if isinstance(outcome, BaseException) else 'cleanup')
+                with self.assertRaises(sdk.Rejected):
+                    sdk.check_root_admission(failed, 'a' * 40)
+
+    def test_diagnostic_schema_never_discloses_arbitrary_path_identity_or_environment(self):
+        sdk.check_admission_diagnostic(dict(substage='directory_runner', canonical=False,
+            owner_allowed=False, mode_safe=False, ancestor_depth=32))
+        for bad in ({'substage': 'unknown'}, {'substage': 'directory_runner', 'path': '/private'},
+                    {'substage': 'directory_runner', 'uid': 1001}, {'substage': 'network_state', 'netns': 'net:[123]'},
+                    {'substage': 'directory_runner', 'owner_allowed': 1},
+                    {'substage': 'directory_runner', 'ancestor_depth': 33}):
+            with self.subTest(value=bad), self.assertRaises(sdk.Rejected):
+                sdk.check_admission_diagnostic(bad)
 
 
 if __name__ == '__main__':

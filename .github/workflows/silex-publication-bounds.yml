@@ -17,7 +17,7 @@ on:
       native_followup:
         description: 'Explicit native prerequisite; no native GUI application execution'
         type: choice
-        options: [none, bridge, verify-lock, sdk-fetch, sdk-install]
+        options: [none, bridge, verify-lock, sdk-admission, sdk-fetch, sdk-install]
         default: none
 
 permissions:
@@ -234,6 +234,43 @@ jobs:
           path: |
             ${{ runner.temp }}/silex-native-reviewed-lock.json
             ${{ runner.temp }}/silex-native-base-fetch.json
+          retention-days: 14
+          if-no-files-found: warn
+
+  native-sdk-admission:
+    if: >-
+      github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'sdk-admission' &&
+      github.repository == 'VOLPAROSSA/volparossa-studio' &&
+      github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: studio
+          persist-credentials: false
+      - name: Bind the exact source without package acquisition or installation
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(id -u)" != 0
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$(git -C studio rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Test shared SDK admission and cleanup boundaries
+        run: python3 -I -B studio/integration/silex-native-bootstrap/test_install_sdk.py -v
+      - name: Inspect only the unchanged privileged admission predicates
+        run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/install_sdk.py" --admission-only
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: silex-native-sdk-admission-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/silex-native-sdk-admission.json
+            ${{ runner.temp }}/silex-native-sdk-admission-root.json
           retention-days: 14
           if-no-files-found: warn
 

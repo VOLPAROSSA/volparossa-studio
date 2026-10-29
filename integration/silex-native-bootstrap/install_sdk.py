@@ -64,15 +64,28 @@ def write_json(path, value):
         output.write(raw)
 
 
-def canonical_directory(path, owners, *, mode=None):
-    require(path.is_absolute() and path.resolve(strict=True) == path)
-    for item in (path, *path.parents):
+def canonical_directory(path, owners, *, mode=None, diagnostic=None):
+    if diagnostic is not None:
+        diagnostic.update(canonical=False, owner_allowed=False, mode_safe=False, ancestor_depth=0)
+    canonical = path.is_absolute() and path.resolve(strict=True) == path
+    if diagnostic is not None:
+        diagnostic['canonical'] = canonical
+    require(canonical)
+    for depth, item in enumerate((path, *path.parents)):
+        if diagnostic is not None:
+            diagnostic.update(ancestor_depth=min(depth, 32), owner_allowed=False, mode_safe=False)
         info = item.lstat()
-        require(stat.S_ISDIR(info.st_mode) and info.st_uid in owners)
+        owner_allowed = stat.S_ISDIR(info.st_mode) and info.st_uid in owners
+        if diagnostic is not None:
+            diagnostic['owner_allowed'] = owner_allowed
+        require(owner_allowed)
         # The fixed /tmp and /var/tmp parents are allowed only with their sticky
         # root-owned directory semantics. The new cache itself is always 0700.
-        require(info.st_mode & 0o022 == 0 or
-                item in (Path('/tmp'), Path('/var/tmp')) and info.st_uid == 0 and info.st_mode & stat.S_ISVTX)
+        mode_safe = bool(info.st_mode & 0o022 == 0 or
+                         item in (Path('/tmp'), Path('/var/tmp')) and info.st_uid == 0 and info.st_mode & stat.S_ISVTX)
+        if diagnostic is not None:
+            diagnostic['mode_safe'] = mode_safe
+        require(mode_safe)
     if mode is not None:
         require(stat.S_IMODE(path.stat().st_mode) == mode)
 
@@ -401,100 +414,143 @@ def install_plan(records, installed, invoke, cache):
     return argv, targets, planned
 
 
-def root_main():
+ADMISSION_STAGES = ('python_identity', 'hosted_identity', 'source_identity_values', 'checkout_layout',
+    'directory_runner', 'directory_studio', 'directory_helper', 'helper_owner', 'release_path',
+    'release_file', 'release_identity', 'namespace_identity', 'network_read', 'network_state',
+    'baseline_absence', 'manifest', 'complete')
+
+
+def admission_stage(report, stage):
+    require(stage in ADMISSION_STAGES)
+    report['admission_diagnostic'] = {'substage': stage}
+    return report['admission_diagnostic']
+
+
+def root_admission(report, privileged_argument):
+    """The SAME read-only guards for installation and explicit admission proof."""
+    admission_stage(report, 'python_identity')
+    require(privileged_argument in ('--privileged-install', '--privileged-admission')
+            and sys.flags.isolated == 1 and sys.flags.dont_write_bytecode == 1 and os.getuid() == os.geteuid() == 0
+            and sys.argv == [str(HERE / 'install_sdk.py'), privileged_argument])
+    admission_stage(report, 'hosted_identity')
+    require(os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted'
+            and os.environ.get('RUNNER_OS') == 'Linux' and os.environ.get('RUNNER_ARCH') == 'X64'
+            and os.environ.get('GITHUB_REPOSITORY') == 'VOLPAROSSA/volparossa-studio')
+    admission_stage(report, 'source_identity_values')
+    owner = os.environ.get('SILEX_SDK_OWNER', '')
+    run, attempt = (os.environ.get(key, '') for key in ('GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT'))
+    revision = os.environ.get('GITHUB_SHA', '')
+    require(re.fullmatch(r'[1-9][0-9]{2,9}', owner) and int(owner) >= 1000
+            and re.fullmatch(r'[1-9][0-9]{0,19}', run) and re.fullmatch(r'[1-9][0-9]{0,5}', attempt)
+            and re.fullmatch('[0-9a-f]{40}', revision) and os.environ.get('GITHUB_WORKFLOW_SHA') == revision)
+    owner = int(owner)
+    temporary, workspace = (Path(os.environ.get(key, '')) for key in ('RUNNER_TEMP', 'GITHUB_WORKSPACE'))
+    admission_stage(report, 'checkout_layout')
+    require(ROOT == workspace / 'studio')
+    for stage, path in (('directory_runner', temporary), ('directory_studio', ROOT), ('directory_helper', HERE)):
+        canonical_directory(path, {0, owner}, diagnostic=admission_stage(report, stage))
+    admission_stage(report, 'helper_owner')
+    require(Path(__file__).resolve() == HERE / 'install_sdk.py'
+            and (HERE / 'install_sdk.py').stat().st_uid == owner)
+    admission_stage(report, 'release_path')
+    release = Path('/etc/os-release').resolve(strict=True)
+    require(str(release) in ('/etc/os-release', '/usr/lib/os-release'))
+    admission_stage(report, 'release_file')
+    os_release = read_owned(release, 0, 16384).decode('ascii')
+    admission_stage(report, 'release_identity')
+    require(re.search(r'^ID=ubuntu$', os_release, re.MULTILINE)
+            and re.search(r'^VERSION_ID="24\.04"$', os_release, re.MULTILINE))
+    admission_stage(report, 'namespace_identity')
+    parent_net = os.environ.get('SILEX_SDK_PARENT_NETNS', '')
+    require(re.fullmatch(r'net:\[[0-9]+\]', parent_net)
+            and os.readlink('/proc/self/ns/net') != parent_net)
+    admission_stage(report, 'network_read')
+    # New unshare --net has only an inactive loopback and no routes; do not
+    # modify any interface, route, resolver or firewall in either namespace.
+    interfaces = Path('/proc/net/dev').read_bytes()
+    routes4 = Path('/proc/net/route').read_bytes()
+    routes6 = Path('/proc/net/ipv6_route').read_bytes()
+    admission_stage(report, 'network_state')
+    report['admission_diagnostic'].update(kernel_bytes_bounded=max(len(interfaces), len(routes4), len(routes6)) <= 16384,
+        loopback_only={line.split(b':', 1)[0].strip() for line in interfaces.splitlines() if b':' in line} == {b'lo'},
+        ipv4_routes_absent=len(routes4.splitlines()) == 1,
+        ipv6_routes_loopback_only=all(line.split()[-1] == b'lo' for line in routes6.splitlines()))
+    require(max(len(interfaces), len(routes4), len(routes6)) <= 16384
+            and {line.split(b':', 1)[0].strip() for line in interfaces.splitlines() if b':' in line} == {b'lo'}
+            and len(routes4.splitlines()) == 1
+            and all(line.split()[-1] == b'lo' for line in routes6.splitlines()))
+    admission_stage(report, 'baseline_absence')
+    require(not Path('/nonexistent').exists() and not POLICY.exists() and not POLICY.is_symlink())
+    report.update(studio_revision=revision, run_id=run, run_attempt=attempt, network_namespace_isolated=True)
+    admission_stage(report, 'manifest')
+    records = records_from_manifest(read_owned(HERE / 'ubuntu-sdk.json', owner, 1024 * 1024))
+    admission_stage(report, 'complete')
+    return temporary, revision, owner, run, attempt, records
+
+
+def root_main(*, admission_only=False):
     report = dict(schema=1, mode='native-sdk-offline-root-install', status='failed', stage='admission',
         sdk_manifest_sha256=MANIFEST, packages_installed=False, sdk_installed=False,
         network_namespace_isolated=False, root_archive_cache_verified=False,
         post_install_exact_versions=False, dpkg_audit_clean=False, installation_attempted=False, policy_created=False,
         policy_restored=False, root_cache_retained=False, owned_groups_joined=False,
         owned_group_count=0, **dict.fromkeys(FALSE_FLAGS, False))
+    if admission_only:
+        report.update(mode='native-sdk-root-admission', admission_passed=False)
     cleanups, policy, cache, cache_created = [], None, None, False
     primary = None
     end = time.monotonic() + 240
     try:
-        require(sys.flags.isolated == 1 and sys.flags.dont_write_bytecode == 1 and os.getuid() == os.geteuid() == 0
-                and sys.argv == [str(HERE / 'install_sdk.py'), '--privileged-install'])
-        require(os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted'
-                and os.environ.get('RUNNER_OS') == 'Linux' and os.environ.get('RUNNER_ARCH') == 'X64'
-                and os.environ.get('GITHUB_REPOSITORY') == 'VOLPAROSSA/volparossa-studio')
-        owner = os.environ.get('SILEX_SDK_OWNER', '')
-        run, attempt = (os.environ.get(key, '') for key in ('GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT'))
-        revision = os.environ.get('GITHUB_SHA', '')
-        require(re.fullmatch(r'[1-9][0-9]{2,9}', owner) and int(owner) >= 1000
-                and re.fullmatch(r'[1-9][0-9]{0,19}', run) and re.fullmatch(r'[1-9][0-9]{0,5}', attempt)
-                and re.fullmatch('[0-9a-f]{40}', revision) and os.environ.get('GITHUB_WORKFLOW_SHA') == revision)
-        owner = int(owner)
-        temporary, workspace = (Path(os.environ.get(key, '')) for key in ('RUNNER_TEMP', 'GITHUB_WORKSPACE'))
-        require(ROOT == workspace / 'studio')
-        for path in (temporary, ROOT, HERE):
-            canonical_directory(path, {0, owner})
-        require(Path(__file__).resolve() == HERE / 'install_sdk.py'
-                and (HERE / 'install_sdk.py').stat().st_uid == owner)
-        release = Path('/etc/os-release').resolve(strict=True)
-        require(str(release) in ('/etc/os-release', '/usr/lib/os-release'))
-        os_release = read_owned(release, 0, 16384).decode('ascii')
-        require(re.search(r'^ID=ubuntu$', os_release, re.MULTILINE)
-                and re.search(r'^VERSION_ID="24\.04"$', os_release, re.MULTILINE))
-        parent_net = os.environ.get('SILEX_SDK_PARENT_NETNS', '')
-        require(re.fullmatch(r'net:\[[0-9]+\]', parent_net)
-                and os.readlink('/proc/self/ns/net') != parent_net)
-        # New unshare --net has only an inactive loopback and no routes; do not
-        # modify any interface, route, resolver or firewall in either namespace.
-        interfaces = Path('/proc/net/dev').read_bytes()
-        routes4 = Path('/proc/net/route').read_bytes()
-        routes6 = Path('/proc/net/ipv6_route').read_bytes()
-        require(max(len(interfaces), len(routes4), len(routes6)) <= 16384
-                and {line.split(b':', 1)[0].strip() for line in interfaces.splitlines() if b':' in line} == {b'lo'}
-                and len(routes4.splitlines()) == 1
-                and all(line.split()[-1] == b'lo' for line in routes6.splitlines()))
-        require(not Path('/nonexistent').exists() and not POLICY.exists() and not POLICY.is_symlink())
-        report.update(studio_revision=revision, run_id=run, run_attempt=attempt, network_namespace_isolated=True)
-        records = records_from_manifest(read_owned(HERE / 'ubuntu-sdk.json', owner, 1024 * 1024))
-        check_fetch(parse(read_owned(temporary / 'silex-native-sdk-fetch.json', owner, 65536)), records, revision)
-        cache = Path('/var/tmp') / ('silex-native-sdk-' + run + '-' + attempt)
-        canonical_directory(cache.parent, {0})
-        cache.mkdir(mode=0o700)
-        cache_created = True
-        report['root_cache_retained'] = True
-        report['stage'] = 'root_archive_staging'
-        stage_archives(temporary / 'silex-native-sdk-archives', cache, records, owner)
-        report['root_archive_cache_verified'] = True
-        def invoke(argv, *, accepted=(0,)):
-            return root_actor(argv, end, cleanups, accepted=accepted)
-        report['stage'] = 'baseline_packages'
-        query = ['/usr/bin/dpkg-query', '-W', '-f=${Package}\t${Version}\t${Architecture}\t${Status}\n', *records]
-        raw, _code = invoke(query, accepted=(0, 1))
-        installed = dpkg_rows(raw, records, complete=False)
-        audit, _code = invoke(['/usr/bin/dpkg', '--audit'])
-        require(not audit.strip())
-        report['stage'] = 'simulation'
-        argv, targets, planned = install_plan(records, installed, invoke, cache)
-        report['planned_package_count'] = len(planned)
-        report['plan_sha256'] = hashlib.sha256(json.dumps(planned, sort_keys=True).encode()).hexdigest()
-        numbers = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGALRM)
-        handlers = {number: signal.getsignal(number) for number in numbers}
-        pending = set()
-        for number in numbers:
-            signal.signal(number, lambda number, _frame: pending.add(number))
-        try:
-            policy = policy_begin()
-        finally:
-            for number, handler in handlers.items():
-                signal.signal(number, handler)
-        if pending:
-            raise Rejected('cancelled')
-        report.update(policy_created=True, stage='offline_install')
-        # The private root cache cannot be changed by the original nonroot user.
-        # All 182 exact versions remain explicit, even when already installed.
-        report['installation_attempted'] = True
-        invoke([*argv, '--yes', 'install', *targets])
-        report.update(packages_installed=True, stage='post_install')
-        raw, _code = invoke(query)
-        dpkg_rows(raw, records, complete=True)
-        report['post_install_exact_versions'] = True
-        audit, _code = invoke(['/usr/bin/dpkg', '--audit'])
-        require(not audit.strip())
-        report.update(dpkg_audit_clean=True, verified_package_count=182, hashes=expected_hashes(records))
+        temporary, revision, owner, run, attempt, records = root_admission(
+            report, '--privileged-admission' if admission_only else '--privileged-install')
+        if admission_only:
+            report['stage'] = 'admission_complete'
+        else:
+            check_fetch(parse(read_owned(temporary / 'silex-native-sdk-fetch.json', owner, 65536)), records, revision)
+            cache = Path('/var/tmp') / ('silex-native-sdk-' + run + '-' + attempt)
+            canonical_directory(cache.parent, {0})
+            cache.mkdir(mode=0o700)
+            cache_created = True
+            report['root_cache_retained'] = True
+            report['stage'] = 'root_archive_staging'
+            stage_archives(temporary / 'silex-native-sdk-archives', cache, records, owner)
+            report['root_archive_cache_verified'] = True
+            def invoke(argv, *, accepted=(0,)):
+                return root_actor(argv, end, cleanups, accepted=accepted)
+            report['stage'] = 'baseline_packages'
+            query = ['/usr/bin/dpkg-query', '-W', '-f=${Package}\t${Version}\t${Architecture}\t${Status}\n', *records]
+            raw, _code = invoke(query, accepted=(0, 1))
+            installed = dpkg_rows(raw, records, complete=False)
+            audit, _code = invoke(['/usr/bin/dpkg', '--audit'])
+            require(not audit.strip())
+            report['stage'] = 'simulation'
+            argv, targets, planned = install_plan(records, installed, invoke, cache)
+            report['planned_package_count'] = len(planned)
+            report['plan_sha256'] = hashlib.sha256(json.dumps(planned, sort_keys=True).encode()).hexdigest()
+            numbers = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGALRM)
+            handlers = {number: signal.getsignal(number) for number in numbers}
+            pending = set()
+            for number in numbers:
+                signal.signal(number, lambda number, _frame: pending.add(number))
+            try:
+                policy = policy_begin()
+            finally:
+                for number, handler in handlers.items():
+                    signal.signal(number, handler)
+            if pending:
+                raise Rejected('cancelled')
+            report.update(policy_created=True, stage='offline_install')
+            # The private root cache cannot be changed by the original nonroot user.
+            # All 182 exact versions remain explicit, even when already installed.
+            report['installation_attempted'] = True
+            invoke([*argv, '--yes', 'install', *targets])
+            report.update(packages_installed=True, stage='post_install')
+            raw, _code = invoke(query)
+            dpkg_rows(raw, records, complete=True)
+            report['post_install_exact_versions'] = True
+            audit, _code = invoke(['/usr/bin/dpkg', '--audit'])
+            require(not audit.strip())
+            report.update(dpkg_audit_clean=True, verified_package_count=182, hashes=expected_hashes(records))
     except BaseException as error:
         primary = error
         report['failure_stage'] = report['stage']
@@ -517,7 +573,13 @@ def root_main():
                 primary = primary or error
             if pending and primary is None:
                 primary = Rejected('cancelled')
-            if primary is None and joined and report['policy_restored'] and report['post_install_exact_versions'] and report['dpkg_audit_clean']:
+            if admission_only:
+                if primary is None and report['policy_restored'] is True and not cleanups and policy is None and not cache_created:
+                    report.update(status='passed', stage='complete', admission_passed=True)
+                else:
+                    report.update(status='failed', admission_passed=False)
+                    report.setdefault('failure_stage', 'cleanup')
+            elif primary is None and joined and report['policy_restored'] and report['post_install_exact_versions'] and report['dpkg_audit_clean']:
                 report.update(status='passed', stage='complete', sdk_installed=True)
             elif primary is None:
                 report['failure_stage'] = 'cleanup'
@@ -552,6 +614,31 @@ def check_root(value, revision, records):
             and all(value.get(key) is False for key in FALSE_FLAGS))
 
 
+def check_admission_diagnostic(value):
+    require(type(value) is dict and value.keys() <= {'substage', 'canonical', 'owner_allowed', 'mode_safe',
+        'ancestor_depth', 'kernel_bytes_bounded', 'loopback_only', 'ipv4_routes_absent', 'ipv6_routes_loopback_only'}
+        and value.get('substage') in ADMISSION_STAGES)
+    for key, item in value.items():
+        if key == 'ancestor_depth':
+            require(type(item) is int and 0 <= item <= 32)
+        elif key != 'substage':
+            require(type(item) is bool)
+
+
+def check_root_admission(value, revision):
+    require(type(value) is dict and type(value.get('schema')) is int and value.get('schema') == 1
+        and value.get('mode') == 'native-sdk-root-admission' and value.get('status') == 'passed'
+        and value.get('stage') == 'complete' and value.get('studio_revision') == revision
+        and value.get('sdk_manifest_sha256') == MANIFEST and value.get('admission_passed') is True
+        and value.get('network_namespace_isolated') is True and value.get('policy_restored') is True
+        and type(value.get('owned_group_count')) is int and value['owned_group_count'] == 0
+        and all(value.get(key) is False for key in (*FALSE_FLAGS, 'packages_installed', 'sdk_installed',
+            'root_archive_cache_verified', 'post_install_exact_versions', 'dpkg_audit_clean',
+            'installation_attempted', 'policy_created', 'root_cache_retained', 'owned_groups_joined')))
+    check_admission_diagnostic(value.get('admission_diagnostic'))
+    require(value['admission_diagnostic'] == {'substage': 'complete'})
+
+
 def drain_install_owner(drain_group, process, identity, *, grace=1.0, kill_grace=1.0):
     # The root owner must finish its independent APT group TERM/KILL/join and
     # restore policy before its own outer group can be force-killed. The outer
@@ -561,7 +648,7 @@ def drain_install_owner(drain_group, process, identity, *, grace=1.0, kill_grace
     return drain_group(process, identity, grace=15.0, kill_grace=3.0)
 
 
-def main():
+def main(*, admission_only=False):
     # Only this unprivileged path imports previously reviewed sibling helpers.
     sys.path.insert(0, str(HERE))
     try:
@@ -571,11 +658,13 @@ def main():
     report = dict(schema=1, mode='native-sdk-offline-install', status='failed', stage='admission',
                   sdk_manifest_sha256=MANIFEST, packages_installed=False, sdk_installed=False,
                   **dict.fromkeys(FALSE_FLAGS, False))
+    if admission_only:
+        report.update(mode='native-sdk-admission', admission_passed=False)
     primary, artifact, root_artifact, root_value = None, None, None, None
     cleanups = []
     started = time.monotonic()
     try:
-        require(sys.argv == [str(HERE / 'install_sdk.py')])
+        require(sys.argv == [str(HERE / 'install_sdk.py'), *(['--admission-only'] if admission_only else [])])
         # Reuse the fetcher's exact source/host admission with only its fixed
         # entrypoint adapter after independently enforcing our own no-arg path.
         original = sys.argv
@@ -586,13 +675,14 @@ def main():
             sys.argv = original
         run, attempt = (os.environ.get(key, '') for key in ('GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT'))
         require(re.fullmatch(r'[1-9][0-9]{0,19}', run) and re.fullmatch(r'[1-9][0-9]{0,5}', attempt))
-        artifact = temporary / 'silex-native-sdk-install.json'
-        root_artifact = temporary / 'silex-native-sdk-install-root.json'
+        artifact = temporary / ('silex-native-sdk-admission.json' if admission_only else 'silex-native-sdk-install.json')
+        root_artifact = temporary / ('silex-native-sdk-admission-root.json' if admission_only else 'silex-native-sdk-install-root.json')
         require(all(not path.exists() and not path.is_symlink() for path in (artifact, root_artifact)))
         records = records_from_manifest(fetch.support.read(HERE / 'ubuntu-sdk.json', 1024 * 1024, expected=MANIFEST))
-        check_fetch(parse(fetch.support.read(temporary / 'silex-native-sdk-fetch.json', 65536)), records, revision)
-        require(fetch.verify_archives(temporary / 'silex-native-sdk-archives', records) == expected_hashes(records))
-        require(not POLICY.exists() and not POLICY.is_symlink())
+        if not admission_only:
+            check_fetch(parse(fetch.support.read(temporary / 'silex-native-sdk-fetch.json', 65536)), records, revision)
+            require(fetch.verify_archives(temporary / 'silex-native-sdk-archives', records) == expected_hashes(records))
+            require(not POLICY.exists() and not POLICY.is_symlink())
         environment = {key: os.environ[key] for key in ('GITHUB_ACTIONS', 'RUNNER_ENVIRONMENT', 'RUNNER_OS',
             'RUNNER_ARCH', 'GITHUB_REPOSITORY', 'GITHUB_SHA', 'GITHUB_WORKFLOW_SHA', 'GITHUB_RUN_ID',
             'GITHUB_RUN_ATTEMPT', 'GITHUB_WORKSPACE', 'RUNNER_TEMP')}
@@ -600,32 +690,46 @@ def main():
                            SILEX_SDK_PARENT_NETNS=os.readlink('/proc/self/ns/net'))
         argv = ['/usr/bin/sudo', '-n', '/usr/bin/unshare', '--net', '--', '/usr/bin/env', '-i',
                 *[key + '=' + value for key, value in sorted(environment.items())],
-                '/usr/bin/python3', '-I', '-B', str(HERE / 'install_sdk.py'), '--privileged-install']
+                '/usr/bin/python3', '-I', '-B', str(HERE / 'install_sdk.py'),
+                '--privileged-admission' if admission_only else '--privileged-install']
         sys.path.insert(0, str(HERE.parent / 'silex-export'))
         try:
             from lifecycle import start_group, drain_group
         finally:
             sys.path.remove(str(HERE.parent / 'silex-export'))
-        report.update(studio_revision=revision, stage='privileged_offline_install')
+        report.update(studio_revision=revision, stage='privileged_admission' if admission_only else 'privileged_offline_install')
         def owner_drain(process, identity, **options):
             return drain_install_owner(drain_group, process, identity, **options)
-        raw = fetch.actor(argv, ENV, ROOT, start_group, owner_drain, started + 265, 265, cleanups)
+        seconds = 60 if admission_only else 265
+        raw = fetch.actor(argv, ENV, ROOT, start_group, owner_drain, started + seconds, seconds, cleanups)
         # Retain the actual bounded closed root response before validating its
         # success claim. It contains only package identities and cleanup flags.
         root_value = parse(raw)
         write_json(root_artifact, root_value)
-        check_root(root_value, revision, records)
+        if type(root_value) is dict and 'admission_diagnostic' in root_value:
+            check_admission_diagnostic(root_value['admission_diagnostic'])
+            report['admission_diagnostic'] = root_value['admission_diagnostic']
+        if admission_only:
+            check_root_admission(root_value, revision)
+        else:
+            check_root(root_value, revision, records)
         require(root_value.get('run_id') == run and root_value.get('run_attempt') == attempt)
         require(not fetch.support.git('status', '--porcelain=v1', '-z', '--untracked-files=all'))
         require(len(cleanups) == 1 and all(cleanups))
-        report.update(status='passed', stage='complete', packages_installed=True, sdk_installed=True,
-                      verified_package_count=182, archive_bytes=63772228, hashes=expected_hashes(records))
+        report.update(status='passed', stage='complete')
+        if admission_only:
+            report['admission_passed'] = True
+        else:
+            report.update(packages_installed=True, sdk_installed=True,
+                          verified_package_count=182, archive_bytes=63772228, hashes=expected_hashes(records))
     except BaseException as error:
         primary = error
         report['failure_stage'] = report['stage']
     finally:
         root_joined = (type(root_value) is dict and root_value.get('owned_groups_joined') is True
                        and root_value.get('policy_restored') is True)
+        if admission_only:
+            root_joined = report.get('admission_passed') is True
         report['cleanup'] = dict(owned_groups_joined=len(cleanups) == 1 and all(cleanups) and root_joined,
                                  owned_group_count=len(cleanups),
                                  root_cache_retained=root_value.get('root_cache_retained') if type(root_value) is dict else None,
@@ -638,7 +742,8 @@ def main():
     if primary is not None or report['status'] != 'passed':
         print('native SDK offline installation rejected', file=sys.stderr)
         return 1
-    print('SILEX_NATIVE_SDK_INSTALLED=true; NATIVE_BUILD=false; NATIVE_RUNTIME=false')
+    print('SILEX_NATIVE_SDK_ADMISSION=true; SDK_INSTALLED=false' if admission_only else
+          'SILEX_NATIVE_SDK_INSTALLED=true; NATIVE_BUILD=false; NATIVE_RUNTIME=false')
     return 0
 
 
@@ -647,5 +752,9 @@ if __name__ == '__main__':
         raise Rejected('cancelled_or_deadline')
     for _number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGALRM):
         signal.signal(_number, cancel)
-    signal.setitimer(signal.ITIMER_REAL, 245 if sys.argv[1:] == ['--privileged-install'] else 300)
-    raise SystemExit(root_main() if sys.argv[1:] == ['--privileged-install'] else main())
+    _mode = sys.argv[1:]
+    _seconds = 50 if _mode == ['--privileged-admission'] else 90 if _mode == ['--admission-only'] else 245 if _mode == ['--privileged-install'] else 300
+    signal.setitimer(signal.ITIMER_REAL, _seconds)
+    raise SystemExit(root_main(admission_only=_mode == ['--privileged-admission'])
+                     if _mode in (['--privileged-install'], ['--privileged-admission'])
+                     else main(admission_only=_mode == ['--admission-only']))
