@@ -17,7 +17,7 @@ on:
       native_followup:
         description: 'Explicit native prerequisite; no native GUI application execution'
         type: choice
-        options: [none, bridge, verify-lock, sdk-admission, sdk-baseline, sdk-fetch, sdk-install, native-build]
+        options: [none, bridge, verify-lock, sdk-admission, sdk-baseline, sdk-fetch, sdk-install, native-build, dashboard-unit]
         default: none
 
 permissions:
@@ -439,6 +439,41 @@ jobs:
             ${{ runner.temp }}/silex-native-base-fetch.json
             ${{ runner.temp }}/silex-native-reviewed-lock.json
             ${{ runner.temp }}/silex-native-build.json
+          retention-days: 14
+          if-no-files-found: warn
+
+  original-dashboard-unit:
+    if: >-
+      github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'dashboard-unit' &&
+      github.repository == 'VOLPAROSSA/volparossa-studio' &&
+      github.ref == 'refs/heads/feature/native-local-dashboard-20261029'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: studio
+          persist-credentials: false
+      - name: Bind the exact dashboard unit source
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(id -u)" != 0
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$(git -C studio rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Test unit-receipt commit and cleanup boundaries
+        run: python3 -I -B studio/integration/silex-native-dashboard/test_check.py -v
+      - name: Run only the pinned Node dashboard units
+        run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-dashboard/check.py"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: silex-original-dashboard-units-${{ github.run_id }}
+          path: ${{ runner.temp }}/silex-original-dashboard-units.json
           retention-days: 14
           if-no-files-found: warn
 
