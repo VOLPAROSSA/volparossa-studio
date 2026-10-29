@@ -82,3 +82,18 @@ closed parse errors and POST construction without sending a request. Their exact
 names/counts and zero ignored/filtered cases gate acceptance. Test binaries are
 separate from application startup; no GUI or MCP network session is inferred.
 The unchanged server source closure reuses its32-test result from40826860067.
+
+The explicit `dashboard-crud` disposable hosted profile compiles an original
+Rust example against the actual Silex server library, using its public router.
+It runs the original dashboard in the installed Chrome with its sandbox requested,
+through the unchanged Core NET/PID fixture wrapper pinned to e58d1c9. Two server
+and browser runs exercise create, typed rename, raw unrelated-byte preservation,
+duplicate, persistence across restart and delete, plus42 invalid-ID HTTP denials.
+The temporary example is removed and exact source inputs rechecked before success.
+Eighteen Python controls precede provisioning. Only bounded JSON receipts leave
+the runner; no application binaries, payloads, screenshots or raw logs are artifacts.
+This profile installs no SDK and downloads no browser. Installed Chrome identity
+is observed rather than represented as source authentication. It does not prove
+native WebKit/GUI, mount/IPC/private-proc isolation, no external attempts, native
+privacy/consent, production server CLI, publication or full Studio acceptance.
+Actual hosted evidence remains required; source review alone is insufficient.

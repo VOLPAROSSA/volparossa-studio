@@ -146,3 +146,9 @@ explicit native composition may embed only its three application files; unit
 tests are separate. The existing nine-file GitLab dashboard fixture and its
 unverified license remain a distinct private build input, unchanged. This
 record does not grant distribution acceptance to a combined application.
+
+The original GPL-3.0-only `crud_server.rs` is a private test harness for Silex's
+public server-library API, temporarily copied only to
+`server-rust/examples/volparossa_dashboard_crud.rs`. It changes no upstream Cargo
+manifest, dependency, license or existing notice. Its compilation and browser
+fixture remain disposable acceptance work, without redistribution authority.
