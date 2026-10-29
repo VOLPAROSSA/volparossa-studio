@@ -281,17 +281,18 @@ def fetch(records, invoke, archives, mirror_note=None):
 
 def archive_progress(directory):
     count = total = 0
-    for entry in os.scandir(directory):
-        count += 1
-        require(count <= 256)
-        try:
-            metadata = entry.stat(follow_symlinks=False)
-        except FileNotFoundError:
-            continue  # APT may atomically rename its own incomplete file.
-        require(stat.S_ISREG(metadata.st_mode) and metadata.st_uid == os.geteuid()
-                and metadata.st_nlink == 1 and 0 <= metadata.st_size <= MAX_ARCHIVE)
-        total += metadata.st_size
-        require(total <= MAX_TOTAL)
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            count += 1
+            require(count <= 256)
+            try:
+                metadata = entry.stat(follow_symlinks=False)
+            except FileNotFoundError:
+                continue  # APT may atomically rename its own incomplete file.
+            require(stat.S_ISREG(metadata.st_mode) and metadata.st_uid == os.geteuid()
+                    and metadata.st_nlink == 1 and 0 <= metadata.st_size <= MAX_ARCHIVE)
+            total += metadata.st_size
+            require(total <= MAX_TOTAL)
 
 
 def actor(command, environment, cwd, start_group, drain_group, end, seconds, cleanups, *, download=False):

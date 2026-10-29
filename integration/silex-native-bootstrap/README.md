@@ -98,8 +98,10 @@ libredox loses redox_syscall0.7.1; rustls loses the ring edge; objc2-ui-kit lose
 nine optional framework edges. This is not an assertion that only the desktop
 dependency record changed, and the generic resolver's failed result is retained.
 
-A separate exact-candidate offline locked query, unchanged-source verification
-and native build/runtime remain required. The source overlay manifest continues
+The separate exact-candidate offline locked query and unchanged-source verification
+passed in run40809750188 on Studio d64b6731ea3e54aa84e0b1cd00da50658667e8de.
+Both base-fetch and verification receipts report nine direct children joined.
+Native build/runtime remain required. The source overlay manifest continues
 to mark those acceptance boundaries false. Original component licenses and
 notices remain unchanged; no SDK or application binary is committed.
 
@@ -107,3 +109,38 @@ The current `native_followup=verify-lock` profile selects only the exact reviewe
 candidate in the six-path overlay and performs an actual full offline locked
 query plus unchanged-source checks. It does not reinterpret the historical
 resolver failure as success or allow arbitrary dependency changes.
+
+## SDK acquisition and disposable installation
+
+The fetch-only profile passed in [run40810185163](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/40810185163)
+on Studio `f5dce206a4da22b90ba83a2f0e4f054e42f900df`: twelve controls and
+182 actual archives, totaling 63,772,228 bytes. Every archive name, version,
+architecture, length and SHA-256 matched `ubuntu-sdk.json`. Three owned process
+groups joined; the private archives stayed on that disposable runner. The artifact
+contains only the receipt, never SDK archives. No installation, extraction or
+native application execution occurred.
+
+The original [run40809752563](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/40809752563)
+failed before download because the mirror descriptor contained two previously
+unobserved Ubuntu fallbacks. The correction binds the exact observed 144 bytes,
+including ordering and priorities, to SHA-256
+`e0d6b0af979e4662d16357a27ae456cc6f21e26da031540f4df8706ebed1d583`.
+HTTP and HTTPS redirects stay disabled. No wildcard host admission or package-pin
+change was made, and the first failure remains retained evidence.
+
+The explicit `sdk-install` profile is a separate, unverified candidate. It first
+reacquires the same verified archives in that job, then admits only the frozen
+closure to offline installation on an approved disposable hosted runner. It
+never authorizes development-host changes, GUI execution, publication, release
+or mandatory Core update acceptance. Its bounded privileged helper and receipt
+require independent review and a real hosted result before installation claims.
+
+The installation helper uses a separate network namespace with no usable route,
+a root-owned copy of each verified archive and fixed APT arguments
+`--no-remove --no-download --no-install-recommends`. It simulates the exact
+closure, rejects downgrades with dpkg version ordering and checks every installed
+version plus `dpkg --audit` afterward. A newly created service-start denial policy
+is removed only after the owned privileged process groups have stopped; an
+existing policy is preserved by refusing the trial. Root and outer receipts keep
+failed or unconfirmed cleanup visible. No rollback of an interrupted disposable
+runner package transaction is claimed.
