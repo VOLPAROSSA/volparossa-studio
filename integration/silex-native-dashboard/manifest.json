@@ -5,16 +5,16 @@
       "sha256": "4f0df0073b0c24f9c1e78840536cdc7654d14f4c98953581a18872b528bc8890"
     },
     "dashboard.js": {
-      "bytes": 23075,
-      "sha256": "786d154141ea3b746190a0d78d781446d209884eaa9d4245cb18987b8129adbd"
+      "bytes": 22167,
+      "sha256": "655018e77eed5aff07328ac7afb345b2bc0ddcbf458287883a6ab8067bd7261f"
     },
     "index.html": {
       "bytes": 3383,
       "sha256": "b7c98dc9b78108140fd9ae942e1415307d288cf9d67865331e36fbee7c6e23f6"
     },
     "test_dashboard.mjs": {
-      "bytes": 25225,
-      "sha256": "db424d29115fe755cc102864c4104af36d35eae5afec3f99fa5d40e5452bc006"
+      "bytes": 27875,
+      "sha256": "48a14d931b985a27269d609fe8a1e2fa58cac05ced92d05ea20b246404043954"
     }
   },
   "operation": "original_local_dashboard_units",
@@ -27,19 +27,20 @@
   },
   "tests": [
     "fixed local CRUD routes use the actual methods and never follow metadata URLs",
-    "rename freshly reads and preserves writable settings and image without read-only fields",
-    "precision-losing and ambiguous metadata refuses rename before any POST",
-    "rename refuses unknown or excessive settings and wrong metadata identity without mutation",
+    "rename discovers actual connector capability and sends only the typed name payload",
+    "missing or false rename capability refuses mutation without a legacy fallback",
+    "untrusted project settings and precision tokens are never sent back during rename",
+    "malformed duplicate wrong-type or excessive connector capabilities cannot permit a rename request",
     "current-map IDs and complete list validation reject traversal and ambiguous rows",
     "project and name bounds fail before mutation and preserve names as entered",
     "all JSON input is bounded and rejects duplicate keys malformed UTF-8 and deep geometry",
-    "streamed size denial cancels the body and never parses oversize metadata",
+    "streamed size denial cancels the body before oversize capability data can permit rename",
     "HTTP failure and redirect or wrong MIME never expose backend error data",
-    "one original action deadline covers fresh metadata mutation and reload without renewal",
+    "one original action deadline covers capability discovery mutation and reload without renewal",
     "uncertain mutation is never retried and requires an explicit successful refresh",
     "failed refresh after acknowledged mutation retains the uncertainty lock",
     "only one action can be active and page disposal aborts stale completion",
-    "aborted reads fail before any rename POST and release the action timer",
+    "aborted capability reads fail before any rename POST and release the action timer",
     "deadline settles a fetch that ignores abort and blocks all further requests",
     "deadline settles an abort-ignoring read and cancel without accepting late bytes",
     "late mutation response is cancelled without parsing refreshing or reopening capacity",
@@ -48,6 +49,7 @@
     "actual UI treats names as text and opens only the selected local editor route",
     "actual dialog handlers cancel safely restore focus and require explicit delete confirmation",
     "actual new and rename forms preserve input and focus with no persistent browser storage",
+    "actual UI disables unsupported rename without disabling other actions and refresh rechecks capability",
     "actual UI disables further actions after uncertainty until explicit refresh",
     "actual UI requires page reload after a transport misses the deadline",
     "HTML and CSS use only original local resources with a restrictive CSP and accessible controls"

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Original local project UI. Backend ownership, path confinement and concurrent
-// metadata updates remain backend responsibilities; this is no authority boundary.
+// Original local project UI. Backend ownership, lossless name mutation and
+// cross-process concurrency remain backend responsibilities, not UI guarantees.
 export const LIMITS = Object.freeze({
-  projects: 256, listBytes: 1_048_576, metadataBytes: 65_536,
+  projects: 256, listBytes: 1_048_576, connectorBytes: 65_536,
   acknowledgementBytes: 4_096, actionMilliseconds: 15_000,
 });
 
@@ -11,7 +11,7 @@ const MESSAGES = Object.freeze({
   invalid: 'The project response could not be used safely. No automatic retry was made.',
   limit: 'The local project data exceeds this dashboard’s limits.',
   name: 'Use 1–128 characters without control characters, and at least one non-space character.',
-  metadata: 'These project settings cannot be preserved safely. Rename was not sent.',
+  renameUnavailable: 'Name-only rename is not available from this local storage service.',
   stale: 'Refresh the project list before making changes.',
   busy: 'Wait for the current action to finish.',
   deadline: 'The action timed out. No automatic retry was made.',
@@ -51,23 +51,9 @@ function validId(value) {
   return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(value);
 }
 
-// Compare decimal values before/after the JS JSON roundtrip without binary
-// arithmetic. Insignificant zeros/exponent notation may change; values may not.
-function decimalForm(token) {
-  const [mantissa, exponent = '0'] = token.toLowerCase().split('e');
-  const negative = mantissa.startsWith('-');
-  const unsigned = negative ? mantissa.slice(1) : mantissa;
-  const [whole, fraction = ''] = unsigned.split('.');
-  let digits = (whole + fraction).replace(/^0+/, '');
-  if (!digits) return '0';
-  let scale = Number(exponent) - fraction.length;
-  while (digits.endsWith('0')) { digits = digits.slice(0, -1); scale += 1; }
-  return `${negative ? '-' : ''}${digits}e${scale}`;
-}
-
 // Bound geometry and reject duplicate object keys BEFORE JSON.parse can discard
-// them. Preservation mode additionally refuses precision-losing numeric tokens.
-export function parseBoundedJson(text, preserveNumbers = false) {
+// them. Parsed project settings/connector metadata are never written back.
+export function parseBoundedJson(text) {
   if (typeof text !== 'string' || text.length > LIMITS.listBytes) fail('limit');
   let cursor = 0;
   let nodes = 0;
@@ -123,48 +109,11 @@ export function parseBoundedJson(text, preserveNumbers = false) {
     const token = match[0];
     const number = Number(token);
     if (!Number.isFinite(number)) fail();
-    if (preserveNumbers && (Object.is(number, -0)
-      || (Number.isInteger(number) && !Number.isSafeInteger(number))
-      || decimalForm(token) !== decimalForm(JSON.stringify(number)))) fail('metadata');
     cursor += token.length;
   }
   value(0); whitespace();
   if (cursor !== text.length) fail();
   try { return JSON.parse(text); } catch { return fail(); }
-}
-
-function settingsGeometry(settings) {
-  if (!record(settings)) fail('metadata');
-  let nodes = 0;
-  function visit(value, depth) {
-    nodes += 1;
-    if (nodes > 512 || depth > 8) fail('metadata');
-    if (typeof value === 'string' && value.length > 1_024) fail('metadata');
-    if (value && typeof value === 'object') {
-      for (const [key, child] of Object.entries(value)) {
-        if (key.length > 128) fail('metadata');
-        visit(child, depth + 1);
-      }
-    }
-  }
-  visit(settings, 0);
-}
-
-export function writableMetadata(meta, id, name) {
-  if (!record(meta) || meta.websiteId !== id || !validName(name)) fail('metadata');
-  const known = ['websiteId', 'name', 'imageUrl', 'connectorUserSettings', 'createdAt', 'updatedAt', 'repoUrl', 'pagesUrl'];
-  if (Object.keys(meta).some(key => !known.includes(key))) fail('metadata');
-  if (!validName(meta.name)) fail('metadata');
-  const settings = own(meta, 'connectorUserSettings') ? meta.connectorUserSettings : {};
-  settingsGeometry(settings);
-  const result = { name, connectorUserSettings: settings };
-  if (own(meta, 'imageUrl')) {
-    if (meta.imageUrl !== null && (typeof meta.imageUrl !== 'string' || meta.imageUrl.length > 4_096)) fail('metadata');
-    result.imageUrl = meta.imageUrl;
-  }
-  const json = JSON.stringify(result);
-  if (encoder.encode(json).length > LIMITS.metadataBytes) fail('metadata');
-  return json;
 }
 
 function projectList(value) {
@@ -178,7 +127,30 @@ function projectList(value) {
   return result;
 }
 
+function supportsRename(value) {
+  if (!Array.isArray(value) || value.length > 16) fail('limit');
+  const ids = new Set();
+  let supported = false;
+  for (const connector of value) {
+    if (!record(connector) || typeof connector.connectorId !== 'string'
+      || !wellFormed(connector.connectorId) || !connector.connectorId.length
+      || encoder.encode(connector.connectorId).length > 512 || ids.has(connector.connectorId)) fail();
+    ids.add(connector.connectorId);
+    if (own(connector, 'supportsWebsiteRename') && typeof connector.supportsWebsiteRename !== 'boolean') fail();
+    if (connector.connectorId === 'fs-storage') {
+      if (connector.type !== 'STORAGE') fail();
+      supported = connector.supportsWebsiteRename === true;
+    }
+  }
+  // No icon, OAuth URL, user identity, colors or other metadata is retained.
+  return supported;
+}
+
 function apiPath(kind = '', id) {
+  if (kind === 'connector') {
+    if (id !== undefined) fail();
+    return '/api/connector/?type=STORAGE';
+  }
   const query = new URLSearchParams();
   if (id !== undefined) { if (!validId(id)) fail(); query.set('websiteId', id); }
   query.set('connectorId', 'fs-storage');
@@ -198,6 +170,7 @@ export class ProjectController {
   #projects = new Map(); #active = null; #generation = 0;
   #requiresRefresh = true; #disposed = false; #error = null; #completed = false;
   #reloadRequired = false;
+  #renameSupported = null;
 
   constructor({ fetch = globalThis.fetch.bind(globalThis), now = () => performance.now(),
     setTimer = globalThis.setTimeout.bind(globalThis), clearTimer = globalThis.clearTimeout.bind(globalThis),
@@ -209,7 +182,8 @@ export class ProjectController {
   snapshot() {
     return Object.freeze({ projects: Object.freeze([...this.#projects.values()]),
       busy: this.#active !== null, requiresRefresh: this.#requiresRefresh,
-      reloadRequired: this.#reloadRequired, error: this.#error, completed: this.#completed });
+      reloadRequired: this.#reloadRequired, renameSupported: this.#renameSupported,
+      error: this.#error, completed: this.#completed });
   }
 
   #notify() { if (!this.#disposed) this.#onChange(this.snapshot()); }
@@ -252,7 +226,7 @@ export class ProjectController {
     });
   }
 
-  async #request(operation, kind, id, method, maximum, body, preserveNumbers = false) {
+  async #request(operation, kind, id, method, maximum, body) {
     this.#check(operation);
     const options = { method, mode: 'same-origin', credentials: 'same-origin',
       cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer', signal: operation.abort.signal,
@@ -297,7 +271,7 @@ export class ProjectController {
       for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
       let text;
       try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { fail(); }
-      return parseBoundedJson(text, preserveNumbers);
+      return parseBoundedJson(text);
     } catch (error) {
       primary = error;
       throw error;
@@ -322,6 +296,7 @@ export class ProjectController {
     this.#check(operation);
     this.#projects = list;
     this.#requiresRefresh = false;
+    this.#renameSupported = null;
     this.#completed = true;
   }
 
@@ -373,11 +348,15 @@ export class ProjectController {
     return this.#action(true, async operation => {
       this.#selected(id);
       if (!validName(name)) fail('name');
-      // Fresh metadata prevents knowingly overwriting a stale local snapshot.
-      // GET+POST is not atomic and confers no cross-client concurrency guarantee.
-      const fresh = await this.#request(operation, 'meta', id, 'GET', LIMITS.metadataBytes, undefined, true);
-      const body = writableMetadata(fresh, id, name);
-      acknowledgement(await this.#request(operation, 'meta', id, 'POST', LIMITS.acknowledgementBytes, body));
+      if (this.#renameSupported === false) fail('renameUnavailable');
+      // Discover the additive capability within this SAME action budget. Older
+      // backends default unsupported; never fall back to GET/full metadata POST.
+      const connectors = await this.#request(operation, 'connector', undefined, 'GET', LIMITS.connectorBytes);
+      this.#check(operation);
+      this.#renameSupported = supportsRename(connectors);
+      if (!this.#renameSupported) fail('renameUnavailable');
+      acknowledgement(await this.#request(operation, 'rename', id, 'POST', LIMITS.acknowledgementBytes,
+        JSON.stringify({ name })));
       await this.#reload(operation);
       if (this.#projects.get(id)?.name !== name) fail();
     });
@@ -449,7 +428,9 @@ export function mountDashboard(document, browser = globalThis) {
       const actions = document.createElement('div'); actions.className = 'project-actions';
       for (const action of ['Open', 'Rename', 'Duplicate', 'Delete']) {
         const button = document.createElement('button'); button.type = 'button';
-        button.textContent = action; button.disabled = disabled;
+        button.textContent = action;
+        button.disabled = disabled || (action === 'Rename' && state.renameSupported === false);
+        if (action === 'Rename' && state.renameSupported === false) button.title = MESSAGES.renameUnavailable;
         button.setAttribute('aria-label', `${action} project: ${project.name}`);
         button.dataset.focusKey = `${project.id}:${action}`;
         if (button.dataset.focusKey === focusKey) focusTarget = button;

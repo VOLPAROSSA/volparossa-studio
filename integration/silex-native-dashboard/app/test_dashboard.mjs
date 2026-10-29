@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { DashboardError, LIMITS, ProjectController, mountDashboard,
-  parseBoundedJson, validName, writableMetadata } from './dashboard.js';
+  parseBoundedJson, validName } from './dashboard.js';
 
 const ID = 'e88c8b28-20d8-4f61-a684-ecf375198cc6';
 const ID2 = '620b8cac-d9e8-4072-b2f9-5f0fa95a55ca';
@@ -15,6 +15,9 @@ const row = (name = 'Public example', websiteId = ID) => ({ websiteId, name,
 const json = value => new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json' } });
 const raw = text => new Response(text, { headers: { 'content-type': 'application/json' } });
 const ack = () => json({ message: 'Public acknowledgement' });
+const connectors = (supported = true) => json([{ connectorId: 'fs-storage', type: 'STORAGE',
+  supportsWebsiteRename: supported, icon: 'https://never-fetch.invalid/icon',
+  oauthUrl: 'https://never-fetch.invalid/login' }]);
 
 function harness(responses) {
   const calls = [];
@@ -74,50 +77,63 @@ test('fixed local CRUD routes use the actual methods and never follow metadata U
   assert.equal(h.timers.size, 0);
 });
 
-test('rename freshly reads and preserves writable settings and image without read-only fields', async () => {
-  const settings = JSON.parse('{"__proto__":{"safe":true},"nested":[0.125,1e-7,9007199254740991,"public"]}');
-  const fresh = { ...row('Fresh name'), connectorUserSettings: settings,
-    updatedAt: '2026-10-29T00:00:00Z', pagesUrl: 'file:///NEVER_OPEN' };
-  const h = harness([json([row('Old list name')]), json(fresh), ack(), json([row('New name')])]);
+test('rename discovers actual connector capability and sends only the typed name payload', async () => {
+  const h = harness([json([row('Old list name')]), connectors(), ack(), json([row('New name')])]);
   await h.controller.refresh();
   await h.controller.rename(ID, 'New name');
   assert.deepEqual(h.calls.slice(1).map(call => call.options.method), ['GET', 'POST', 'GET']);
-  assert.equal(h.calls[1].path, `/api/website/meta?websiteId=${ID}&connectorId=fs-storage`);
+  assert.equal(h.calls[1].path, '/api/connector/?type=STORAGE');
+  assert.equal(h.calls[2].path, `/api/website/rename?websiteId=${ID}&connectorId=fs-storage`);
   const posted = JSON.parse(h.calls[2].options.body);
-  assert.deepEqual(posted, { name: 'New name', connectorUserSettings: settings, imageUrl: fresh.imageUrl });
-  assert.equal(Object.prototype.safe, undefined);
+  assert.deepEqual(posted, { name: 'New name' });
+  assert.equal(h.calls.some(call => call.path.startsWith('/api/website/meta')), false);
   assert.equal(h.controller.snapshot().projects[0].name, 'New name');
 });
 
-test('precision-losing and ambiguous metadata refuses rename before any POST', async () => {
-  for (const number of ['9007199254740993', '9007199254740992', '0.10000000000000001', '1e-400', '-0', '1e309']) {
-    const metadata = `{"websiteId":"${ID}","name":"Public example","connectorUserSettings":{"number":${number}}}`;
-    const h = harness([json([row()]), raw(metadata)]);
+test('missing or false rename capability refuses mutation without a legacy fallback', async () => {
+  for (const capability of [[], [{ connectorId: 'fs-storage', type: 'STORAGE' }],
+    [{ connectorId: 'fs-storage', type: 'STORAGE', supportsWebsiteRename: false }],
+    [{ connectorId: 'other-namespace', type: 'STORAGE', supportsWebsiteRename: true }]]) {
+    const h = harness([json([row()]), json(capability)]);
     await h.controller.refresh();
-    await assert.rejects(h.controller.rename(ID, 'Changed'), DashboardError);
+    await rejectsCode(h.controller.rename(ID, 'Changed'), 'renameUnavailable');
+    await rejectsCode(h.controller.rename(ID, 'Changed again'), 'renameUnavailable');
     assert.deepEqual(h.calls.map(call => call.options.method), ['GET', 'GET']);
     assert.equal(h.controller.snapshot().requiresRefresh, false);
+    assert.equal(h.controller.snapshot().renameSupported, false);
   }
-  const h = harness([json([row()]), raw(`{"websiteId":"${ID}","name":"Public","connectorUserSettings":{"x":1,"x":2}}`)]);
-  await h.controller.refresh();
-  await assert.rejects(h.controller.rename(ID, 'Changed'), DashboardError);
-  assert.equal(h.calls.length, 2);
-  assert.deepEqual(parseBoundedJson('{"x":1.2500,"y":1e-7}', true), { x: 1.25, y: 1e-7 });
 });
 
-test('rename refuses unknown or excessive settings and wrong metadata identity without mutation', async () => {
-  const settings = { nested: {} };
-  let tip = settings.nested;
-  for (let index = 0; index < 9; index += 1) { tip.next = {}; tip = tip.next; }
-  for (const meta of [{ ...row(), futureField: 'unsupported' }, { ...row(), websiteId: ID2 },
-    { ...row(), connectorUserSettings: settings }, { ...row(), connectorUserSettings: { x: 'x'.repeat(1025) } }]) {
-    const h = harness([json([row()]), json(meta)]);
+test('untrusted project settings and precision tokens are never sent back during rename', async () => {
+  const original = `[{"websiteId":"${ID}","name":"Public example","imageUrl":"https://never-fetch.invalid/image",`+
+    '"connectorUserSettings":{"integer":18446744073709551617,"decimal":0.10000000000000001,"__proto__":{"public":true}},"future":"untouched by UI"}]';
+  const h = harness([raw(original), connectors(), ack(), json([row('Changed')])]);
+  await h.controller.refresh();
+  await h.controller.rename(ID, 'Changed');
+  assert.equal(h.calls[2].options.body, '{"name":"Changed"}');
+  assert.equal(h.calls.some(call => call.path.startsWith('/api/website/meta')), false);
+  assert.equal(Object.prototype.public, undefined);
+  // Exact persistence of those original bytes is the separately tested backend's
+  // responsibility; this client test does not fabricate a preservation proof.
+});
+
+test('malformed duplicate wrong-type or excessive connector capabilities cannot permit a rename request', async () => {
+  for (const capability of [[{ connectorId: 'fs-storage', type: 'HOSTING', supportsWebsiteRename: true }],
+    [{ connectorId: 'fs-storage', type: 'STORAGE', supportsWebsiteRename: 'true' }],
+    [{ connectorId: 'fs-storage', type: 'STORAGE', supportsWebsiteRename: 1 }],
+    [{ connectorId: 'fs-storage', type: 'STORAGE', supportsWebsiteRename: true },
+      { connectorId: 'fs-storage', type: 'STORAGE', supportsWebsiteRename: true }],
+    Array.from({ length: 17 }, (_, index) => ({ connectorId: `connector-${index}` }))]) {
+    const h = harness([json([row()]), json(capability)]);
     await h.controller.refresh();
-    await rejectsCode(h.controller.rename(ID, 'New'), 'metadata');
+    await assert.rejects(h.controller.rename(ID, 'New'), DashboardError);
     assert.equal(h.calls.length, 2);
+    assert.equal(h.calls.some(call => call.options.method === 'POST'), false);
   }
-  assert.deepEqual(JSON.parse(writableMetadata({ websiteId: ID, name: 'Old' }, ID, 'New')),
-    { name: 'New', connectorUserSettings: {} });
+  const h = harness([json([row()]), raw('[{"connectorId":"fs-storage","type":"STORAGE","supportsWebsiteRename":false,"supportsWebsiteRename":true}]')]);
+  await h.controller.refresh();
+  await rejectsCode(h.controller.rename(ID, 'New'), 'invalid');
+  assert.equal(h.calls.length, 2);
 });
 
 test('current-map IDs and complete list validation reject traversal and ambiguous rows', async () => {
@@ -154,7 +170,7 @@ test('project and name bounds fail before mutation and preserve names as entered
 });
 
 test('all JSON input is bounded and rejects duplicate keys malformed UTF-8 and deep geometry', async () => {
-  for (const text of ['{"a":1,"\\u0061":2}', '[1,]', 'true false', '01', '"\\ud800"', '['.repeat(18) + '0' + ']'.repeat(18)]) {
+  for (const text of ['{"a":1,"\\u0061":2}', '[1,]', 'true false', '01', '1e309', '"\\ud800"', '['.repeat(18) + '0' + ']'.repeat(18)]) {
     assert.throws(() => parseBoundedJson(text), DashboardError);
   }
   assert.throws(() => parseBoundedJson(JSON.stringify(Array(4096).fill(null))), DashboardError);
@@ -165,7 +181,7 @@ test('all JSON input is bounded and rejects duplicate keys malformed UTF-8 and d
   await rejectsCode(byteLimit.controller.refresh(), 'limit');
 });
 
-test('streamed size denial cancels the body and never parses oversize metadata', async () => {
+test('streamed size denial cancels the body before oversize capability data can permit rename', async () => {
   let cancelled = false;
   let reads = 0;
   const stream = new ReadableStream({
@@ -191,9 +207,9 @@ test('HTTP failure and redirect or wrong MIME never expose backend error data', 
   }
 });
 
-test('one original action deadline covers fresh metadata mutation and reload without renewal', async () => {
+test('one original action deadline covers capability discovery mutation and reload without renewal', async () => {
   const h = harness([json([row()]),
-    () => { h.setTime(10_000); return json(row()); },
+    () => { h.setTime(10_000); return connectors(); },
     () => { h.setTime(14_999); return ack(); },
     () => { h.setTime(15_000, true); return json([row('New')]); }]);
   await h.controller.refresh();
@@ -209,6 +225,7 @@ test('uncertain mutation is never retried and requires an explicit successful re
   await h.controller.refresh();
   await rejectsCode(h.controller.delete(ID), 'uncertain');
   await rejectsCode(h.controller.duplicate(ID), 'stale');
+  await rejectsCode(h.controller.rename(ID, 'Blocked'), 'stale');
   assert.equal(h.calls.length, 2);
   assert.throws(() => h.controller.editorPath(ID), DashboardError);
   await h.controller.refresh();
@@ -239,7 +256,7 @@ test('only one action can be active and page disposal aborts stale completion', 
   assert.equal(h.timers.size, 0);
 });
 
-test('aborted reads fail before any rename POST and release the action timer', async () => {
+test('aborted capability reads fail before any rename POST and release the action timer', async () => {
   const h = harness([json([row()]), (_path, options) => new Promise((_resolve, reject) => {
     options.signal.addEventListener('abort', () => reject(new Error('PRIVATE_SENTINEL')), { once: true });
   })]);
@@ -263,6 +280,7 @@ test('deadline settles a fetch that ignores abort and blocks all further request
   assert.equal(h.controller.snapshot().reloadRequired, true);
   await rejectsCode(h.controller.refresh(), 'reload');
   await rejectsCode(h.controller.create('Another'), 'reload');
+  await rejectsCode(h.controller.rename(ID, 'Blocked'), 'reload');
   assert.equal(h.calls.length, 1);
   assert.equal(h.timers.size, 0);
 });
@@ -433,7 +451,7 @@ test('actual dialog handlers cancel safely restore focus and require explicit de
 
 test('actual new and rename forms preserve input and focus with no persistent browser storage', async () => {
   const h = domHarness([json([]), json({ websiteId: ID, message: 'Created' }), json([row()]),
-    json(row()), ack(), json([row('Renamed')])]);
+    connectors(), ack(), json([row('Renamed')])]);
   await idle(h.controller);
   h.get('new-name').value = '\n'; submit(h.get('new-form'));
   assert.equal(h.calls.length, 1);
@@ -449,6 +467,28 @@ test('actual new and rename forms preserve input and focus with no persistent br
   assert.equal(h.calls.length, 6);
   h.browser.dispatchEvent(new Event('pagehide'));
   await rejectsCode(h.controller.refresh(), 'closed');
+});
+
+test('actual UI disables unsupported rename without disabling other actions and refresh rechecks capability', async () => {
+  const h = domHarness([json([row()]), connectors(false), json([row()]), connectors(), ack(), json([row('Renamed')])]);
+  await idle(h.controller);
+  h.button('Rename').click(); h.get('rename-name').value = 'Renamed'; submit(h.get('rename-form'));
+  await idle(h.controller);
+  assert.equal(h.button('Rename').disabled, true);
+  assert.equal(h.button('Open').disabled, false);
+  assert.equal(h.button('Delete').disabled, false);
+  assert.equal(h.get('create-button').disabled, false);
+  assert.equal(h.get('refresh-button').disabled, false);
+  assert.match(h.get('error').textContent, /Name-only rename is not available/);
+  h.button('Rename').click(); assert.equal(h.calls.length, 2);
+  h.get('refresh-button').click(); await idle(h.controller);
+  assert.equal(h.button('Rename').disabled, false);
+  h.button('Rename').click(); h.get('rename-name').value = 'Renamed'; submit(h.get('rename-form'));
+  await idle(h.controller);
+  assert.equal(h.calls.length, 6);
+  assert.equal(h.calls[4].path, `/api/website/rename?websiteId=${ID}&connectorId=fs-storage`);
+  assert.equal(h.calls[4].options.body, '{"name":"Renamed"}');
+  assert.equal(h.get('projects').children[0].children[0].textContent, 'Renamed');
 });
 
 test('actual UI disables further actions after uncertainty until explicit refresh', async () => {
