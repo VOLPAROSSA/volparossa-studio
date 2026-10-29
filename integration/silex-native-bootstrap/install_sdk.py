@@ -148,6 +148,7 @@ def dpkg_rows(raw, records, *, complete, diagnostic=None):
         row_failure(diagnostic, 'exact', 0, [], records)
     require(len(raw) <= 1024 * 1024)
     found = {}
+    seen = set()
     for index, line in enumerate(raw.decode('utf-8', errors='strict').splitlines()):
         fields = line.split('\t')
         if len(fields) != 4:
@@ -156,9 +157,16 @@ def dpkg_rows(raw, records, *, complete, diagnostic=None):
         name, version, architecture, state = fields
         if name not in records:
             row_failure(diagnostic, 'name', index, fields, records)
-        elif name in found:
+        elif name in seen:
             row_failure(diagnostic, 'duplicate', index, fields, records)
-        elif architecture not in ('amd64', 'all'):
+        require(name in records and name not in seen)
+        seen.add(name)
+        # Actual baseline40815773094: dpkg reports a known but absent package
+        # with BOTH fields empty. This grants no installed-version evidence.
+        # Names/duplicates are rejected before this sole incomplete-mode case.
+        if not complete and state == 'unknown ok not-installed' and version == '' and architecture == '':
+            continue
+        if architecture not in ('amd64', 'all'):
             row_failure(diagnostic, 'arch', index, fields, records)
         require(name in records and name not in found and architecture in ('amd64', 'all'))
         if state == 'install ok installed':

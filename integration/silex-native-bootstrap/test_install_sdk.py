@@ -486,7 +486,7 @@ class InstallSdkTests(unittest.TestCase):
                 self.assertIs(sdk.ipv4_routes_absent(raw), False)
 
     def test_baseline_diagnostic_binds_first_failure_to_same_row_without_changing_parser_guards(self):
-        cases = ((b'aa\t\t\tunknown ok not-installed\n', 'arch', 'empty', True, 'not_installed', True),
+        cases = ((b'aa\t1.0\t\tunknown ok not-installed\n', 'arch', 'empty', False, 'not_installed', True),
                  (b'aa\t1.0\tarm64\tinstall ok installed\n', 'arch', 'other', False, 'installed', True),
                  (b'aa\t1.0\tamd64\tinstall ok unpacked\n', 'state', 'amd64', False, 'other', True),
                  (b'cc\t1.0\tamd64\tinstall ok installed\n', 'name', 'amd64', False, 'installed', False),
@@ -510,7 +510,7 @@ class InstallSdkTests(unittest.TestCase):
         self.assertEqual(diagnostic['failure_predicate'], 'duplicate')
         self.assertEqual(diagnostic['row_index'], 1)
         # The old parser already accepted known architecture on an absent row;
-        # the diagnostic must not silently extend this to an empty architecture.
+        # an empty architecture with a nonempty version still remains denied.
         self.assertEqual(sdk.dpkg_rows(b'aa\t\tamd64\tunknown ok not-installed\n', records(), complete=False), {})
         for bad in ({'raw': 'private'}, {'package': 'aa'}, {'version': '1.0'},
                     {'failure_predicate': 'unreviewed'}, {'arch_class': 'arm64'},
@@ -525,7 +525,7 @@ class InstallSdkTests(unittest.TestCase):
             report.update(studio_revision='a' * 40, run_id='123', run_attempt='1', network_namespace_isolated=True)
             sdk.admission_stage(report, 'complete')
             return Path('/tmp/unused'), 'a' * 40, 1001, '123', '1', records()
-        for raw, passes in ((b'aa\t\t\tunknown ok not-installed\n', False),
+        for raw, passes in ((b'aa\t1.0\t\tunknown ok not-installed\n', False),
                 (dpkg([('aa', '1:2.0-1', 'amd64', 'install ok installed'),
                        ('bb', '2.0-1', 'all', 'install ok installed')]), True)):
             with self.subTest(passes=passes):
@@ -587,6 +587,34 @@ class InstallSdkTests(unittest.TestCase):
                                          stdout_bytes=0, stderr_bytes=0, query_output_capped=False))
         self.assertEqual(cleanups, [True])
         sdk.check_baseline_diagnostic(diagnostic)
+
+    def test_actual_empty_absent_row_is_baseline_only_unique_and_never_installed_evidence(self):
+        absent = b'aa\t\t\tunknown ok not-installed\n'
+        installed = b'bb\t2.0-1\tall\tinstall ok installed\n'
+        diagnostic = {}
+        self.assertEqual(sdk.dpkg_rows(absent + installed, records(), complete=False, diagnostic=diagnostic),
+                         {'bb': ('2.0-1', 'all')})
+        self.assertNotIn('failure_predicate', diagnostic)
+        self.assertEqual(sdk.dpkg_rows(absent, records(), complete=False), {})
+        for raw in (absent, absent + installed):
+            with self.subTest(complete=True, raw=raw), self.assertRaises(sdk.Rejected):
+                sdk.dpkg_rows(raw, records(), complete=True)
+        for raw in (absent.replace(b'aa\t', b'cc\t'), absent + absent,
+                    absent + b'aa\t1:2.0-1\tamd64\tinstall ok installed\n',
+                    absent.replace(b'unknown ok not-installed', b'deinstall ok config-files'),
+                    absent.replace(b'unknown ok not-installed', b'install ok installed'),
+                    absent.replace(b'unknown ok not-installed', b'purge ok not-installed'),
+                    b'aa\t1:2.0-1\t\tunknown ok not-installed\n',
+                    b'aa\t\t\n', b'aa\t\tarm64\tunknown ok not-installed\n'):
+            with self.subTest(raw=raw), self.assertRaises(sdk.Rejected):
+                sdk.dpkg_rows(raw, records(), complete=False)
+        # Preserve the pre-existing incomplete-mode case with a known arch.
+        self.assertEqual(sdk.dpkg_rows(b'aa\t\tamd64\tunknown ok not-installed\n', records(), complete=False), {})
+        for raw, expected in ((absent.replace(b'aa\t', b'cc\t'), 'name'), (absent + absent, 'duplicate')):
+            diagnostic = {}
+            with self.assertRaises(sdk.Rejected):
+                sdk.dpkg_rows(raw, records(), complete=False, diagnostic=diagnostic)
+            self.assertEqual(diagnostic['failure_predicate'], expected)
 
 
 if __name__ == '__main__':

@@ -179,3 +179,13 @@ counts and first-failing-row classifications are retained; no package names,
 versions, raw rows or environment values. It performs no package-index update,
 fetch, archive/cache handling, APT operation, policy creation or installation.
 Its baseline result cannot satisfy the normal SDK installation gate.
+
+Read-only baseline run40815773094 on `b5477b9…` passed twenty controls and
+identified the actual first-row refusal: a known `unknown ok not-installed` row
+with both Version and Architecture empty. The query exited normally with status
+1; its owned process group joined. No SDK effects occurred. The parser now skips
+only that exact absent tuple in incomplete baseline mode, after known-name and
+uniqueness checks. It never inserts the row into installed evidence. Complete
+mode still requires all 182 installed records with exact versions/architectures.
+Two diagnostic negatives now use a nonempty version with empty architecture;
+the original seventeen controls remain unchanged.
