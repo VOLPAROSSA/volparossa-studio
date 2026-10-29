@@ -17,7 +17,7 @@ on:
       native_followup:
         description: 'Explicit native prerequisite; no native GUI application execution'
         type: choice
-        options: [none, bridge, verify-lock, sdk-admission, sdk-baseline, sdk-fetch, sdk-install, native-build]
+        options: [none, bridge, verify-lock, sdk-admission, sdk-baseline, sdk-fetch, sdk-install, native-build, runtime-inventory, runtime-sdk-inventory, sdk-isolation]
         default: none
 
 permissions:
@@ -439,6 +439,196 @@ jobs:
             ${{ runner.temp }}/silex-native-base-fetch.json
             ${{ runner.temp }}/silex-native-reviewed-lock.json
             ${{ runner.temp }}/silex-native-build.json
+          retention-days: 14
+          if-no-files-found: warn
+
+  native-runtime-inventory:
+    if: >-
+      github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'runtime-inventory' &&
+      github.repository == 'VOLPAROSSA/volparossa-studio' &&
+      github.ref == 'refs/heads/feature/native-bootstrap-runtime-20261029'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: studio
+          persist-credentials: false
+      - name: Bind the exact source and update signed metadata only
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(id -u)" != 0
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$(git -C studio rev-parse HEAD)" = "$GITHUB_SHA"
+          sudo apt-get -o APT::Get::AllowUnauthenticated=false \
+            -o Acquire::AllowInsecureRepositories=false \
+            -o Acquire::AllowDowngradeToInsecureRepositories=false \
+            -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
+            -o Acquire::Retries=0 -o APT::Update::Error-Mode=any update
+      - name: Test fixed runtime metadata and process ownership controls
+        run: python3 -I -B studio/integration/silex-native-runtime/test_inventory.py -v
+      - name: Inventory fixed runtime prerequisites without installation or execution
+        run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-runtime/inventory.py"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: silex-native-runtime-inventory-${{ github.run_id }}
+          path: ${{ runner.temp }}/silex-native-runtime-inventory.json
+          retention-days: 14
+          if-no-files-found: warn
+
+  native-runtime-sdk-inventory:
+    if: >-
+      github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'runtime-sdk-inventory' &&
+      github.repository == 'VOLPAROSSA/volparossa-studio' &&
+      github.ref == 'refs/heads/feature/native-bootstrap-runtime-20261029'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: studio
+          persist-credentials: false
+      - name: Bind the exact source and update signed metadata only
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(id -u)" != 0
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$(git -C studio rev-parse HEAD)" = "$GITHUB_SHA"
+          sudo apt-get -o APT::Get::AllowUnauthenticated=false \
+            -o Acquire::AllowInsecureRepositories=false \
+            -o Acquire::AllowDowngradeToInsecureRepositories=false \
+            -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
+            -o Acquire::Retries=0 -o APT::Update::Error-Mode=any update
+      - name: Authenticate the unchanged reviewed SDK source inputs
+        run: |
+          python3 -I -B - <<'PYTHON'
+          import hashlib, pathlib
+          root = pathlib.Path('studio/integration/silex-native-bootstrap')
+          expected = {
+            'ubuntu-sdk.json': 'c2e3e609b6dc9e204b65d173ac087be89c37e06f25e10c997dd1fd87831178a8',
+            'fetch_sdk.py': '9b5e6bae34360839c3c3289e192ce3e1a37256e51a64d64288100ce497307dfb',
+            'install_sdk.py': '817f0ad22c4b0e6447782738e4afacb70d0c31305e883976b1a658e41291606b',
+          }
+          for name, digest in expected.items():
+              assert hashlib.sha256((root / name).read_bytes()).hexdigest() == digest
+          PYTHON
+      - name: Acquire the same 182 reviewed SDK archives in this disposable job
+        run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/fetch_sdk.py"
+      - name: Provision the unchanged SDK closure through its offline namespace installer
+        run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/install_sdk.py"
+      - name: Test fixed runtime metadata and process ownership controls
+        run: python3 -I -B studio/integration/silex-native-runtime/test_inventory.py -v
+      - name: Inventory fixed runtime prerequisites without installation or execution
+        run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-runtime/inventory.py"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: silex-native-runtime-sdk-inventory-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/silex-native-sdk-fetch.json
+            ${{ runner.temp }}/silex-native-sdk-install.json
+            ${{ runner.temp }}/silex-native-sdk-install-root.json
+            ${{ runner.temp }}/silex-native-runtime-inventory.json
+          retention-days: 14
+          if-no-files-found: warn
+
+  native-sdk-isolation:
+    if: >-
+      github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'sdk-isolation' &&
+      github.repository == 'VOLPAROSSA/volparossa-studio' &&
+      github.ref == 'refs/heads/feature/native-bootstrap-runtime-20261029'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: studio
+          persist-credentials: false
+      - name: Bind the exact source and authenticate the reviewed isolation packet
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(id -u)" != 0
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$(git -C studio rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 -I -B - <<'PYTHON'
+          import hashlib, pathlib
+          root = pathlib.Path('studio/integration')
+          expected = {
+            'silex-native-runtime/isolation.py': 'a51983104ecca1b3f697f0057dc44960b332a0667cb4f997258a70184fbad99a',
+            'silex-native-runtime/isolation_root.py': '1ef18348718bd7f559b92963148aca0e8bd8eda407e66b8573155cfdae0f64b7',
+            'silex-native-runtime/isolation_actor.py': 'e659a2eb6edfe6df7ca75523bb5ae2f8645667e0751f35ad3afa953308f5e9d2',
+            'silex-native-runtime/test_isolation.py': 'aacb9f4cefba5e7875a753019c900a9c402454848fd3f74be5bb9e87014d83d7',
+            'silex-export/lifecycle.py': 'a3fe1d2fe7ba51c7f63a73ad505161d73e0d8f5b112a9af575f62e70f467da9e',
+          }
+          for name, digest in expected.items():
+              assert hashlib.sha256((root / name).read_bytes()).hexdigest() == digest
+          PYTHON
+      - name: Test twenty-two isolation protocol and ownership controls before APT or SDK actions
+        run: python3 -I -B studio/integration/silex-native-runtime/test_isolation.py -v
+      - name: Bind the exact source and update signed metadata only
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(id -u)" != 0
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$(git -C studio rev-parse HEAD)" = "$GITHUB_SHA"
+          sudo apt-get -o APT::Get::AllowUnauthenticated=false \
+            -o Acquire::AllowInsecureRepositories=false \
+            -o Acquire::AllowDowngradeToInsecureRepositories=false \
+            -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
+            -o Acquire::Retries=0 -o APT::Update::Error-Mode=any update
+      - name: Authenticate the unchanged reviewed SDK source inputs
+        run: |
+          python3 -I -B - <<'PYTHON'
+          import hashlib, pathlib
+          root = pathlib.Path('studio/integration/silex-native-bootstrap')
+          expected = {
+            'ubuntu-sdk.json': 'c2e3e609b6dc9e204b65d173ac087be89c37e06f25e10c997dd1fd87831178a8',
+            'fetch_sdk.py': '9b5e6bae34360839c3c3289e192ce3e1a37256e51a64d64288100ce497307dfb',
+            'install_sdk.py': '817f0ad22c4b0e6447782738e4afacb70d0c31305e883976b1a658e41291606b',
+          }
+          for name, digest in expected.items():
+              assert hashlib.sha256((root / name).read_bytes()).hexdigest() == digest
+          PYTHON
+      - name: Acquire the same 182 reviewed SDK archives in this disposable job
+        run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/fetch_sdk.py"
+      - name: Provision the unchanged SDK closure through its offline namespace installer
+        run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/install_sdk.py"
+      - name: Test fixed runtime metadata and process ownership controls
+        run: python3 -I -B studio/integration/silex-native-runtime/test_inventory.py -v
+      - name: Inventory fixed runtime prerequisites without installation or execution
+        run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-runtime/inventory.py"
+      - name: Observe isolated admission and public synthetic network calibration without an application
+        run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-runtime/isolation.py"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: silex-native-sdk-isolation-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/silex-native-sdk-fetch.json
+            ${{ runner.temp }}/silex-native-sdk-install.json
+            ${{ runner.temp }}/silex-native-sdk-install-root.json
+            ${{ runner.temp }}/silex-native-runtime-inventory.json
+            ${{ runner.temp }}/silex-native-isolation.json
           retention-days: 14
           if-no-files-found: warn
 
