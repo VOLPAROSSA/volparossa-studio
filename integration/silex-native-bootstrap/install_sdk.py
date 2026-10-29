@@ -426,6 +426,21 @@ def admission_stage(report, stage):
     return report['admission_diagnostic']
 
 
+def ipv4_shape(raw):
+    """Public shape ONLY; this diagnostic never grants route acceptance."""
+    require(type(raw) is bytes)
+    bytes_clipped = len(raw) > 16384
+    nonempty = [line for line in raw[:16384].splitlines() if line.strip()]
+    lines_clipped = len(nonempty) > 32
+    header = (b'Iface', b'Destination', b'Gateway', b'Flags', b'RefCnt', b'Use',
+              b'Metric', b'Mask', b'MTU', b'Window', b'IRTT')
+    complete = not bytes_clipped and not lines_clipped
+    return dict(ipv4_bytes=min(len(raw), 16384), ipv4_bytes_clipped=bytes_clipped,
+                ipv4_line_count=min(len(nonempty), 32), ipv4_lines_clipped=lines_clipped,
+                ipv4_header_only=complete and len(nonempty) == 1 and tuple(nonempty[0].split()) == header,
+                ipv4_no_nonheader_entries=complete and all(tuple(line.split()) == header for line in nonempty))
+
+
 def root_admission(report, privileged_argument):
     """The SAME read-only guards for installation and explicit admission proof."""
     admission_stage(report, 'python_identity')
@@ -471,6 +486,7 @@ def root_admission(report, privileged_argument):
     routes4 = Path('/proc/net/route').read_bytes()
     routes6 = Path('/proc/net/ipv6_route').read_bytes()
     admission_stage(report, 'network_state')
+    report['admission_diagnostic'].update(ipv4_shape(routes4))
     report['admission_diagnostic'].update(kernel_bytes_bounded=max(len(interfaces), len(routes4), len(routes6)) <= 16384,
         loopback_only={line.split(b':', 1)[0].strip() for line in interfaces.splitlines() if b':' in line} == {b'lo'},
         ipv4_routes_absent=len(routes4.splitlines()) == 1,
@@ -616,11 +632,15 @@ def check_root(value, revision, records):
 
 def check_admission_diagnostic(value):
     require(type(value) is dict and value.keys() <= {'substage', 'canonical', 'owner_allowed', 'mode_safe',
-        'ancestor_depth', 'kernel_bytes_bounded', 'loopback_only', 'ipv4_routes_absent', 'ipv6_routes_loopback_only'}
+        'ancestor_depth', 'kernel_bytes_bounded', 'loopback_only', 'ipv4_routes_absent', 'ipv6_routes_loopback_only',
+        'ipv4_bytes', 'ipv4_bytes_clipped', 'ipv4_line_count', 'ipv4_lines_clipped',
+        'ipv4_header_only', 'ipv4_no_nonheader_entries'}
         and value.get('substage') in ADMISSION_STAGES)
     for key, item in value.items():
         if key == 'ancestor_depth':
             require(type(item) is int and 0 <= item <= 32)
+        elif key in ('ipv4_bytes', 'ipv4_line_count'):
+            require(type(item) is int and 0 <= item <= (16384 if key == 'ipv4_bytes' else 32))
         elif key != 'substage':
             require(type(item) is bool)
 

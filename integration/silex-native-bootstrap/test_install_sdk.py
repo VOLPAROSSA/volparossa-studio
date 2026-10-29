@@ -445,6 +445,34 @@ class InstallSdkTests(unittest.TestCase):
             with self.subTest(value=bad), self.assertRaises(sdk.Rejected):
                 sdk.check_admission_diagnostic(bad)
 
+    def test_ipv4_shape_is_bounded_public_diagnostic_and_does_not_accept_routes(self):
+        header = b'Iface\tDestination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT\n'
+        entry = b'public-fixture 00000000 0100007F 0003 0 0 0 00000000 0 0 0\n'
+        for raw, count, header_only, no_entries in (
+                (b'', 0, False, True), (header, 1, True, True),
+                (b' \t\n\n', 0, False, True), (header + b'\n \t\n', 1, True, True),
+                (header + entry, 2, False, False), (entry, 1, False, False)):
+            with self.subTest(raw=raw):
+                value = sdk.ipv4_shape(raw)
+                self.assertEqual(value, dict(ipv4_bytes=len(raw), ipv4_bytes_clipped=False,
+                    ipv4_line_count=count, ipv4_lines_clipped=False,
+                    ipv4_header_only=header_only, ipv4_no_nonheader_entries=no_entries))
+                sdk.check_admission_diagnostic(dict(substage='network_state', **value))
+        for raw, byte_clipped, line_clipped in ((b'x' * 16385, True, False), (header * 33, False, True)):
+            value = sdk.ipv4_shape(raw)
+            self.assertEqual(value['ipv4_bytes_clipped'], byte_clipped)
+            self.assertEqual(value['ipv4_lines_clipped'], line_clipped)
+            self.assertLessEqual(value['ipv4_bytes'], 16384)
+            self.assertLessEqual(value['ipv4_line_count'], 32)
+            self.assertIs(value['ipv4_header_only'], False)
+            self.assertIs(value['ipv4_no_nonheader_entries'], False)
+            sdk.check_admission_diagnostic(dict(substage='network_state', **value))
+        for bad in ({'ipv4_bytes': True}, {'ipv4_bytes': 16385}, {'ipv4_line_count': 33},
+                    {'ipv4_line_count': False}, {'ipv4_header_only': 1},
+                    {'ipv4_raw': entry.decode()}, {'ipv4_interface': 'public-fixture'}):
+            with self.subTest(bad=bad), self.assertRaises(sdk.Rejected):
+                sdk.check_admission_diagnostic(dict(substage='network_state', **bad))
+
 
 if __name__ == '__main__':
     unittest.main()
