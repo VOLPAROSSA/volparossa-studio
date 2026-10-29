@@ -63,7 +63,7 @@ offline locked native release using the existing authenticated carriers and SDK.
 The normal SDK receipts and fresh installed-version query gate the build helper.
 Full metadata has its own single-group scope; all owned groups participate in
 terminal cleanup. Accounting and terminal handoff preserve the first failure and
-reject queued cancellation before committing a success receipt. Sixteen caller
+reject queued cancellation before committing a success receipt. Twenty-one caller
 controls include the actual shared source-checker hook and cancellation seams.
 
 The source snapshot allows only four existing generated schema paths to change;
@@ -73,3 +73,12 @@ privately and never launched or uploaded. Five JSON receipts only are artifacts.
 Application execution, GUI/privacy, actual dashboard CRUD, native signing consent,
 publication, redistribution, release and full Studio acceptance remain false.
 The earlier native66f genuine-dashboard build remains separate evidence.
+
+The first native composition40829260837 failed with E0599: locked Reqwest0.13.2
+requires an optional query feature for RequestBuilder.query. The corrected MCP
+call uses the existing url dependency; all Cargo manifests and locks stay fixed.
+After the release compile, three actual desktop-bin tests verify query encoding,
+closed parse errors and POST construction without sending a request. Their exact
+names/counts and zero ignored/filtered cases gate acceptance. Test binaries are
+separate from application startup; no GUI or MCP network session is inferred.
+The unchanged server source closure reuses its32-test result from40826860067.

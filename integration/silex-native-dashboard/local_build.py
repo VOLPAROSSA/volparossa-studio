@@ -19,16 +19,22 @@ PINS = {
     BOOTSTRAP / 'native_build.py': '9d8d45fe88922ced9ee43a0465177343f7b3757f6e9a28dc30884b0e3a03f51c',
     BOOTSTRAP / 'prepare.py': 'b805e7ddfedba9bbd6f677b992765f681c05e22f174de2603c3ca817034567f6',
     HERE / 'check.py': '42fbd5e85d74681634c7316197202dbe71372bc6b862dca38f604c6a487f1c26',
-    FS / 'proof.py': '6beda07a041b558130f09e7760421897598cfc05ccb17a5742ca7471ded6294c',
+    FS / 'proof.py': '142facde5d2d30a62db546b2ea9078f97c5dae20b4857ca31263b21ee317eed7',
     FS / 'prepare.py': 'd2f1cd0d964f4d89d932ab4d26201cc9d8eae0a97408087d1f102b9331bb4f3e',
-    FS / 'manifest.json': '99a5893dea431b0f0be38d97d0b0b342e0b3c7a8ad191b9e05ab158a7ce195aa',
+    FS / 'manifest.json': 'ca7f1b9b04fb7e5be36c4ed44511ae5950185df4e4572918c7a0530302e96edc',
 }
 ASSETS = frozenset(('public/index.html', 'public/dashboard.css', 'public/dashboard.js'))
+DESKTOP_URL_CASES = frozenset('mcp::tests::' + name for name in (
+    'rename_endpoint_encodes_only_fixed_query_fields',
+    'rename_endpoint_rejects_invalid_base_without_echoing_input',
+    'rename_endpoint_builds_post_without_optional_reqwest_query_feature',
+))
 FALSE_FLAGS = ('application_executed', 'native_gui_verified', 'native_runtime_acceptance',
                'full_application_privacy', 'full_studio_acceptance', 'publication_authorized',
                'redistribution_acceptance', 'locked_dependency_acceptance', 'volparossa_updates_verified',
                'system_packages_installed_by_this_helper', 'whole_source_tree_unchanged',
-               'real_dashboard_crud_proven', 'native_signing_consent_proven')
+               'real_dashboard_crud_proven', 'native_signing_consent_proven',
+               'server_lib_tests_executed_by_this_helper')
 
 
 def require(value):
@@ -188,6 +194,60 @@ def build_frontend(native, node, pnpm, work, source, env, deadline, groups, life
     return native.frontend_inventory(source / 'dist/client')
 
 
+def desktop_url_command(temporary):
+    return [str(temporary / 'volparossa-rust-1.99.1/bin/cargo'), 'test', '--offline', '--locked', '--release',
+            '-p', 'silex-desktop', '--bin', 'silex-desktop', '--', '--test-threads=1']
+
+
+def desktop_url_result(raw):
+    """Only a complete exact three-case suite can produce a closed observation."""
+    require(len(raw) <= 16 * 1024 * 1024)
+    text = raw.decode('utf-8', errors='strict')
+    require(len(re.findall(r'^running ', text, re.MULTILINE)) == 1
+            and len(re.findall(r'^test (?!result:)', text, re.MULTILINE)) == 3
+            and len(re.findall(r'^test result:', text, re.MULTILINE)) == 1)
+    require(re.findall(r'^running ([0-9]+) tests?$', text, re.MULTILINE) == ['3'])
+    rows = re.findall(r'^test ([A-Za-z0-9_:]+) \.\.\. (ok|FAILED|ignored)$', text, re.MULTILINE)
+    require(len(rows) == 3 and {name for name, _ in rows} == DESKTOP_URL_CASES)
+    passed = sum(status == 'ok' for _, status in rows)
+    failed = sum(status == 'FAILED' for _, status in rows)
+    ignored = sum(status == 'ignored' for _, status in rows)
+    summaries = re.findall(r'^test result: (ok|FAILED)\. ([0-9]+) passed; ([0-9]+) failed; '
+        r'([0-9]+) ignored; 0 measured; 0 filtered out; finished in [0-9.]+s$', text, re.MULTILINE)
+    require(summaries == [('FAILED' if failed else 'ok', str(passed), str(failed), str(ignored))])
+    return dict(schema=1, status='passed' if passed == 3 else 'failed', tests=3, passed=passed,
+        failed=failed, ignored=ignored, filtered=0,
+        failed_cases=sorted(name for name, status in rows if status == 'FAILED'),
+        output_sha256=hashlib.sha256(raw).hexdigest(), output_bytes=len(raw))
+
+
+def desktop_url_tests(native, temporary, source, work, env, deadline, groups, lifecycle, report):
+    unit = work / 'desktop-unit'
+    unit.mkdir(mode=0o700)
+    (unit / 'logs').mkdir(mode=0o700)
+    log = unit / 'logs/native-cargo.log'
+    try:
+        native.actor(desktop_url_command(temporary), env, source, deadline, groups, lifecycle,
+                     log=log, seconds=600)
+    except BaseException as error:
+        clipped = isinstance(error, native.Rejected) and error.kind == 'output_limit'
+        if not clipped:
+            try:
+                report['desktop_url_test_result'] = desktop_url_result(native.read_file(log, 16 * 1024 * 1024, modes=(0o600,)))
+                report['desktop_unit_test_binary_executed'] = True
+            except BaseException:
+                pass
+        try:
+            report['desktop_url_test_compiler_diagnostic'] = native.compiler_diagnostic(unit, clipped=clipped)
+        except BaseException:
+            pass  # Optional observations never replace the actual owned-actor failure.
+        raise
+    observed = desktop_url_result(native.read_file(log, 16 * 1024 * 1024, modes=(0o600,)))
+    report.update(desktop_url_test_result=observed, desktop_unit_test_binary_executed=True)
+    require(observed['status'] == 'passed')
+    report['desktop_url_tests_passed'] = True
+
+
 def main():
     require(sys.flags.isolated == 1 and sys.flags.dont_write_bytecode == 1
             and sys.argv == [str(HERE / 'local_build.py')]
@@ -228,6 +288,8 @@ def main():
         authenticated_node=False, frontend_built=False, frontend_assets=0, frontend_bytes=0,
         frontend_inventory_sha256=None, generated_schema_changes=[], immutable_source_inputs_preserved=False,
         native_build=False, binary=None, compiler_diagnostic=None, private_compile_only=True,
+        release_compilation_passed=False, desktop_url_tests_passed=False, desktop_url_test_result=None,
+        desktop_unit_test_binary_executed=None, desktop_url_test_compiler_diagnostic=None,
         compiled_target_retained=False, main_owned_group_count=0,
         main_owned_groups_joined=False, owned_group_count=0, owned_groups_joined=False,
         owner_scope='main_and_metadata_process_groups', private_tool_tree_removed=False,
@@ -315,6 +377,9 @@ def main():
         report['stage'] = 'native_release_compile'
         native.actor(native.release_command(temporary), env, source, deadline, groups, lifecycle,
                      log=work / 'logs/native-cargo.log', seconds=1500)
+        report['release_compilation_passed'] = True
+        report['stage'] = 'desktop_url_tests'
+        desktop_url_tests(native, temporary, source, work, env, deadline, groups, lifecycle, report)
         report['stage'] = 'source_after'
         report['generated_schema_changes'] = native.source_check(source, before, extras, rows, env, deadline, groups, lifecycle)
         require(native.frontend_inventory(source / 'dist/client') == frontend)

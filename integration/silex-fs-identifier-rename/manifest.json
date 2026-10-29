@@ -4,8 +4,8 @@
   "files": {
     "desktop/src-tauri/src/mcp.rs": {
       "after": {
-        "bytes": 37460,
-        "sha256": "e8a1b381e0317f132cf36e1138e6d2e4de71c0951c82a7b1ad14272e43baff7d",
+        "bytes": 39881,
+        "sha256": "56792b660815876df76b73b17ca121b30ea7fb51f414c54df929938d6670c685",
         "mode": "100644"
       },
       "before": {
@@ -121,9 +121,9 @@
   },
   "operation": "fs_identifier_name_rename",
   "patch": {
-    "bytes": 66608,
+    "bytes": 69335,
     "path": "patches/fs-identifier-rename.patch",
-    "sha256": "6a79621066a65151924fba4eca2b2eef8d9f12ec1b808d0aebf11094874d5274"
+    "sha256": "18553993c8334a3479f9d3acb7c8b8070433471d537e10601f6435d2260dd3d0"
   },
   "root_lock_sha256": "de04aaf5ff1acbdde421e3447ea67f3eb7a00a7d5ed118f4387a180e84590118",
   "schema": 1,

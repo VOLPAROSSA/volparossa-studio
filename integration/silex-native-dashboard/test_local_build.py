@@ -3,7 +3,9 @@
 import copy
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
+import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
@@ -36,6 +38,15 @@ def metadata_native(groups, failure=None, count=563):
     return SimpleNamespace(actor=Mock(side_effect=actor),
         SUPPORT=SimpleNamespace(metadata=Mock(), read=Mock(return_value=b'pinned lock'),
                                 ledger=Mock(return_value=(1, {i: None for i in range(count)}))))
+
+
+def desktop_output(failed=(), ignored=()):
+    names = sorted(M.DESKTOP_URL_CASES)
+    return (b'private synthetic diagnostic must not be projected\n' +
+        ('running 3 tests\n' + ''.join('test ' + name + ' ... ' +
+            ('FAILED' if name in failed else 'ignored' if name in ignored else 'ok') + '\n' for name in names) +
+         f'test result: {"FAILED" if failed else "ok"}. {3-len(failed)-len(ignored)} passed; '
+         f'{len(failed)} failed; {len(ignored)} ignored; 0 measured; 0 filtered out; finished in 0.02s\n').encode())
 
 
 class LocalBuildTests(unittest.TestCase):
@@ -309,6 +320,86 @@ class LocalBuildTests(unittest.TestCase):
                 self.assertEqual(report['status'], 'failed')
                 self.assertEqual([call.args[0] for call in masks.call_args_list],
                                  [M.signal.SIG_BLOCK, M.signal.SIG_SETMASK])
+
+    def test_desktop_command_runs_only_the_offline_locked_release_test_harness(self):
+        self.assertEqual(M.desktop_url_command(Path('/private')), [
+            '/private/volparossa-rust-1.99.1/bin/cargo', 'test', '--offline', '--locked', '--release',
+            '-p', 'silex-desktop', '--bin', 'silex-desktop', '--', '--test-threads=1'])
+        self.assertEqual(M.DESKTOP_URL_CASES, {'mcp::tests::' + name for name in (
+            'rename_endpoint_encodes_only_fixed_query_fields',
+            'rename_endpoint_rejects_invalid_base_without_echoing_input',
+            'rename_endpoint_builds_post_without_optional_reqwest_query_feature')})
+
+    def test_desktop_parser_requires_exact_three_cases_and_projects_only_closed_counts_and_names(self):
+        raw = desktop_output()
+        result = M.desktop_url_result(raw)
+        self.assertEqual(result['status'], 'passed')
+        self.assertEqual((result['tests'], result['passed'], result['failed'], result['ignored'], result['filtered']), (3, 3, 0, 0, 0))
+        self.assertEqual(result['output_sha256'], hashlib.sha256(raw).hexdigest())
+        self.assertNotIn('private synthetic', json.dumps(result))
+        failed = sorted(M.DESKTOP_URL_CASES)[0]
+        result = M.desktop_url_result(desktop_output(failed=(failed,)))
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['failed_cases'], [failed])
+        self.assertEqual((result['passed'], result['failed']), (2, 1))
+
+    def test_desktop_parser_refuses_unknown_duplicate_filtered_incomplete_or_mismatched_suites(self):
+        raw = desktop_output()
+        first, second, _ = sorted(M.DESKTOP_URL_CASES)
+        for bad in (raw.replace(first.encode(), b'unreviewed::case'), raw.replace(first.encode(), second.encode()),
+                    raw.replace(b'3 passed', b'2 passed'), raw.replace(b'0 filtered out', b'1 filtered out'),
+                    raw + raw, raw.replace(b'running 3 tests', b'running 2 tests'),
+                    raw.replace(b'test result: ok.', b'test result: FAILED.'),
+                    raw[:raw.index(b'test result:')], raw + b'running malformed extra suite\n',
+                    raw + b'test mcp::tests::phantom ... malformed\n', raw + b'test result: malformed extra summary\n',
+                    b'x' * (16 * 1024 * 1024 + 1)):
+            with self.subTest(bytes=len(bad)), self.assertRaises(RuntimeError):
+                M.desktop_url_result(bad)
+
+    def test_desktop_success_requires_no_ignored_cases_even_after_zero_actor_exit(self):
+        for ignored in ((), (sorted(M.DESKTOP_URL_CASES)[0],)):
+            with self.subTest(ignored=ignored), tempfile.TemporaryDirectory() as directory:
+                native = SimpleNamespace(actor=Mock(return_value=b''), Rejected=NativeRejected,
+                    read_file=Mock(return_value=desktop_output(ignored=ignored)))
+                report = dict(desktop_url_tests_passed=False, desktop_unit_test_binary_executed=None)
+                work = Path(directory)
+                if ignored:
+                    with self.assertRaises(RuntimeError):
+                        M.desktop_url_tests(native, Path('/private'), Path('/source'), work, {}, 100, [], object(), report)
+                    self.assertIs(report['desktop_url_tests_passed'], False)
+                    self.assertEqual(report['desktop_url_test_result']['ignored'], 1)
+                else:
+                    M.desktop_url_tests(native, Path('/private'), Path('/source'), work, {}, 100, [], object(), report)
+                    self.assertIs(report['desktop_url_tests_passed'], True)
+                self.assertIs(report['desktop_unit_test_binary_executed'], True)
+                self.assertEqual(native.actor.call_args.kwargs['log'], work / 'desktop-unit/logs/native-cargo.log')
+                self.assertEqual((work / 'desktop-unit/logs').stat().st_mode & 0o777, 0o700)
+                native.read_file.assert_called_once_with(work / 'desktop-unit/logs/native-cargo.log',
+                                                       16 * 1024 * 1024, modes=(0o600,))
+
+    def test_desktop_failure_observers_preserve_original_and_never_invent_execution_from_compile_failure(self):
+        for structured, clipped in ((True, False), (False, False), (True, True)):
+            with self.subTest(structured=structured, clipped=clipped), tempfile.TemporaryDirectory() as directory:
+                original = NativeRejected('original desktop test actor failure')
+                original.kind = 'output_limit' if clipped else 'child_failed'
+                native = SimpleNamespace(actor=Mock(side_effect=original), Rejected=NativeRejected,
+                    read_file=Mock(return_value=desktop_output(failed=(sorted(M.DESKTOP_URL_CASES)[0],)) if structured else b'compiler error only'),
+                    compiler_diagnostic=Mock(side_effect=RuntimeError('private optional observer failure')))
+                report = dict(desktop_url_tests_passed=False, desktop_unit_test_binary_executed=None,
+                              desktop_url_test_result=None, desktop_url_test_compiler_diagnostic=None)
+                work = Path(directory)
+                with self.assertRaises(NativeRejected) as caught:
+                    M.desktop_url_tests(native, Path('/private'), Path('/source'), work, {}, 100, [], object(), report)
+                self.assertIs(caught.exception, original)
+                self.assertIs(report['desktop_url_tests_passed'], False)
+                self.assertEqual(report['desktop_unit_test_binary_executed'], True if structured and not clipped else None)
+                if structured and not clipped:
+                    self.assertEqual(report['desktop_url_test_result']['failed'], 1)
+                else:
+                    self.assertIsNone(report['desktop_url_test_result'])
+                if clipped:
+                    native.read_file.assert_not_called()
+                native.compiler_diagnostic.assert_called_once_with(work / 'desktop-unit', clipped=clipped)
 
 
 if __name__ == '__main__':

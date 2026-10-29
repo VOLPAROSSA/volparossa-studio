@@ -1,7 +1,26 @@
 diff --git a/desktop/src-tauri/src/mcp.rs b/desktop/src-tauri/src/mcp.rs
 --- a/desktop/src-tauri/src/mcp.rs
 +++ b/desktop/src-tauri/src/mcp.rs
-@@ -502,13 +502,11 @@
+@@ -25,6 +25,18 @@
+ use tokio::sync::oneshot;
+ 
+ use crate::AppState;
++
++// The locked reqwest feature set does not expose RequestBuilder::query.
++// Use the already declared url dependency without expanding Cargo features.
++fn rename_website_url(base_url: &str, website_id: &str) -> Result<url::Url, McpError> {
++    let mut endpoint = url::Url::parse(&format!("{base_url}/api/website/rename"))
++        .map_err(|_| McpError::internal_error("Invalid local website endpoint", None))?;
++    endpoint
++        .query_pairs_mut()
++        .append_pair("websiteId", website_id)
++        .append_pair("connectorId", "fs-storage");
++    Ok(endpoint)
++}
+ 
+ // ==========================================================================
+ // Shared state
+@@ -502,13 +514,10 @@
                      .name
                      .as_deref()
                      .ok_or_else(|| McpError::invalid_params("name is required", None))?;
@@ -9,15 +28,15 @@ diff --git a/desktop/src-tauri/src/mcp.rs b/desktop/src-tauri/src/mcp.rs
 -                    "{}/api/website/meta?websiteId={}&connectorId=fs-storage",
 -                    base_url, wid
 -                );
-+                let url = format!("{}/api/website/rename", base_url);
++                let url = rename_website_url(&base_url, wid)?;
                  let body = serde_json::json!({ "name": name });
                  match client
-                     .post(&url)
-+                    .query(&[("websiteId", wid), ("connectorId", "fs-storage")])
+-                    .post(&url)
++                    .post(url)
                      .header("Content-Type", "application/json")
                      .body(body.to_string())
                      .send()
-@@ -517,7 +515,7 @@
+@@ -517,7 +526,7 @@
                      Ok(resp) => {
                          if resp.status().is_success() {
                              Ok(CallToolResult::success(vec![Content::text(
@@ -26,6 +45,62 @@ diff --git a/desktop/src-tauri/src/mcp.rs b/desktop/src-tauri/src/mcp.rs
                              )]))
                          } else {
                              let body = resp.text().await.unwrap_or_default();
+@@ -866,3 +875,55 @@
+         }
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::rename_website_url;
++
++    #[test]
++    fn rename_endpoint_encodes_only_fixed_query_fields() {
++        for id in [
++            "e88c8b28-20d8-4f61-a684-ecf375198cc6",
++            "site&connectorId=other?#/% +",
++            "public-界🦊",
++        ] {
++            let endpoint = rename_website_url("http://127.0.0.1:6805", id).unwrap();
++            assert_eq!(endpoint.scheme(), "http");
++            assert_eq!(endpoint.host_str(), Some("127.0.0.1"));
++            assert_eq!(endpoint.port(), Some(6805));
++            assert_eq!(endpoint.path(), "/api/website/rename");
++            assert!(endpoint.fragment().is_none());
++            assert_eq!(
++                endpoint.query_pairs().into_owned().collect::<Vec<_>>(),
++                vec![
++                    ("websiteId".to_owned(), id.to_owned()),
++                    ("connectorId".to_owned(), "fs-storage".to_owned()),
++                ]
++            );
++        }
++    }
++
++    #[test]
++    fn rename_endpoint_rejects_invalid_base_without_echoing_input() {
++        let error = rename_website_url("://PRIVATE-fixture-token", "public-id").unwrap_err();
++        assert_eq!(error.message, "Invalid local website endpoint");
++        assert!(error.data.is_none());
++    }
++
++    #[test]
++    fn rename_endpoint_builds_post_without_optional_reqwest_query_feature() {
++        let endpoint = rename_website_url("http://127.0.0.1:6805", "public-id").unwrap();
++        let request = reqwest::Client::new()
++            .post(endpoint)
++            .header("Content-Type", "application/json")
++            .body(r#"{"name":"Public fixture"}"#)
++            .build()
++            .unwrap();
++        assert_eq!(request.method(), reqwest::Method::POST);
++        assert_eq!(request.url().path(), "/api/website/rename");
++        assert_eq!(
++            request.body().and_then(|body| body.as_bytes()),
++            Some(br#"{"name":"Public fixture"}"#.as_slice())
++        );
++    }
++}
 diff --git a/server-rust/src/connectors/fs_hosting.rs b/server-rust/src/connectors/fs_hosting.rs
 --- a/server-rust/src/connectors/fs_hosting.rs
 +++ b/server-rust/src/connectors/fs_hosting.rs
