@@ -13,6 +13,11 @@ import unittest
 from unittest.mock import Mock, patch
 
 HERE = Path(__file__).resolve().parent
+OBSERVED_MIRRORS = (
+    b'http://azure.archive.ubuntu.com/ubuntu/\tpriority:1\n'
+    b'https://archive.ubuntu.com/ubuntu/\tpriority:2\n'
+    b'https://security.ubuntu.com/ubuntu/\tpriority:3\n'
+)
 sys.path.insert(0, str(HERE))
 try:
     import fetch_sdk as sdk
@@ -105,7 +110,7 @@ class SdkFetchTests(unittest.TestCase):
     def test_only_observed_public_apt_uris_and_fixed_mirror_descriptor_are_admitted(self):
         records = {'aa': record()}
         sdk.verify_uris(uris(records), records)
-        mirrors = (sdk.ARCHIVE_ORIGIN + '/ubuntu priority:1\n').encode()
+        mirrors = OBSERVED_MIRRORS
         sdk.verify_uris(uris(records, mirror=True), records, mirrors)
         for bad in (uris(records).replace(b'azure.archive.ubuntu.com', b'private.invalid'),
                     uris(records).replace(b'http://', b'http://user:secret@'),
@@ -115,6 +120,43 @@ class SdkFetchTests(unittest.TestCase):
                     uris(records) + uris(records), b''):
             with self.subTest(bad=bad[:60]), self.assertRaises(sdk.support.Rejected):
                 sdk.verify_uris(bad, records, mirrors)
+
+    def test_exact_observed_mirror_bytes_and_priorities_gate_download_effects(self):
+        self.assertEqual(len(OBSERVED_MIRRORS), 144)
+        self.assertEqual(hashlib.sha256(OBSERVED_MIRRORS).hexdigest(),
+                         'e0d6b0af979e4662d16357a27ae456cc6f21e26da031540f4df8706ebed1d583')
+        self.assertEqual(sdk.public_mirror_list(OBSERVED_MIRRORS),
+                         (OBSERVED_MIRRORS.decode('ascii'), True))
+        records = {'aa': record()}
+        changed_lists = (
+            OBSERVED_MIRRORS.replace(b'https://archive.ubuntu.com', b'https://other.ubuntu.com'),
+            OBSERVED_MIRRORS.replace(b'https://archive.ubuntu.com', b'https://private.invalid'),
+            OBSERVED_MIRRORS.replace(b'/ubuntu/', b'/other/'),
+            OBSERVED_MIRRORS.replace(b'priority:2', b'priority:9'),
+            OBSERVED_MIRRORS.replace(b'\t', b' '),
+            b''.join(reversed(OBSERVED_MIRRORS.splitlines(keepends=True))),
+            OBSERVED_MIRRORS.splitlines(keepends=True)[0],
+            OBSERVED_MIRRORS.replace(b'http://azure', b'https://azure'),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            archives = Path(directory) / 'sdk-archives'
+            for changed in changed_lists:
+                invoke = Mock(side_effect=[metadata(records), uris(records, mirror=True)])
+                with self.subTest(changed=changed[:64]), \
+                        patch.object(sdk, 'system_read', return_value=changed), \
+                        self.assertRaises(sdk.support.Rejected):
+                    sdk.fetch(records, invoke, archives)
+                self.assertEqual(invoke.call_count, 2)
+                self.assertFalse(archives.exists())
+            invoke = Mock(side_effect=[metadata(records), uris(records, mirror=True), b''])
+            with patch.object(sdk, 'system_read', return_value=OBSERVED_MIRRORS), \
+                    patch.object(sdk, 'verify_archives', return_value=[]) as verify:
+                self.assertEqual(sdk.fetch(records, invoke, archives), [])
+            self.assertEqual(invoke.call_count, 3)
+            self.assertEqual(invoke.call_args.args[0],
+                             ['/usr/bin/apt-get', *sdk.APT_OPTIONS, 'download', 'aa=1.0-1'])
+            self.assertEqual(archives.stat().st_mode & 0o777, 0o700)
+            verify.assert_called_once_with(archives, records)
 
     def test_unobserved_public_mirror_is_diagnostic_only_and_denies_before_effects(self):
         records = {'aa': record()}

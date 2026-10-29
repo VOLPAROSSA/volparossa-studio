@@ -42,10 +42,14 @@ APT_OPTIONS = [
     '-o', 'Acquire::http::Timeout=20', '-o', 'Acquire::https::Timeout=20',
     '-o', 'Acquire::Retries=0',
 ]
-# The verified inventory run observed this exact Ubuntu archive origin and the
-# fixed system mirror-list descriptor. Unobserved fallback origins fail closed.
+# The inventory binds direct archive URIs. The later SDK trial 40809752563
+# retained the exact 144-byte root-owned mirror descriptor: HTTP Azure priority 1,
+# HTTPS archive priority 2 and HTTPS security priority 3, each at /ubuntu/.
+# Only those observed bytes admit mirror+file; other public text is diagnostic only.
 ARCHIVE_ORIGIN = 'http://azure.archive.ubuntu.com'
 MIRRORS = Path('/etc/apt/apt-mirrors.txt')
+MIRROR_LIST_BYTES = 144
+MIRROR_LIST_SHA256 = 'e0d6b0af979e4662d16357a27ae456cc6f21e26da031540f4df8706ebed1d583'
 
 
 def require(condition):
@@ -146,7 +150,6 @@ def public_mirror_list(raw):
     """Return only credential-free public Ubuntu mirror text eligible for diagnostics."""
     require(0 < len(raw) <= 4096)
     text = raw.decode('ascii', errors='strict')
-    origins = []
     for line in text.splitlines():
         tokens = line.split()
         require(tokens and len(tokens) <= 4)
@@ -156,8 +159,7 @@ def public_mirror_list(raw):
                 and uri.username is None and uri.password is None and uri.port is None
                 and not uri.query and not uri.fragment and uri.path.rstrip('/') == '/ubuntu'
                 and all(re.fullmatch(r'priority:[0-9]{1,3}', token) for token in tokens[1:]))
-        origins.append(tokens[0].rstrip('/'))
-    return text, all(origin == ARCHIVE_ORIGIN + '/ubuntu' for origin in origins)
+    return text, len(raw) == MIRROR_LIST_BYTES and hashlib.sha256(raw).hexdigest() == MIRROR_LIST_SHA256
 
 
 def verify_uris(raw, records, mirror_raw=None):
