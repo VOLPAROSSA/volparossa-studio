@@ -18,3 +18,17 @@ export function projectResponse(response, method, marker) {
   return body !== null && body.length <= 4 * 1024 * 1024 && body.includes(marker) &&
     body.includes('"font-size":"37px"');
 }
+
+// FsStorage may return HTTP 200 with a dangling reference when a page file is
+// absent. Confirm that this read actually includes the named page and its text.
+export async function containsSavedPage(response, marker) {
+  // Silex uses compression, so Content-Length can be absent. Apply the same
+  // project bound to the decoded body before parsing it.
+  const bytes = await response.body();
+  if (!bytes.length || bytes.length > 4 * 1024 * 1024) return false;
+  const data = JSON.parse(bytes.toString('utf8'));
+  if (!Array.isArray(data?.pages)) return false;
+  const pages = data.pages.filter(entry => entry?.name === 'Studio export');
+  return pages.length === 1 && Array.isArray(pages[0].frames) &&
+    JSON.stringify(pages[0].frames).includes(marker);
+}
