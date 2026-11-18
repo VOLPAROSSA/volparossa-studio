@@ -11,10 +11,11 @@ edit/preview/export-to-Core acceptance: a real page and text were edited at
 37px, previewed and reopened from filesystem storage in a fresh browser
 context. The restored editor exported a ZIP that the production Core
 `SiteBundle` path decoded, checking all four assets and rejecting overwrites.
-The fixture and its earlier failures are documented in
-[implementation status](docs/IMPLEMENTATION_STATUS.md). All fifteen complete
-Studio/hosting acceptance cases remain open; shared AI, independent hosting,
-signing/publication and dynamic execution are not accepted.
+A second trial signed the site using an ephemeral test identity, recovered it
+after a daemon process crash, and rendered the local signed preview in an
+independent browser. Native publication consent, independent peer hosting,
+shared AI and dynamic execution remain open.
+[Implementation status](docs/IMPLEMENTATION_STATUS.md)
 
 The complete [permanent Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/STUDIO_HOSTING_REQUIREMENTS.md)
 is part of the [full VOLPAROSSA goal](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md),

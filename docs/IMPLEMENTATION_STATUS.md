@@ -25,6 +25,22 @@ CSS, and rejection of overwrites. The fixture drained its processes and
 removed its temporary files. Receipt archive `14457193442` has SHA-256
 `d632130b6ac8b6be2b8e28d6655720f88c8b8d1d086a938f6c488af377655bd9`.
 
+## Local signed-site recovery — 2026-11-18
+
+On Studio `2c5e414507d9` and Core `7208e241af8f`, the reopened Silex editor
+exported a 1,478-byte ZIP. The real CLI packed and signed a four-asset,
+1,204-byte bundle with an ephemeral test identity. An agent with networking
+roles disabled imported it. After a forced process crash, its replacement
+reopened the same cache and exported the identical bundle. An independent
+Chromium instance rendered the edited text at 37px and verified all four
+assets and the preview's security headers. Six successful CLI operations,
+two rejected operations and both agent instances were joined. The browser,
+listener and private state were cleaned up. Independent peer hosting, public
+network publication, power-loss recovery and native publication consent remain
+open. Receipt archive `14458047882` has SHA-256
+`aa1d1d4c845f86aa36e363d6ea1c2375abcdde76883196cc41708910f2edcd68`.
+[Hosted signed-recovery run 44368339229](https://github.com/VOLPAROSSA/volparossa/actions/runs/44368339229)
+
 ## Ordinary source CI and dependency updates — 2026-10-27
 
 The proposed `Studio CI` workflow runs the stable `source-contracts` job on
