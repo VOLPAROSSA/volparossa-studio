@@ -4,6 +4,7 @@
 import { chromium } from 'playwright-core';
 import { writeFile, stat, link as hardLink } from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { attachChart, verifyChart, imagePath } from './topology-image.mjs';
 import { editorUrl, containsSavedPage, projectResponse } from './project-storage.mjs';
 
 const marker = 'VOLPAROSSA Studio manual export 20261022';
@@ -280,6 +281,8 @@ try {
   assert.equal(await text.innerText(), marker);
   stage = 'manual_style_font_verify';
   assert.equal(await text.evaluate(el => getComputedStyle(el).fontSize), '37px');
+  const chart = process.env.STUDIO_FIXTURE_IMAGE;
+  if (chart) await attachChart(page, frame, marker, chart, value => { stage = value; });
   stage = 'preview';
   // Use the ordinary preview toolbar. Reading computed CSS never changes models.
   await page.locator('.gjs-pn-btn.fa-eye').click();
@@ -298,7 +301,7 @@ try {
     page.waitForResponse(response => projectResponse(response, 'GET')),
     page.goto(editorUrl),
   ]);
-  assert.ok(await containsSavedPage(read, marker));
+  assert.ok(await containsSavedPage(read, marker, ...(chart ? [imagePath] : [])));
   stage = 'saved_editor_ready';
   await page.locator('.silex-loader').waitFor({ state: 'hidden' });
   await page.locator('#gjs:not(.silex-dialog-hide)').waitFor({ state: 'visible' });
@@ -316,6 +319,11 @@ try {
   assert.equal(await restoredText.innerText(), marker);
   assert.equal(await restoredText.evaluate(el => getComputedStyle(el).fontSize), '37px');
   receipt.saved_project_reopened = true;
+  if (chart) {
+    stage = 'saved_image_decode';
+    await verifyChart(page.frameLocator('.gjs-frame').first());
+    receipt.topology_image_reopened = true;
+  }
   stage = 'download_connector';
   await page.locator('[title^="Publish ("]').click();
   await page.getByText('Connected to', { exact: false }).waitFor();

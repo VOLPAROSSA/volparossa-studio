@@ -8,6 +8,8 @@ import re
 import stat
 
 MODE = 'signed-site-recovery'
+TOPOLOGY_MODE = 'signed-site-topology'
+SIGNED_MODES = (MODE, TOPOLOGY_MODE)
 TARGET = 'studio_signed_site_recovery'
 TEST = 'studio_signed_site_recovery_native_preview_and_browser'
 LEGACY_TEST = 'actual_silex_export_packs_and_decodes_without_publication'
@@ -17,9 +19,9 @@ MAX_CONTEXT = 16384
 def arguments(values):
     if len(values) == 3:
         return tuple(map(Path, values)), 'viewer'
-    if len(values) == 5 and values[3:] == ['--proof-mode', MODE]:
-        return tuple(map(Path, values[:3])), MODE
-    raise ValueError('three fixed paths and an optional explicit signed-site-recovery mode required')
+    if len(values) == 5 and values[3] == '--proof-mode' and values[4] in SIGNED_MODES:
+        return tuple(map(Path, values[:3])), values[4]
+    raise ValueError('three fixed paths and an optional explicit signed-site proof mode required')
 
 
 def unique_object(pairs):
@@ -38,11 +40,15 @@ def strict_json(data):
 
 
 def read_private(path, maximum):
+    return read_owned(path, maximum, private=True)
+
+
+def read_owned(path, maximum, *, private):
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
     with os.fdopen(descriptor, 'rb') as source:
         before = os.fstat(source.fileno())
         if (not stat.S_ISREG(before.st_mode) or before.st_uid != os.getuid()
-                or stat.S_IMODE(before.st_mode) != 0o600 or before.st_nlink != 1
+                or (private and stat.S_IMODE(before.st_mode) != 0o600) or before.st_nlink != 1
                 or not 0 <= before.st_size <= maximum):
             raise ValueError('bounded private owned regular file required')
         data = source.read(maximum + 1)
@@ -74,7 +80,7 @@ class CoreContext:
 def checked_signed_context(value):
     if (type(value) is not dict or set(value) != {'schema', 'proof_mode', 'core_root', 'executable'}
             or type(value['schema']) is not int or value['schema'] != 2
-            or value['proof_mode'] != MODE
+            or value['proof_mode'] not in SIGNED_MODES
             or any(type(value[key]) is not str for key in ('core_root', 'executable'))):
         raise ValueError('closed signed-site context required')
     root = Path(value['core_root'])
@@ -85,11 +91,11 @@ def checked_signed_context(value):
         raise ValueError('fixed signed-site compiler artifact required')
     for name in ('volparossa', 'volparossa-agent'):
         executable(root / 'target/debug' / name)
-    return CoreContext(MODE, executable(binary), root)
+    return CoreContext(value['proof_mode'], executable(binary), root)
 
 
-def write_signed_context(path, core, binary):
-    value = {'schema': 2, 'proof_mode': MODE, 'core_root': str(core.resolve()),
+def write_signed_context(path, core, binary, *, mode=MODE):
+    value = {'schema': 2, 'proof_mode': mode, 'core_root': str(core.resolve()),
              'executable': str(binary)}
     checked_signed_context(value)
     data = (json.dumps(value, sort_keys=True) + '\n').encode()

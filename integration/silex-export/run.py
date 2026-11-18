@@ -21,7 +21,9 @@ from lifecycle import GroupCaptureFailure, drain_group, start_group
 from runtime_context import write_context
 from viewer_receipt import (validate_viewer_proof, read_viewer_cleanup, read_viewer_diagnostic,
                             read_viewer_unit_diagnostic)
-from signed_site_profile import MODE as SIGNED_SITE_MODE, arguments
+from signed_site_profile import SIGNED_MODES, TOPOLOGY_MODE, arguments
+import topology_handoff
+from topology_image import write_chart
 from signed_site_controller import execute as execute_signed_site
 from signed_site_receipt import read_signed_diagnostic
 
@@ -319,8 +321,9 @@ def main():
     receipt = dict(schema=2, status='failed', stage='prepare', **refs,
                    silex_revision=PINS['silex']['commit'], network_published=False,
                    full_studio_acceptance=False, synthetic_only=True)
-    if proof_mode == SIGNED_SITE_MODE:
-        receipt.update(schema=3, proof_mode=SIGNED_SITE_MODE)
+    if proof_mode in SIGNED_MODES:
+        receipt.update(schema=3, proof_mode=proof_mode)
+    handoff_files = None
     temporary = Path(tempfile.mkdtemp(prefix='studio-export-', dir=os.environ['RUNNER_TEMP']))
     # Give SIGTERM the same finally/cleanup behavior as normal failure.
     def cancel(_signum, _frame):
@@ -381,6 +384,8 @@ def main():
         env['VOLPAROSSA_TEST_ALLOW_SUDO_NETNS'] = '1'
         # Sudo env_reset intentionally remains enabled. The fixed private file
         # is located from runtime.py itself and read only after privilege drop.
+        if proof_mode == TOPOLOGY_MODE:
+            env['STUDIO_FIXTURE_IMAGE'] = str(write_chart(temporary))
         write_context(temporary / 'runtime-context.json', env)
         run([core / 'scripts/run-isolated-test.sh', '--studio-nonroot-command', '/usr/bin/python3',
              'studio_export', 'VOLPAROSSA_HANDOFF_TEST_PARENT_NETNS', 'loopback', '-B', runtime_fixture / 'runtime.py'],
@@ -391,8 +396,11 @@ def main():
         receipt['runtime_cleanup'] = json.loads((temporary / 'runtime-cleanup.json').read_text())
         receipt['stage'] = 'bounded_actual_zip_extraction'
         extract(temporary / 'actual-export.zip', temporary / 'export', temporary / 'inventory.json')
-        if proof_mode == SIGNED_SITE_MODE:
-            execute_signed_site(core, temporary, runtime_fixture, env, receipt, run)
+        if proof_mode in SIGNED_MODES:
+            execute_signed_site(core, temporary, runtime_fixture, env, receipt, run, mode=proof_mode)
+            if proof_mode == TOPOLOGY_MODE:
+                receipt['stage'] = 'verify_topology_handoff'
+                handoff_files = topology_handoff.prepare(temporary, receipt, os.environ)
         else:
             run_legacy_viewer(core, temporary, runtime_fixture, env, receipt)
         receipt['status'], receipt['stage'] = 'passed', 'complete'
@@ -410,7 +418,7 @@ def main():
         # These logs belong to the exact child invocation. New mode never reads
         # an old viewer proof/diagnostic or falls back to its acceptance schema.
         try:
-            if proof_mode == SIGNED_SITE_MODE:
+            if proof_mode in SIGNED_MODES:
                 receipt['signed_site_diagnostic'] = read_signed_diagnostic(temporary / 'signed-site-core.log')
             else:
                 receipt['viewer_diagnostic'] = read_viewer_diagnostic(temporary / 'viewer-core.log')
@@ -431,9 +439,24 @@ def main():
                 raise
             finally:
                 receipt['temporary_outputs_removed'] = not temporary.exists()
-                with receipt_path.open('x') as output:
-                    json.dump(receipt, output, sort_keys=True)
-                    output.write('\n')
+                delivered = False
+                try:
+                    with receipt_path.open('x') as output:
+                        try:
+                            if handoff_files is not None and receipt['status'] == 'passed' and receipt['temporary_outputs_removed']:
+                                binding = topology_handoff.deliver(temporary.parent, handoff_files)
+                                delivered = True
+                                receipt['topology_handoff'] = {'evidence_sha256': binding}
+                        except Exception as error:
+                            receipt.update(status='failed', stage='topology_handoff', error_type=type(error).__name__)
+                            raise
+                        finally:
+                            json.dump(receipt, output, sort_keys=True)
+                            output.write('\n')
+                except BaseException:
+                    if delivered:
+                        shutil.rmtree(temporary.parent / topology_handoff.DESTINATION)
+                    raise
 
 
 def run_legacy_viewer(core, temporary, runtime_fixture, env, receipt):

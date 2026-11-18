@@ -10,7 +10,7 @@ import stat
 
 from lifecycle import drain_group, start_group
 from runtime_context import read_context, restored_environment
-from signed_site_profile import MODE as SIGNED_SITE_MODE, TEST as SIGNED_SITE_TEST, read_core_context
+from signed_site_profile import SIGNED_MODES, TOPOLOGY_MODE, TEST as SIGNED_SITE_TEST, read_core_context
 
 
 def read_viewer_context(path):
@@ -55,14 +55,16 @@ def main():
         VOLPAROSSA_HANDOFF_TEST_PARENT_NETNS=parent,
         VOLPAROSSA_STUDIO_EXPORT_DIRECTORY=str(temporary / 'export'),
         VOLPAROSSA_STUDIO_EXPORT_INVENTORY=str(temporary / 'inventory.json'))
-    if context.mode == SIGNED_SITE_MODE:
+    if context.mode in SIGNED_MODES:
         env.update(VOLPAROSSA_REQUIRE_STUDIO_SIGNED_SITE_PROOF='1',
                    GITHUB_ACTIONS='true', RUNNER_ENVIRONMENT='github-hosted')
+    if context.mode == TOPOLOGY_MODE:
+        env['VOLPAROSSA_STUDIO_PUBLIC_TOPOLOGY_HANDOFF'] = '1'
     def cancel(_signum, _frame):
         raise InterruptedError('cancelled')
     signal.signal(signal.SIGTERM, cancel)
     signal.signal(signal.SIGINT, cancel)
-    run_core_fixture(context.executable, temporary, env, signed=context.mode == SIGNED_SITE_MODE)
+    run_core_fixture(context.executable, temporary, env, signed=context.mode in SIGNED_MODES)
 
 
 def run_core_fixture(executable, temporary, env, *, signed=False):

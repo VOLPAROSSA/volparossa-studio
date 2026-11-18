@@ -3,7 +3,7 @@
 from pathlib import Path
 import re
 
-from signed_site_profile import TARGET, strict_json, write_signed_context
+from signed_site_profile import MODE, TARGET, strict_json, write_signed_context
 from signed_site_receipt import read_signed_proof
 from viewer_receipt import read_viewer_cleanup
 
@@ -31,7 +31,7 @@ def compiler_artifact(log, core):
     return artifacts[0]
 
 
-def execute(core, temporary, runtime_fixture, env, receipt, run):
+def execute(core, temporary, runtime_fixture, env, receipt, run, *, mode=MODE):
     # The agent integration target supplies CARGO_BIN_EXE_volparossa-agent; the
     # CLI is a separate package and must be built explicitly at its fixed path.
     receipt['stage'] = 'build_actual_signed_site_fixture'
@@ -41,7 +41,7 @@ def execute(core, temporary, runtime_fixture, env, receipt, run):
                TARGET, '--no-run', '--message-format=json'],
               temporary, env, 'core-build', timeout=900, cwd=core)
     binary = compiler_artifact(log, core)
-    write_signed_context(temporary / 'viewer-context.json', core, binary)
+    write_signed_context(temporary / 'viewer-context.json', core, binary, mode=mode)
     receipt['stage'] = 'actual_signed_site_recovery_preview_and_independent_browser'
     run([core / 'scripts/run-isolated-test.sh', '--studio-nonroot-command', '/usr/bin/python3',
          'studio_export', 'VOLPAROSSA_HANDOFF_TEST_PARENT_NETNS', 'loopback', '-B', runtime_fixture / 'viewer_runtime.py'],

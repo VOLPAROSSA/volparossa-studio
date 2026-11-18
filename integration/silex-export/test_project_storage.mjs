@@ -44,3 +44,13 @@ test('readback requires the edited page exactly once with its saved frames', asy
     assert.equal(await containsSavedPage({ body: async () => Buffer.alloc(length) }, marker), false);
   }
 });
+
+test('chart upload alone cannot satisfy the edited page save barrier', () => {
+  const image = '/assets/studio-topology.png';
+  const project = { assets: [{ src: image }], styles: [{ 'font-size': '37px' }],
+    pages: [{ name: 'Studio export', frames: [{ text: marker }] }] };
+  const observed = () => projectResponse(makeResponse({ body: Buffer.from(JSON.stringify(project)) }), 'POST', marker, image);
+  assert.equal(observed(), false);
+  project.pages[0].frames.push({ component: { type: 'image', src: image } });
+  assert.equal(observed(), true);
+});

@@ -4,6 +4,7 @@ import { chromium } from 'playwright-core';
 import { writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
+import { imagePath, verifyChart } from './topology-image.mjs';
 import { observeMarkerFailure } from './marker_failure.mjs';
 import { readViewerHandoff } from './viewer_handoff.mjs';
 
@@ -70,6 +71,7 @@ try {
   // Read-only computed layout observation, never setContent/evaluate mutations.
   assert.equal(await marker.evaluate(element => getComputedStyle(element).fontSize), '37px');
   receipt.computed_37px = true;
+  if (handoff.assets.some(asset => asset.path === imagePath)) await verifyChart(page, true);
   receipt.rendered_http_requests = requests;
   stage = 'assets';
   // Integrity of every exported asset is separate from those requested by the

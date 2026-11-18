@@ -35,6 +35,7 @@ class SignedProfileTests(unittest.TestCase):
         paths = ['/core', '/silex', '/receipt']
         self.assertEqual(profile.arguments(paths), ((Path('/core'), Path('/silex'), Path('/receipt')), 'viewer'))
         self.assertEqual(profile.arguments(paths + ['--proof-mode', profile.MODE])[1], profile.MODE)
+        self.assertEqual(profile.arguments(paths + ['--proof-mode', profile.TOPOLOGY_MODE])[1], profile.TOPOLOGY_MODE)
         for invalid in (paths[:2], paths + [profile.MODE], paths + ['--proof-mode', 'viewer'],
                         paths + ['--proof-mode', 'other'], ['--proof-mode', profile.MODE] + paths,
                         paths + ['--proof-mode', profile.MODE, '--retry']):
