@@ -7,12 +7,14 @@ work, without replacing that scope or the shared Core execution ledger.
 
 ## Save and reopen a project — 2026-11-18
 
-The editor fixture now waits for Silex's filesystem connector to acknowledge
-the synthetic text and 37px style. It closes the editing browser context,
-opens the project in a fresh context, selects the saved page by name and checks
-both edits in the canvas before exporting from that reopened project. The local
-checks exercise the response matcher and receipt validation. Actual editor
-reopening awaits the paired Core `studio_export_pack` run.
+[Run 44366437457](https://github.com/VOLPAROSSA/volparossa/actions/runs/44366437457)
+reached the acknowledged filesystem save and succeeded in the original editor
+preview. The fresh editor opened, then timed out during reopen verification.
+The receipt reports a visible empty canvas, zero failed requests and successful
+cleanup. The follow-up checks the reconstructed page in the filesystem read,
+selects it by Silex's keyboard shortcut and confirms its name in the toolbar
+before checking the restored text and font size. The original timeout does
+not identify which part of the combined reopen observation failed.
 
 ## Ordinary source CI and dependency updates — 2026-10-27
 

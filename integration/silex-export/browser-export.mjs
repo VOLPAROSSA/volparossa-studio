@@ -4,7 +4,7 @@
 import { chromium } from 'playwright-core';
 import { writeFile, stat, link as hardLink } from 'node:fs/promises';
 import assert from 'node:assert/strict';
-import { editorUrl, projectResponse } from './project-storage.mjs';
+import { editorUrl, containsSavedPage, projectResponse } from './project-storage.mjs';
 
 const marker = 'VOLPAROSSA Studio manual export 20261022';
 let stage = 'browser_start';
@@ -293,16 +293,23 @@ try {
   }
   await page.context().close();
   page = await openEditorPage();
-  await Promise.all([
+  stage = 'saved_project_read';
+  const [read] = await Promise.all([
     page.waitForResponse(response => projectResponse(response, 'GET')),
     page.goto(editorUrl),
   ]);
+  assert.ok(await containsSavedPage(read, marker));
+  stage = 'saved_editor_ready';
   await page.locator('.silex-loader').waitFor({ state: 'hidden' });
   await page.locator('#gjs:not(.silex-dialog-hide)').waitFor({ state: 'visible' });
-  // Reopening starts on the first page. Select the saved page through Silex's
-  // page panel, then export from this new editor instance.
-  await page.locator('[title^="Pages ("]').click();
-  await page.locator('.pages__page-name').filter({ hasText: /^\s*Studio export\s*$/ }).click();
+  // Silex reopens on the first page. Use its ordinary next-page command and
+  // confirm the active page in its toolbar before looking inside the canvas.
+  stage = 'saved_page_select';
+  const currentPage = page.locator('#gjs-website-meta .gjs-website-meta-name')
+    .filter({ hasText: /\| Studio export$/ });
+  if (!await currentPage.isVisible()) await page.keyboard.press('Control+Alt+j');
+  await currentPage.waitFor({ state: 'visible' });
+  stage = 'saved_canvas_verify';
   const restoredText = page.frameLocator('.gjs-frame').first()
     .locator('[data-gjs-type="text"].silex-default-text').filter({ hasText: marker });
   await restoredText.waitFor({ state: 'visible' });

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { projectResponse } from './project-storage.mjs';
+import { containsSavedPage, projectResponse } from './project-storage.mjs';
 
 const endpoint = 'http://127.0.0.1:6805/api/website?websiteId=default&connectorId=fs-storage';
 const marker = 'stored synthetic text';
@@ -28,4 +28,19 @@ test('reopen accepts the filesystem read with either query order and reads no pa
   assert.equal(projectResponse(makeResponse({ method: 'GET', url: reverse }), 'GET'), true);
   assert.equal(projectResponse(makeResponse({ method: 'GET', code: 304 }), 'GET'), false);
   assert.equal(projectResponse(makeResponse(), 'GET'), false);
+});
+
+test('readback requires the edited page exactly once with its saved frames', async () => {
+  const page = { name: 'Studio export', frames: [{ component: { content: marker } }] };
+  function read(pages) {
+    return { body: async () => Buffer.from(JSON.stringify({ pages })) };
+  }
+  assert.equal(await containsSavedPage(read([{ name: 'main' }, page]), marker), true);
+  for (const pages of [null, [], [page, page], [{ name: page.name, isFile: true }],
+    [{ ...page, name: 'main' }, { name: page.name, frames: [] }]]) {
+    assert.equal(await containsSavedPage(read(pages), marker), false);
+  }
+  for (const length of [0, 4 * 1024 * 1024 + 1]) {
+    assert.equal(await containsSavedPage({ body: async () => Buffer.alloc(length) }, marker), false);
+  }
 });
