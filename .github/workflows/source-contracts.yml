@@ -27,3 +27,6 @@ jobs:
         # test_contract parses every fixture Python source without running it.
         # test_wrapper_guard requires Core and stays in the separate Core trial.
         run: python3 -B -m unittest -v test_contract test_lifecycle test_runtime_context
+      - name: Check project save and reopen response matching
+        working-directory: integration/silex-export
+        run: node --test test_project_storage.mjs
