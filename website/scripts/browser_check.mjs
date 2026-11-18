@@ -222,10 +222,13 @@ async function render(browser, engine, {width, mode}) {
       await page.evaluate(() => document.fonts.ready);
     }
     if (mode === 'text-200') {
-      const base = await page.locator('html').evaluate(html => parseFloat(getComputedStyle(html).fontSize));
-      await page.locator('html').evaluate(html => html.style.fontSize = '200%');
-      const larger = await page.locator('html').evaluate(html => parseFloat(getComputedStyle(html).fontSize));
-      assert.equal(larger, base * 2, 'The 200% text-size scenario must increase the root font size');
+      const {base, larger} = await page.locator('#workflow .studio-section-copy p').evaluate(copy => {
+        const size = () => parseFloat(getComputedStyle(copy).fontSize);
+        const base = size();
+        document.documentElement.style.fontSize = '200%';
+        return {base, larger: size()};
+      });
+      assert.equal(larger, base * 2, 'The 200% text-size scenario must double the reading text');
     }
     assert(await page.getByRole('heading', {level: 1, name: 'Your canvas. Your website.'}).isVisible());
     const layout = await inspectLayout(page, {width, mode});
