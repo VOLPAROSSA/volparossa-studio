@@ -232,6 +232,17 @@ class SourceChecks(unittest.TestCase):
 
 
 class DiagnosticTests(unittest.TestCase):
+    def test_passing_editor_receipt_requires_saved_project_to_reopen(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'receipt.json'
+            for fields in ({}, {'saved_project_reopened': False}, {'saved_project_reopened': 1}):
+                path.write_text(json.dumps({'status': 'passed', **fields}))
+                with self.assertRaises(ValueError):
+                    read_browser_receipt(path)
+            receipt = {'status': 'passed', 'saved_project_reopened': True}
+            path.write_text(json.dumps(receipt))
+            self.assertEqual(read_browser_receipt(path), receipt)
+
     def value(self):
         return dict({key: 0 for key in DIAGNOSTIC_COUNTS},
             **{key: False for key in DIAGNOSTIC_FLAGS}, schema=1,

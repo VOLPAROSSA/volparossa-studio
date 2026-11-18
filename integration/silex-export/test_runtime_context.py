@@ -66,6 +66,18 @@ print(json.dumps(values,sort_keys=True))
             with self.assertRaises(ValueError):
                 read_context(path)
 
+    def test_optional_chart_must_be_the_fixed_file_in_this_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            path = temporary / 'runtime-context.json'
+            values = self.values(temporary)
+            values['STUDIO_FIXTURE_IMAGE'] = str(temporary / 'other.png')
+            with self.assertRaises(ValueError):
+                write_context(path, values)
+            values['STUDIO_FIXTURE_IMAGE'] = str(temporary / 'studio-topology.png')
+            write_context(path, values)
+            self.assertEqual(read_context(path), values)
+
     def test_reject_symlink_and_nonprivate_context(self):
         with tempfile.TemporaryDirectory(prefix='studio-export-') as directory:
             temporary = Path(directory)
