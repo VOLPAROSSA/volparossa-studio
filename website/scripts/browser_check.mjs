@@ -104,6 +104,9 @@ async function inspectLayout(page, {width, mode}) {
       heroEditor: rect('.studio-hero-editor'),
       workflowEditor: rect('.studio-workflow-editor'),
       workflowPhone: rect('.studio-workflow-phone'),
+      zip: rect('.studio-zip'),
+      speeches: ['.studio-ai-photo', '.studio-review-photo'].map(selector =>
+        rect(selector + ' figcaption')),
       illustratedTitles: [...hero.querySelectorAll('.studio-poster')].map(poster =>
         bounds([...poster.querySelectorAll('*')].find(element => element.textContent.replace(/\s+/g, ' ').trim() === 'Open Studio Saturday'))),
       posterTexts,
@@ -131,6 +134,9 @@ async function inspectLayout(page, {width, mode}) {
     assert(details.title.x < details.heroPoster.x && details.heroPoster.x < details.heroEditor.x &&
       details.heroEditor.y < details.heroPoster.y + details.heroPoster.height, 'Desktop poster and editor should sit side by side');
   }
+  assert(details.zip.height > details.zip.width, 'The ZIP export should resemble a portrait document');
+  assert(details.speeches.every(box => box.height > 0 && box.width > 0 && box.x >= 0 && box.x + box.width <= width + 1),
+    'Both portrait captions should be visible at every viewport size');
   assert.equal(details.posterTexts.length, 6);
   assert(details.posterTexts.every(text => text.replace(/\s+/g, ' ').includes(posterTitle)), 'Each preview needs the same poster title');
   assert.deepEqual(details.peerLabels.map(peer => peer.id).sort(), ['A', 'B', 'C', 'D']);
@@ -169,6 +175,11 @@ async function verifyImages(page) {
       await element.dispose();
     }
   }
+  const closing = page.locator('.studio-closing .studio-wall-scene img');
+  const source = await closing.evaluate(image => new URL(image.currentSrc).pathname.split('/').pop());
+  const portrait = await page.evaluate(() => matchMedia('(max-width:640px)').matches);
+  assert.match(source, portrait ? /^closing-portrait(?:-|\.)/ : /^closing(?:-\d|\.)/,
+    'The closing scene should use the courtyard window composition for this viewport');
   const ogImage = await page.locator('meta[property="og:image"]').getAttribute('content');
   const imagePath = new URL(ogImage).pathname;
   const dimensions = await page.evaluate(async (source) => {

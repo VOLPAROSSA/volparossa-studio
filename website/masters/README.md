@@ -1,10 +1,11 @@
 # Studio artwork
 
-These five local art masters were generated for VOLPAROSSA Studio with OpenAI ImageGen, using the project owner's supplied composition as the visual reference. The supplied concept is used only for design review. New pictures are used on the website. They portray a fictional workshop and illustrative people.
+These local art masters were generated for VOLPAROSSA Studio with OpenAI ImageGen, using the project owner's supplied composition as the visual reference. The supplied concept is used only for design review. New pictures are used on the website. They portray a fictional workshop and illustrative people.
 
 | Master | Art direction and use |
 | --- | --- |
-| wall.webp | Straight-on Mediterranean courtyard plaster with warm dappled light and overhanging leaves. Used for both ends of the page. Mobile uses a vertical crop of this master. |
+| wall.webp | Straight-on Mediterranean courtyard plaster with warm dappled light and overhanging leaves. Used in the opening section. Mobile uses a vertical crop of this master. |
+| closing.webp, closing-portrait.webp | The courtyard at the end of the page. Two compositions frame the trailing ivy, low afternoon light, downpipe and mullioned workshop window around the live poster. |
 | workshop.webp | Empty ceramics workbench with shelves, pots and daylight through a window. Every edition of the example poster and the selected public photo use this image. |
 | maker.webp | Artist reviewing work in a daylight studio. Used alongside the proposed programme change. |
 | reviewer.webp | Designer with glasses studying a printed proof. Used alongside the publication selection. |
