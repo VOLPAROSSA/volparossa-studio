@@ -2,6 +2,8 @@
 
 # VOLPAROSSA Studio
 
+[Explore the Studio product page](https://volparossa.org/volparossa-studio/) · [Website source and local preview](website/README.md)
+
 A Silex-based visual website editor with shared VOLPAROSSA publishing, hosting
 and AI assistance. The target is to create, preview, explicitly publish, update
 and maintain portable websites using the cooperative DICN infrastructure.

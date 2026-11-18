@@ -1,0 +1,11 @@
+{
+  "theme_commit": "d5d184b9f984914f632acc5bd4fa0c4e720b0b34",
+  "title": "VOLPAROSSA Studio · Your canvas. Your website.",
+  "description": "Explore visual website editing with Silex, portable ZIP export and VOLPAROSSA’s plans for shared AI and cooperative hosting.",
+  "social_alt": "Your canvas. Your website. The Open Studio Saturday poster hangs beside its selected heading in an illustrated Silex editor.",
+  "canonical": "https://volparossa.org/volparossa-studio/",
+  "project": "https://github.com/VOLPAROSSA/volparossa-studio",
+  "docs_url": "https://volparossa.org/docs/",
+  "evidence_url": "https://github.com/VOLPAROSSA/volparossa-studio/blob/main/docs/IMPLEMENTATION_STATUS.md",
+  "silex_url": "https://www.silex.me/"
+}

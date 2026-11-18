@@ -1,0 +1,236 @@
+<section class="studio-wall studio-hero" aria-labelledby="studio-title">
+  <div class="studio-wall-scene">{{wall_picture}}</div>
+  <div class="wrap studio-hero-grid">
+    <div class="studio-title-sheet">
+      <p class="studio-brand">VOLPAROSSA Studio</p>
+      <h1 id="studio-title"><span>Your canvas.</span> <span>Your website.</span></h1>
+      <p class="studio-hero-lead">Built on Silex. Extended by VOLPAROSSA.</p>
+      <p class="studio-silex-description">Silex is an open-source website editor.</p>
+      <div class="actions studio-actions">
+        <a class="button primary" href="#workflow">Explore the workflow {{next_arrow}}</a>
+        <a class="button ghost" href="{{docs_url}}">Documentation</a>
+      </div>
+      <p class="studio-hero-status">Integration in development</p>
+    </div>
+    <div class="pasted-poster">{{poster}}</div>
+    <figure class="studio-hero-editor">
+      {{hero_editor}}
+      <figcaption>Illustration of the Silex editor</figcaption>
+    </figure>
+    <div class="studio-fox-stamp" aria-hidden="true">{{fox_picture}}</div>
+  </div>
+</section>
+
+<section class="studio-band studio-workflow" id="workflow" aria-labelledby="workflow-title">
+  <div class="wrap studio-band-grid">
+    <div class="studio-section-copy">
+      <h2 id="workflow-title">Begin on the canvas.</h2>
+      <p>Select the heading, adjust its type size and see how the page reads on a phone.</p>
+    </div>
+    <div class="studio-workflow-views">
+      <div class="studio-workflow-editor">{{workflow_editor}}</div>
+      <div class="studio-workflow-phone">{{phone}}</div>
+    </div>
+  </div>
+</section>
+
+<section class="studio-band studio-export" id="export" aria-labelledby="export-title">
+  <div class="wrap studio-band-grid">
+    <div class="studio-section-copy">
+      <h2 id="export-title"><span>Preview it.</span> <span>Take it with you.</span></h2>
+      <p>Preview the page, then export a portable ZIP of the site.</p>
+    </div>
+    <div class="studio-export-detail">
+      <div class="studio-export-visual">
+        <div class="studio-web-preview">{{browser_preview}}</div>
+        <svg class="studio-arrow" viewBox="0 0 32 18" aria-hidden="true"><path d="M1 9h28m-8-8 8 8-8 8"/></svg>
+        <div class="studio-zip">
+          <div class="studio-zip-seam" aria-hidden="true"></div>
+          <span>ZIP export</span>
+        </div>
+      </div>
+      <div class="studio-export-evidence">
+        <p>In a hosted test, Silex exported a ZIP after a text edit. VOLPAROSSA Core verified all four assets offline.</p>
+        <a class="text-link" href="{{evidence_url}}">Read the test record <svg class="studio-link-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13 13 3M6 3h7v7"/></svg></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="studio-band studio-ai" id="shared-ai" aria-labelledby="ai-title">
+  <div class="wrap studio-band-grid">
+    <div class="studio-section-copy">
+      <h2 id="ai-title">A second pair of eyes on your design.</h2>
+      <span class="status studio-status">Planned integration</span>
+      <p>Studio is designed to request suggestions through VOLPAROSSA’s shared AI, via Core and Code. The author reviews each proposed change.</p>
+    </div>
+    <div class="studio-band-display studio-ai-display">
+      <figure class="studio-ai-example">
+        <div class="studio-programmes">
+          <div class="studio-programme">
+            <h3>Before</h3>
+            <div class="studio-programme-paper">
+              <p class="studio-programme-title">Programme</p>
+              <ul>
+                <li><span>10:00 to 12:00</span> <span>Studio tour</span></li>
+                <li><span>14:00 to 16:00</span> <span>Make &amp; share</span></li>
+              </ul>
+            </div>
+          </div>
+          <svg class="studio-arrow" viewBox="0 0 32 18" aria-hidden="true"><path d="M1 9h28m-8-8 8 8-8 8"/></svg>
+          <div class="studio-programme studio-programme-after">
+            <h3>After</h3>
+            <div class="studio-programme-paper">
+              <p class="studio-programme-title">Programme</p>
+              <ul>
+                <li><span>10:00 to 12:00</span> <span>Studio tour</span></li>
+                <li><span>14:00 to 16:00</span> <span>Make &amp; share</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <figcaption class="studio-prompt"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1c0 5-4 9-9 9 5 0 9 4 9 9 0-5 4-9 9-9-5 0-9-4-9-9Z"/></svg><span>Make the programme easier to read on a phone.</span></figcaption>
+      </figure>
+      <div class="studio-maker-photo studio-ai-photo" aria-hidden="true">{{maker_picture}}</div>
+    </div>
+  </div>
+</section>
+
+<section class="studio-band studio-selection" id="selection" aria-labelledby="selection-title">
+  <div class="wrap studio-band-grid">
+    <div class="studio-section-copy">
+      <h2 id="selection-title">Choose what goes public.</h2>
+      <span class="status studio-status">Planned publication workflow</span>
+      <p>Keep drafts and notes in the project. Review the selected public files before authorising a release.</p>
+    </div>
+    <div class="studio-band-display studio-selection-display">
+      <div class="studio-selection-illustration">
+        <div class="studio-private-project">
+          <h3>Private project</h3>
+          <ul class="studio-folder">
+            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3"/><rect x="4" y="10" width="16" height="12" rx="2"/><path d="M12 15v2"/></svg><span>Studio notes</span></li>
+            <li><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m4 16 5-5 4 4 2-2 5 5"/><circle cx="16" cy="9" r="1"/></svg><span>Draft photos</span></li>
+          </ul>
+        </div>
+        <div class="studio-public-project">
+          <h3>Selected for publication</h3>
+          <ul class="studio-public-proofs">
+            <li>
+              <div class="studio-proof studio-proof-page" aria-hidden="true"><div class="studio-miniature"><i></i></div><span class="studio-proof-check">✓</span></div>
+              <span>Page</span>
+            </li>
+            <li>
+              <div class="studio-proof studio-proof-code" aria-hidden="true"><span class="studio-code-braces">{ }</span><span class="studio-proof-check">✓</span></div>
+              <span>Stylesheet</span>
+            </li>
+            <li>
+              <div class="studio-proof studio-proof-photo" aria-hidden="true">{{workshop_picture}}<span class="studio-proof-check">✓</span></div>
+              <span>Selected workshop photo</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="studio-maker-photo studio-review-photo" aria-hidden="true">{{reviewer_picture}}</div>
+    </div>
+  </div>
+</section>
+
+<section class="studio-band studio-publish" id="publishing" aria-labelledby="publish-title">
+  <div class="wrap studio-band-grid">
+    <div class="studio-section-copy">
+      <h2 id="publish-title">Publish a version.</h2>
+    </div>
+    <div class="studio-publish-display">
+      <div class="studio-publish-details">
+        <div class="studio-hosts">
+          <div class="studio-host">
+            <svg viewBox="0 0 30 30" aria-hidden="true"><rect x="3" y="3" width="24" height="24" rx="3"/><path d="M3 11h24M3 19h24M7 7h2M7 15h2M7 23h2"/></svg>
+            <div>
+              <h3>Conventional hosting</h3>
+              <p>Take the exported site to a host of your choice.</p>
+            </div>
+          </div>
+          <div class="studio-host studio-host-cooperative">
+            <svg viewBox="0 0 30 30" aria-hidden="true"><path d="M9 6h12M24 9v12M21 24H9M6 21V9m2 0 13 12"/><circle cx="6" cy="6" r="3"/><circle cx="24" cy="6" r="3"/><circle cx="24" cy="24" r="3"/><circle cx="6" cy="24" r="3"/></svg>
+            <div>
+              <h3>Cooperative hosting</h3>
+              <span class="status studio-status">In development</span>
+              <p>The proposed network lets independent peers retrieve the same authorised version.</p>
+            </div>
+          </div>
+        </div>
+        <ol class="studio-release-steps" aria-label="Proposed publication steps">
+          <li><strong>Prepare</strong><span>The editor prepares the export.</span></li>
+          <li><strong>Authorise</strong><span>A separate trusted review checks the release. The author explicitly authorises signing.</span></li>
+          <li><strong>Retrieve</strong><span>Independent retrieval is a later step that needs its own evidence.</span></li>
+        </ol>
+      </div>
+      <figure class="studio-network" aria-describedby="studio-network-caption">
+        <div class="studio-network-diagram">
+          <svg class="studio-network-edges" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-labelledby="studio-network-title">
+            <title id="studio-network-title">A four-peer ring linking North Studio, Print Room, Courtyard and East Studio, with an additional link between North Studio and Courtyard.</title>
+            <line data-edge="A-B" x1="23" y1="25" x2="77" y2="25"/>
+            <line data-edge="B-C" x1="77" y1="25" x2="77" y2="75"/>
+            <line data-edge="C-D" x1="77" y1="75" x2="23" y2="75"/>
+            <line data-edge="D-A" x1="23" y1="75" x2="23" y2="25"/>
+            <line data-edge="A-C" x1="23" y1="25" x2="77" y2="75"/>
+          </svg>
+          <ul class="studio-network-peers">
+            <li class="studio-peer" data-peer="A"><span class="studio-peer-laptop" aria-hidden="true"><i class="studio-miniature"><i></i></i></span><strong>North Studio</strong></li>
+            <li class="studio-peer" data-peer="B"><span class="studio-peer-laptop" aria-hidden="true"><i class="studio-miniature"><i></i></i></span><strong>Print Room</strong></li>
+            <li class="studio-peer" data-peer="D"><span class="studio-peer-laptop" aria-hidden="true"><i class="studio-miniature"><i></i></i></span><strong>East Studio</strong></li>
+            <li class="studio-peer" data-peer="C"><span class="studio-peer-laptop" aria-hidden="true"><i class="studio-miniature"><i></i></i></span><strong>Courtyard</strong></li>
+          </ul>
+        </div>
+        <figcaption id="studio-network-caption">Proposed cooperative hosting. Peers can reach the same version through different routes.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section class="studio-band studio-development" id="development" aria-labelledby="development-title">
+  <div class="wrap studio-band-grid">
+    <div class="studio-section-copy">
+      <h2 id="development-title">What works today. What comes next.</h2>
+    </div>
+    <div class="studio-development-sheet">
+      <div class="studio-development-list studio-demonstrated">
+        <h3>Demonstrated in a hosted test</h3>
+        <ul>
+          <li>Edit page text and set its size to 37 px</li>
+          <li>Preview the edited page</li>
+          <li>Download a ZIP export</li>
+          <li>Verify the four exported assets offline with Core</li>
+        </ul>
+      </div>
+      <div class="studio-development-list studio-planned">
+        <h3>In development</h3>
+        <ul>
+          <li>Save and reliably reopen a project</li>
+          <li>Request and review shared AI suggestions</li>
+          <li>Authorise and sign a publication</li>
+          <li>Retrieve a version from independent hosts</li>
+        </ul>
+      </div>
+      <a class="text-link" href="{{evidence_url}}">View implementation status <svg class="studio-link-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13 13 3M6 3h7v7"/></svg></a>
+    </div>
+  </div>
+</section>
+
+<section class="studio-wall studio-closing" id="contribute" aria-labelledby="contribute-title">
+  <div class="studio-wall-scene">{{closing_picture}}</div>
+  <div class="wrap studio-closing-grid">
+    <div class="studio-closing-copy">
+      <h2 id="contribute-title">Help shape the next version of Studio.</h2>
+      <div class="actions studio-actions">
+        <a class="button primary" href="{{docs_url}}">Documentation</a>
+        <a class="button ghost" href="{{project}}">{{github_icon}}Contribute on GitHub</a>
+      </div>
+      <div class="studio-credits">
+        <a href="{{silex_url}}">Built on Silex</a>
+        <a href="credits/">Credits</a>
+      </div>
+    </div>
+    <div class="studio-closing-poster">{{closing_poster}}</div>
+  </div>
+</section>
