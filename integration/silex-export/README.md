@@ -1,12 +1,17 @@
-# Real Silex export to Core pack and signed local viewer
+# Real Silex export, signed recovery and independent hosting
 
-This is a synthetic, explicitly selected hosted integration fixture. The principal
-recorded the preceding export/pack acceptance in
-[run 39869460125](https://github.com/VOLPAROSSA/volparossa/actions/runs/39869460125).
-The local signed viewer extension below is implemented in source and has inert
-checks only; it still requires independent review and a disposable hosted trial.
-Earlier failed-trial evidence remains below.
-It is not a product frontend, public hosting service or model/AI implementation.
+Select `signed-site-topology` in Core's manual Studio proof to exercise the
+joined journey from the reopened editor to a fresh browser after the original
+provider shuts down. One hosted runner privately passes the original signed
+bundle and manifest into its disposable Debian 13 VM. The retained artifacts
+contain bounded JSON reports. The Studio status ledger records the tested
+revisions, hashes, cleanup and availability conditions.
+[Joined hosting evidence](../../docs/IMPLEMENTATION_STATUS.md#a-fresh-browser-opens-a-studio-site-after-its-publisher-goes-offline--2026-11-18)
+
+The earlier export/pack and local-viewer modes exercise individual stages of
+the synthetic fixture. The export/pack acceptance and its earlier development
+trials are recorded below.
+[Export/pack run 39869460125](https://github.com/VOLPAROSSA/volparossa/actions/runs/39869460125)
 
 The existing Core `Quality` workflow has an optional `studio_export_pack` manual
 input. A reviewer supplies complete lowercase 40-hex `core_revision` and

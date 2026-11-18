@@ -5,6 +5,51 @@ Updated 2026-11-18. Requirements are the complete permanent
 incorporated by the full Core goal. This file records Studio evidence and next
 work, without replacing that scope or the shared Core execution ledger.
 
+## A fresh browser opens a Studio site after its publisher goes offline — 2026-11-18
+
+A single hosted trial followed a synthetic public site from its saved Silex
+project to an independent Firefox reader. The exact revisions were Studio
+`cb66fd7f35b7bda3012b771d2a136fb9fa836fc1`, Core
+`2069691283cb5b84152e3b551a7430fc53796500` and Silex v3.9.0
+`672efed69dda04c0a1e968859239e042f00d9538`.
+[Successful run 44384131952](https://github.com/VOLPAROSSA/volparossa/actions/runs/44384131952)
+
+The editor reopened the saved page with its imported 1024 × 768 chart and
+exported five assets. Core signed the 2,358,929-byte bundle, recovered it
+locally after an agent crash and verified its original bytes. The same
+runner handed the bundle and signed manifest privately to the Debian 13
+VM. The first provider served the original publication. A second peer
+fetched it by publisher and name over protected MPTCP, retained all nine
+chunks, then removed its acquisition cache and temporary output.
+
+The fresh client's viewer retrieved all 2,358,929 bytes from the second peer
+while the first provider's service, PID and listener were absent. It verified
+every asset hash, a 4,096-byte range of the chart and the HTTP security headers.
+The origin supplied zero bytes. In that client namespace Firefox ESR 140.16.0
+displayed the edited text at 37 px and decoded the chart. The browser, profile,
+listener and owned topology objects were cleaned up. The disposable guest's
+root-network state matched its initial snapshot, and the outer runner joined
+QEMU and removed the private guest state.
+
+| Evidence | SHA-256 |
+| --- | --- |
+| Signed bundle | `7a8ca0a33db9854bda2045777b1ce2d6890e5bb150d72e6839e3261d099ccc1e` |
+| Original signed manifest | `7e10133bdf41abaefa0f221dac7dcd926848abe40198803c19c9a6b91e072257` |
+| Producer archive 14465988826 | `c535ff02feba5cb5253c3d8d3f15823c2a9b4fbce7ced99e0cb214aa945d70e1` |
+| Independent hosting archive 14465324138 | `45798c872937e4843e2f29e03f87511e031b39546d4c311059ae49187e7c4a2b` |
+| Independent hosting report inside that archive | `883e202ff854c6d63ddc2c7779e40b4bea885b21aee66ed9e357be5a1c6b67a5` |
+
+The preceding attempt used Core `910d8631a50b011d1a181385ceccf7d75c60dfc0`
+with the same Studio revision. It passed 31 site tests and nine signed-recovery
+tests, then stopped at strict Clippy on the length of a contribution test.
+Runtime editor and VM verification began in the successful follow-up.
+[Original run 44382248754](https://github.com/VOLPAROSSA/volparossa/actions/runs/44382248754)
+
+Availability here depended on a reachable holder retaining every chunk and on
+the original publication still being valid. Public DNS/TLS, long-term hosting,
+release consent, rollback, withdrawal and dynamic site execution have separate
+acceptance requirements.
+
 ## Save and reopen a project — 2026-11-18
 
 [Run 44366437457](https://github.com/VOLPAROSSA/volparossa/actions/runs/44366437457)
@@ -35,9 +80,9 @@ reopened the same cache and exported the identical bundle. An independent
 Chromium instance rendered the edited text at 37px and verified all four
 assets and the preview's security headers. Six successful CLI operations,
 two rejected operations and both agent instances were joined. The browser,
-listener and private state were cleaned up. Independent peer hosting, public
-network publication, power-loss recovery and native publication consent remain
-open. Receipt archive `14458047882` has SHA-256
+listener and private state were cleaned up. The later joined trial above covers
+independent peer retrieval during the publication lifetime. Public network release,
+power-loss recovery and native publication consent require separate evidence. Receipt archive `14458047882` has SHA-256
 `aa1d1d4c845f86aa36e363d6ea1c2375abcdde76883196cc41708910f2edcd68`.
 [Hosted signed-recovery run 44368339229](https://github.com/VOLPAROSSA/volparossa/actions/runs/44368339229)
 
