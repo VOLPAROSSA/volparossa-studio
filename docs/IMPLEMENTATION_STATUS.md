@@ -1,9 +1,18 @@
 # Studio implementation status
 
-Updated 2026-10-27. Requirements are the complete permanent
+Updated 2026-11-18. Requirements are the complete permanent
 [Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/STUDIO_HOSTING_REQUIREMENTS.md),
 incorporated by the full Core goal. This file records Studio evidence and next
 work, without replacing that scope or the shared Core execution ledger.
+
+## Save and reopen a project — 2026-11-18
+
+The editor fixture now waits for Silex's filesystem connector to acknowledge
+the synthetic text and 37px style. It closes the editing browser context,
+opens the project in a fresh context, selects the saved page by name and checks
+both edits in the canvas before exporting from that reopened project. The local
+checks exercise the response matcher and receipt validation. Actual editor
+reopening awaits the paired Core `studio_export_pack` run.
 
 ## Ordinary source CI and dependency updates — 2026-10-27
 

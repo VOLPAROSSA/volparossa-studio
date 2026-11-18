@@ -54,3 +54,6 @@ jobs:
                      if key in os.environ}
               fixture.run_viewer_units(node, fixture.FIXTURE, temporary, env, {})
           PY
+      - name: Check project save and reopen response matching
+        working-directory: integration/silex-export
+        run: node --test test_project_storage.mjs

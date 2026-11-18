@@ -125,6 +125,10 @@ def read_browser_receipt(path):
     if path.stat().st_size > 4096:
         raise ValueError('browser receipt bound')
     receipt = json.loads(path.read_text())
+    if 'saved_project_reopened' in receipt and receipt['saved_project_reopened'] is not True:
+        raise ValueError('invalid saved project observation')
+    if receipt.get('status') == 'passed' and 'saved_project_reopened' not in receipt:
+        raise ValueError('saved project reopening required')
     if 'startup_diagnostics' in receipt:
         validate_startup_diagnostics(receipt['startup_diagnostics'])
     if 'drag_diagnostics' in receipt:
