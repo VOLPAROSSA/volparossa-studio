@@ -53,8 +53,8 @@ def components():
     def workshop(eager=False):
         return picture('workshop', inventory, '(max-width:600px) 230px, 300px', alt='Daylight on an empty ceramics workbench.', eager=eager)
     hero_page, example = poster(workshop(True)), poster(workshop())
-    return dict(wall_picture=picture('wall', inventory, '100vw', mobile=True, eager=True),
-                closing_picture=picture('wall', inventory, '100vw', mobile=True),
+    return dict(wall_picture=picture('wall', inventory, '100vw', mobile=('wall-mobile', 900), eager=True),
+                closing_picture=picture('closing', inventory, '100vw', mobile=('closing-portrait', 640)),
                 fox_picture=picture('fox', inventory, '115px', eager=True),
                 maker_picture=picture('maker', inventory, '230px'),
                 reviewer_picture=picture('reviewer', inventory, '230px'),

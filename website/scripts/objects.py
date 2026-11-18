@@ -2,7 +2,7 @@
 from html import escape
 
 
-def picture(name, inventory, sizes, *, alt='', eager=False, mobile=False):
+def picture(name, inventory, sizes, *, alt='', eager=False, mobile=None):
     def sources(key):
         return ', '.join(f'assets/studio/{key}-{w}.webp {w}w' for w, _ in inventory[key]['frames'])
     info = inventory[name]
@@ -10,8 +10,10 @@ def picture(name, inventory, sizes, *, alt='', eager=False, mobile=False):
     load = 'loading="eager"' if eager else 'loading="lazy" decoding="async"'
     markup = ['<picture>']
     if mobile:
-        markup += [f'<source media="(max-width:900px)" type="image/webp" srcset="{sources("wall-mobile")}" sizes="100vw">',
-                   '<source media="(max-width:900px)" srcset="assets/studio/wall-mobile.jpg">']
+        key, breakpoint = mobile
+        media = f'(max-width:{breakpoint}px)'
+        markup += [f'<source media="{media}" type="image/webp" srcset="{sources(key)}" sizes="100vw">',
+                   f'<source media="{media}" srcset="assets/studio/{key}.{inventory[key]["ext"]}">']
     markup += [f'<source type="image/webp" srcset="{sources(name)}" sizes="{sizes}">',
                f'<img src="assets/studio/{name}.{info["ext"]}" width="{w}" height="{h}" alt="{escape(alt, quote=True)}" {load}></picture>']
     return ''.join(markup)

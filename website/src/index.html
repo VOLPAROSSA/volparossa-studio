@@ -46,7 +46,7 @@
         <svg class="studio-arrow" viewBox="0 0 32 18" aria-hidden="true"><path d="M1 9h28m-8-8 8 8-8 8"/></svg>
         <div class="studio-zip">
           <div class="studio-zip-seam" aria-hidden="true"></div>
-          <span>ZIP export</span>
+          <span class="studio-zip-label"><strong>ZIP</strong> export</span>
         </div>
       </div>
       <div class="studio-export-evidence">
@@ -91,7 +91,10 @@
         </div>
         <figcaption class="studio-prompt"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1c0 5-4 9-9 9 5 0 9 4 9 9 0-5 4-9 9-9-5 0-9-4-9-9Z"/></svg><span>Make the programme easier to read on a phone.</span></figcaption>
       </figure>
-      <div class="studio-maker-photo studio-ai-photo" aria-hidden="true">{{maker_picture}}</div>
+      <figure class="studio-maker-photo studio-ai-photo">
+        {{maker_picture}}
+        <figcaption class="studio-speech">Good suggestion. This is clearer and easier to scan.</figcaption>
+      </figure>
     </div>
   </div>
 </section>
@@ -130,7 +133,10 @@
           </ul>
         </div>
       </div>
-      <div class="studio-maker-photo studio-review-photo" aria-hidden="true">{{reviewer_picture}}</div>
+      <figure class="studio-maker-photo studio-review-photo">
+        {{reviewer_picture}}
+        <figcaption class="studio-speech">Looks good. These three can go public.</figcaption>
+      </figure>
     </div>
   </div>
 </section>

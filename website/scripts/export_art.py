@@ -8,6 +8,8 @@ OUT = ROOT / 'assets/studio'
 SPECS = {
     'wall': [768, 1440, 2060],
     'wall-mobile': [390, 740],
+    'closing': [800, 1440, 2170],
+    'closing-portrait': [390, 780],
     'workshop': [240, 480, 900],
     'maker': [240, 480], 'reviewer': [240, 480],
     'fox': [100, 210],
@@ -17,7 +19,7 @@ SPECS = {
 def export():
     inventory = {}
     for name, widths in SPECS.items():
-        master = ROOT / 'masters' / (name.split('-')[0] + '.webp')
+        master = ROOT / 'masters' / (('wall' if name == 'wall-mobile' else name) + '.webp')
         with Image.open(master) as source:
             if name == 'wall-mobile':
                 source = ImageOps.fit(source, (563, 763), centering=(.17, .5))

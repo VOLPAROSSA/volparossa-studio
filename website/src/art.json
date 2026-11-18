@@ -37,6 +37,44 @@
     ],
     "ext": "jpg"
   },
+  "closing": {
+    "frames": [
+      [
+        800,
+        181
+      ],
+      [
+        1440,
+        326
+      ],
+      [
+        2170,
+        491
+      ]
+    ],
+    "fallback": [
+      1440,
+      326
+    ],
+    "ext": "jpg"
+  },
+  "closing-portrait": {
+    "frames": [
+      [
+        390,
+        520
+      ],
+      [
+        780,
+        1040
+      ]
+    ],
+    "fallback": [
+      780,
+      1040
+    ],
+    "ext": "jpg"
+  },
   "workshop": {
     "frames": [
       [
