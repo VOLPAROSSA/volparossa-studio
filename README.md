@@ -8,10 +8,10 @@ and maintain portable websites using the cooperative DICN infrastructure.
 
 **Development status:** the pinned Silex editor has passed a bounded hosted
 edit/preview/export-to-Core acceptance: a real page and text were edited at
-37px, previewed, exported as an actual ZIP, and decoded by the production Core
-`SiteBundle` path with all four assets and overwrite rejection verified. This
-does not prove saved-project reload or durability. The fixture and its earlier
-startup, readiness and interaction failures remain documented in
+37px, previewed and reopened from filesystem storage in a fresh browser
+context. The restored editor exported a ZIP that the production Core
+`SiteBundle` path decoded, checking all four assets and rejecting overwrites.
+The fixture and its earlier failures are documented in
 [implementation status](docs/IMPLEMENTATION_STATUS.md). All fifteen complete
 Studio/hosting acceptance cases remain open; shared AI, independent hosting,
 signing/publication and dynamic execution are not accepted.

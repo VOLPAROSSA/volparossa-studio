@@ -16,6 +16,15 @@ selects it by Silex's keyboard shortcut and confirms its name in the toolbar
 before checking the restored text and font size. The original timeout does
 not identify which part of the combined reopen observation failed.
 
+[Run 44368192079](https://github.com/VOLPAROSSA/volparossa/actions/runs/44368192079)
+passes with Studio `db6cae985daa`, Core `9b8f92ed9572` and pinned Silex
+`672efed69dda`. Chromium reopened the saved page in a fresh context and
+verified its text and 37px styling. The export from that reopened editor
+produced a 1,474-byte ZIP. Core verified all four assets, the edited HTML and
+CSS, and rejection of overwrites. The fixture drained its processes and
+removed its temporary files. Receipt archive `14457193442` has SHA-256
+`d632130b6ac8b6be2b8e28d6655720f88c8b8d1d086a938f6c488af377655bd9`.
+
 ## Ordinary source CI and dependency updates — 2026-10-27
 
 The proposed `Studio CI` workflow runs the stable `source-contracts` job on
