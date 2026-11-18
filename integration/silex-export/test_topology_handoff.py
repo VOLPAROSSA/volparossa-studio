@@ -75,9 +75,10 @@ class TopologyHandoffTests(unittest.TestCase):
         return prepare(self.temp, self.receipt, self.environ)
 
     def test_exact_public_files_bind_reopened_export_run_and_original_publication(self):
-        secret = b'PRIVATE_KEY_TEST_SENTINEL'
-        private(self.temp / 'operator.key', secret)
-        self.receipt['private_diagnostics'] = secret.decode()
+        # An accidental attempt to read the unrelated key file must fail.
+        (self.temp / 'operator.key').symlink_to(self.temp / 'absent-key-file')
+        marker = 'synthetic diagnostic outside the public receipt'
+        self.receipt['private_diagnostics'] = marker
         files = self.prepare()
         self.assertEqual(set(files), {'site.vps', 'manifest.bin', 'evidence.json'})
         self.assertEqual((files['site.vps'], files['manifest.bin']), (self.bundle, self.manifest))
@@ -89,7 +90,7 @@ class TopologyHandoffTests(unittest.TestCase):
                          ('d' * 40, 'e' * 40, 'f' * 40))
         for field, value in self.receipt['signed_site_recovery']['bindings'].items():
             self.assertEqual(evidence[field], value)
-        self.assertNotIn(secret, files['evidence.json'])
+        self.assertNotIn(marker.encode(), files['evidence.json'])
         self.assertNotIn(str(self.runner), files['evidence.json'].decode())
         self.assertEqual(deliver(self.runner, files), sha256(files['evidence.json']))
         self.assertEqual(stat.S_IMODE(self.output.stat().st_mode), 0o700)
