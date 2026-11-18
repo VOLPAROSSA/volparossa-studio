@@ -23,7 +23,7 @@ python3 website/scripts/check_site.py --production --output website/dist/volparo
 
 - [Page structure, styles and metadata](src/) and [reusable poster and editor](scripts/objects.py).
 - [Art masters and attribution](masters/README.md) and [responsive files](assets/studio/). To regenerate sources at display sizes, run `python3 website/scripts/export_art.py` with Pillow installed. With the preview running and Playwright available, `node website/scripts/share_card.mjs` renders the 1200 × 630 social card.
-- [Vendored central theme](vendor/volparossa-theme/) version 1.0.3, exported with `python3 scripts/export_theme.py --source-only` from central commit `d5d184b9f984914f632acc5bd4fa0c4e720b0b34`.
+- [Vendored central theme](vendor/volparossa-theme/) version 1.1.0, exported with `python3 scripts/export_theme.py --source-only` from central commit `991cf1638c906226574b9c21bb32c6618fc07fb7`.
 - [Desktop preview](review/desktop.webp) and [mobile preview](review/mobile.webp).
 - [GitHub Pages workflow](../.github/workflows/studio-website.yml). Pull requests build an independently inspectable preview. A validated website change on main, or a manual run on main, produces and deploys a project-root Pages artifact. Generated site trees are kept in the workflow artifacts.
 
