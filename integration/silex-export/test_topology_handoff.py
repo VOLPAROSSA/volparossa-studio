@@ -7,6 +7,7 @@ from pathlib import Path
 import stat
 import tempfile
 import unittest
+import uuid
 from unittest.mock import patch
 import zipfile
 
@@ -75,10 +76,13 @@ class TopologyHandoffTests(unittest.TestCase):
         return prepare(self.temp, self.receipt, self.environ)
 
     def test_exact_public_files_bind_reopened_export_run_and_original_publication(self):
-        # An accidental attempt to read the unrelated key file must fail.
-        (self.temp / 'operator.key').symlink_to(self.temp / 'absent-key-file')
-        marker = 'synthetic diagnostic outside the public receipt'
-        self.receipt['private_diagnostics'] = marker
+        # This readable sibling is public test data with an operator-key filename.
+        file_marker = ('public fixture ' + uuid.uuid4().hex).encode()
+        operator_file = self.temp / 'operator.key'
+        private(operator_file, file_marker)
+        self.assertEqual(operator_file.read_bytes(), file_marker)
+        diagnostic_marker = 'synthetic diagnostic outside the public receipt'
+        self.receipt['private_diagnostics'] = diagnostic_marker
         files = self.prepare()
         self.assertEqual(set(files), {'site.vps', 'manifest.bin', 'evidence.json'})
         self.assertEqual((files['site.vps'], files['manifest.bin']), (self.bundle, self.manifest))
@@ -90,7 +94,9 @@ class TopologyHandoffTests(unittest.TestCase):
                          ('d' * 40, 'e' * 40, 'f' * 40))
         for field, value in self.receipt['signed_site_recovery']['bindings'].items():
             self.assertEqual(evidence[field], value)
-        self.assertNotIn(marker.encode(), files['evidence.json'])
+        for exported in files.values():
+            self.assertNotIn(file_marker, exported)
+            self.assertNotIn(diagnostic_marker.encode(), exported)
         self.assertNotIn(str(self.runner), files['evidence.json'].decode())
         self.assertEqual(deliver(self.runner, files), sha256(files['evidence.json']))
         self.assertEqual(stat.S_IMODE(self.output.stat().st_mode), 0o700)
