@@ -29,6 +29,22 @@
     "LICENSE": "be3f7b28e564e7dd05eaf59d64adba1a4065ac0e"
   },
   "runtime_accepted": false,
-  "local_patches": [],
+  "local_patches": [
+    {
+      "component": "Rust silex-server",
+      "recorded_at": "2026-10-28",
+      "license": "AGPL-3.0-or-later",
+      "manifest": "integration/silex-publication/manifest.json",
+      "manifest_sha256": "9d7ab28754d77e681dae5adc7c19046be9f15798b05eb6f518ca2ee480ea5790",
+      "path": "integration/silex-publication/patches/publication-bounds.patch",
+      "sha256": "30901a10f6b2d09967f553820ea642f83e087fa66a55533b1b683da26306926a",
+      "upstream_commit": "672efed69dda04c0a1e968859239e042f00d9538",
+      "root_cargo_lock_before": "eb92b416e0ed0428d11068202132c95dbfb02a2e5c12fd6b315df71248c83f13",
+      "root_cargo_lock_after": "35d0ea429b62f5cd2bc8533f75f997c05e787ad3355a40c1de0eba5fd3233536",
+      "dependency_change": "silex-server adds the existing rustix 1.1.3 package; all other package records unchanged",
+      "native_publication_authorization": false,
+      "runtime_accepted": false
+    }
+  ],
   "vendored_code": false
 }

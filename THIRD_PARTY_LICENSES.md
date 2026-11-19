@@ -1,6 +1,7 @@
 # Third-party source and license record
 
-No third-party source or binary is imported in the initial documentation slice.
+The initial documentation slice imported no third-party source or binary.
+The integration records below identify later source inputs and transient tools.
 The original root LICENSE remains byte-for-byte unchanged.
 
 Selected Silex source: https://github.com/silexlabs/Silex,
@@ -19,7 +20,8 @@ Distribution and network-service source obligations need component-specific revi
 the initial Studio GPLv3 file is not proof that an integrated AGPL implementation
 satisfies its obligations. Assets/templates/fonts and generated site content need
 separate ownership/license consideration. No compliance, build or runtime approval
-is inferred from this source inventory. No local upstream patches exist yet.
+is inferred from this initial source inventory. Later local patches are recorded
+separately below and in the locked manifests.
 
 ## Optional hosted editor/export fixture inputs — 2026-10-22
 
@@ -40,3 +42,54 @@ GPL-3.0-only. Silex's unchanged upstream dependency lock includes additional
 transitive components; a frozen install is not a complete dependency/license
 security audit or distribution approval. Trial-generated sites contain only public
 synthetic text/styles in this initial case, with no imported private assets.
+
+## Rust server checks and compiler carrier — 2026-10-28
+
+The server baseline checks the same pinned Silex source using its root Cargo
+workspace and root lockfile. `cargo fetch --locked` acquires public registry
+dependencies transiently; server library checks select `silex-server`, without
+building the editor or desktop wrapper. This is not a complete dependency license
+or security audit and grants no distribution or hosting approval.
+
+Three GPL-3.0-only compiler-support files are copied unchanged from
+[VOLPAROSSA Core](https://github.com/VOLPAROSSA/volparossa/tree/edf569300acbdf5e7715b5192ffbb293235b15ab/scripts)
+at `edf569300acbdf5e7715b5192ffbb293235b15ab` into
+`integration/silex-publication/toolchain/`. Their SPDX notices are retained.
+
+| Core source | SHA-256 of the unchanged carrier |
+| --- | --- |
+| `scripts/provision-rust199.py` | `73183c57744925c962cfb2bd7414ac2c20df8848ddad20e6240ba3257a2f8fcd` |
+| `scripts/rust199-components.json` | `5cf2439e109e9fa92a25037130a20f903282e703ddb0ce192d7c06a8ec2737ba` |
+| `scripts/test-provision-rust199.py` | `7683044d41b47a1cd3bc488368f63c15973e54b4154fe834696def2b4a3903f3` |
+
+The carrier authenticates the fixed Rust 1.99.1 manifest dated 2026-10-15,
+component archives and installed payload before executable use. Official Rust
+components retain their bundled MIT/Apache-2.0 and third-party notices in the
+disposable runner installation; no compiler binary is committed or redistributed.
+The selected version is a reproducible check input, not an upstream support,
+MSRV or security-completion claim. Core's separate Rust 1.89 exception is not
+applied to Silex's dependency graph.
+
+## Local Silex publication patch — 2026-10-28
+
+[The patch manifest](integration/silex-publication/manifest.json) binds eleven
+changed paths in the pinned Silex Rust server/workspace, including the original
+and resulting hashes and modes. [upstream.lock.json](upstream.lock.json) records
+the patch and manifest hashes. The complete source patch is retained under
+`integration/silex-publication/patches/`; no upstream checkout or binary is vendored.
+
+The modified server and new Rust helpers/tests retain AGPL-3.0-or-later and the
+original Silex notices. The independently written preparation driver/tests and
+documentation are GPL-3.0-only. Keep both component licenses, corresponding source
+and notices when distributing or serving this derivative; the Studio root license
+does not relicense Silex. No publication, distribution or network-service compliance
+approval follows from these source checks.
+
+The only dependency membership change adds the existing locked `rustix` 1.1.3
+package with its `fs` feature to the Linux server. All other root lock package
+records and the historical server-local lock remain unchanged. The registry archive
+checksum is `146c9e247ccc180c1f61615433868c99f3de3ae256a30a43b49f67c2d9171f34`.
+[Its upstream manifest](https://github.com/bytecodealliance/rustix/blob/v1.1.3/Cargo.toml)
+declares `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT`; retain its COPYRIGHT
+and LICENSE files with the acquired source and applicable distribution notices.
+No package version update or complete transitive dependency audit is included.
