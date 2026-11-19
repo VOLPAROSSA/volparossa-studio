@@ -2,8 +2,8 @@
 
 - Read the core [AGENTS.md](https://github.com/VOLPAROSSA/volparossa/blob/main/AGENTS.md),
   full [GOAL.md](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md),
-  [Studio/hosting requirements](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/STUDIO_HOSTING_REQUIREMENTS.md),
-  [DPS requirements](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/DPS_REQUIREMENTS.md),
+  [Studio/hosting requirements](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md#studio),
+  [DPS requirements](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md#dps),
   and [Codex workflow](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/CODEX_WORKFLOW.md).
   Preserve all original functionality and amendments. Recheck live source/PR/run state.
 - Use [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) for local evidence

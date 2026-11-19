@@ -10,9 +10,11 @@ and maintain portable websites using the cooperative DICN infrastructure.
 
 The original Silex desktop created a local project in its native dashboard on
 Ubuntu. Two fresh desktop processes opened its saved canvas, displayed the exact
-restored heading and exited through Silex’s Quit dialog. The hosted trial also
-verified loopback traffic and host cleanup.
-[Native desktop run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44542272228)
+restored heading and exited through Silex’s Quit dialog. From the reopened
+editor, File system hosting wrote the page and its stylesheet. Core packaged
+both files and returned their hashes and the bundle digest for owner review.
+[Native export trial](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44558150491)
+· [Prepare a saved site's local output](integration/silex-native-runtime/README.md#prepare-the-native-editors-local-output-for-core)
 
 The pinned editor also edited text at 37 px, previewed a page and reopened it
 from filesystem storage in a fresh browser context. The production Core
@@ -26,7 +28,7 @@ remain open.
 [Publisher-offline trial](https://github.com/VOLPAROSSA/volparossa/actions/runs/44384131952)
 · [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 
-The complete [permanent Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/STUDIO_HOSTING_REQUIREMENTS.md)
+The complete [permanent Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md#studio)
 is part of the [full VOLPAROSSA goal](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md),
 including its preserved original, every previous amendment and DPS. The
 [hosting architecture and Core audit](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/services/STUDIO_HOSTING.md)

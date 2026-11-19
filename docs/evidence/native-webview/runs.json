@@ -377,5 +377,61 @@
         "sha256": "a0610382144ac91efd227c8efa5a66f5f1d4e81ffad9bfaf0958b3ee3318f477"
       }
     ]
+  },
+  {
+    "run": 44558150491,
+    "revision": "175360cd6019ca74c2043b656fbc66ff9c95a242",
+    "conclusion": "success",
+    "artifact_id": 14550465042,
+    "artifact_bytes": 41865,
+    "artifact_sha256": "f88420d4ae6ff0117ff6547af7aa1311bb1d242057cda9885892be15d40706b5",
+    "executable": {
+      "bytes": 34339248,
+      "links": 2,
+      "mode": 493,
+      "sha256": "06c4a19a7a5cfa8bf4a861497aef0e9cb5e303effd7f596f5e7f8cee95c08aee"
+    },
+    "scope": "native_site_export",
+    "core_executable": {
+      "bytes": 148772336,
+      "links": 2,
+      "mode": 493,
+      "sha256": "48b92b9102486033843306a346394398f6d0c22787e5f7906eb1af2f6c80b318"
+    },
+    "bundle_sha256": "94f024685abeafd7d44788a385b6a5494e1bc49df77ccb905d5b76689a301149",
+    "files": [
+      {
+        "path": "44558150491/silex-native-base-fetch.json",
+        "sha256": "3976aad26ed58d13294e25317e0fd804c0db1156ac9288c17633ded1c5d5456f"
+      },
+      {
+        "path": "44558150491/silex-native-runtime-inventory.json",
+        "sha256": "e2123301337511b557f32d054865d511c7f7d47e788edb2330cce48c9bacc278"
+      },
+      {
+        "path": "44558150491/silex-native-sdk-fetch.json",
+        "sha256": "bfb9f097de4dfcf65691bb58d21275c9cf28c239e690fb1007651bf0df5d20b2"
+      },
+      {
+        "path": "44558150491/silex-native-sdk-install-root.json",
+        "sha256": "36526253c39d6ef92cc758deeccddf22e0b46bca52667aa9c731d27ea4a20779"
+      },
+      {
+        "path": "44558150491/silex-native-sdk-install.json",
+        "sha256": "944ca90216c415209788100522120a19ae0f3772a3bcbcb7067f8551ecd8671e"
+      },
+      {
+        "path": "44558150491/silex-native-site-core-build.json",
+        "sha256": "a46d7fb7cb9971718316afa9ec4bb7e80791c7a7510eb32aff749dad9c425073"
+      },
+      {
+        "path": "44558150491/silex-native-webview.json",
+        "sha256": "a5599b702c9368a6d05f3a18bc5448c20c22b75917cfdf651d7462d3c37ea11e"
+      },
+      {
+        "path": "44558150491/silex-original-dashboard-build.json",
+        "sha256": "17978207708f89e342f2398cb131e9791878fea35dfb489860b8444fe21f1578"
+      }
+    ]
   }
 ]
