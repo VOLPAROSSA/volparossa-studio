@@ -192,6 +192,9 @@ def plan_rows(raw, records, installed):
     for line in text.splitlines():
         require(not line.startswith(('Remv ', 'Purg ')))
         if line.startswith('Inst '):
+            # APT can append an empty list of broken relationships while
+            # sequencing a group of exact-version library upgrades.
+            line = line.removesuffix(' []')
             match = re.fullmatch(r'Inst ([a-z0-9+.-]+)(?::amd64)?(?: \[([^\]]+)\])? \((\S+) .+\)', line)
             require(match is not None)
             name, old, version = match.groups()
@@ -601,8 +604,10 @@ def root_main(*, admission_only=False, baseline_only=False):
             report['stage'] = 'root_archive_staging'
             stage_archives(temporary / 'silex-native-sdk-archives', cache, records, owner)
             report['root_archive_cache_verified'] = True
+            simulation = {}
             def invoke(argv, *, accepted=(0,)):
-                return root_actor(argv, end, cleanups, accepted=accepted)
+                diagnostic = simulation if '--simulate' in argv else None
+                return root_actor(argv, end, cleanups, accepted=accepted, diagnostic=diagnostic)
             report['stage'] = 'baseline_packages'
             query = ['/usr/bin/dpkg-query', '-W', '-f=${Package}\t${Version}\t${Architecture}\t${Status}\n', *records]
             diagnostic = {}
@@ -615,7 +620,11 @@ def root_main(*, admission_only=False, baseline_only=False):
             audit, _code = invoke(['/usr/bin/dpkg', '--audit'])
             require(not audit.strip())
             report['stage'] = 'simulation'
-            argv, targets, planned = install_plan(records, installed, invoke, cache)
+            try:
+                argv, targets, planned = install_plan(records, installed, invoke, cache)
+            except BaseException:
+                report['simulation_process'] = simulation
+                raise
             report['planned_package_count'] = len(planned)
             report['plan_sha256'] = hashlib.sha256(json.dumps(planned, sort_keys=True).encode()).hexdigest()
             numbers = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGALRM)

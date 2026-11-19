@@ -264,3 +264,25 @@ InRelease signatures against the Ubuntu archive key
 main and universe amd64 Packages indexes. The updates snapshot matches the
 runner's exact InRelease SHA-256 `dc5bcae8f20f2430cdcbfb712573ada0914bd457096eeea5daf7ffdb6d273356`.
 [Ubuntu snapshot](https://snapshot.ubuntu.com/ubuntu/20261118T223800Z/dists/noble-updates/InRelease)
+
+The first November build matched the 184 current archive descriptors, then
+refused the runner's newly observed 152-byte Canonical EC2 mirror descriptor
+before downloading or installing any package. The approved file has the exact
+SHA-256 `af9816b59bc904eaf28838ae673ac2b625b6628bebfc67a7cbeae78ba06e226a`.
+It selects `us-east-2.ec2.archive.ubuntu.com` with the existing official archive
+and security fallbacks. The earlier Azure descriptor remains admitted. The
+negative controls include a different EC2 region and changed fallback priority.
+[Mirror receipt](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44439231433)
+
+The root-cache trial verified the exact 184 archives twice and stopped during
+the APT simulation. A separate read-only probe with an empty local archive
+cache returned exit 100 and the “unable to fetch” marker. The install job
+retains its private, authenticated cache and offline network namespace.
+
+A local APT simulation using the runner’s published software bill of materials
+and signed Ubuntu indexes reproduced all 178 planned names and exact versions.
+Three staged Mesa upgrades included APT's literal empty relationship list
+` []` after an `Inst` row. The plan parser accepts that exact empty suffix.
+It rejects nonempty lists, extra suffixes, removals, incomplete configuration
+and version drift. Only the full hosted offline installation can verify the
+installed state. [Read-only probe](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44442389653) · [Runner image](https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261111.370)

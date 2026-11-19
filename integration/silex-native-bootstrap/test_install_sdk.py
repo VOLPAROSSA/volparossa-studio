@@ -71,6 +71,17 @@ class InstallSdkTests(unittest.TestCase):
                 sdk.dpkg_rows(dpkg(bad), records(), complete=True)
         self.assertEqual(sdk.dpkg_rows(b'', records(), complete=False), {})
 
+    def test_simulation_admits_only_an_empty_apt_relationship_suffix_on_install_rows(self):
+        installed = {'aa': ('1:1.0-1', 'amd64'), 'bb': ('2.0-1', 'all')}
+        _heading, install, rest = plan().split(b'\n', 2)
+        self.assertEqual(sdk.plan_rows(install + b' []\n' + rest, records(), installed),
+                         {'aa': '1:2.0-1'})
+        for suffix in (b' [bb]', b' [] []', b' [] trailing', b' [ ]'):
+            with self.subTest(suffix=suffix), self.assertRaises(sdk.Rejected):
+                sdk.plan_rows(install + suffix + b'\n' + rest, records(), installed)
+        with self.assertRaises(sdk.Rejected):
+            sdk.plan_rows(install + b'\n' + rest.rstrip() + b' []\n', records(), installed)
+
     def test_simulation_refuses_removal_extra_missing_conf_old_version_drift_and_incomplete_closure(self):
         installed = {'aa': ('1:1.0-1', 'amd64'), 'bb': ('2.0-1', 'all')}
         self.assertEqual(sdk.plan_rows(plan(), records(), installed), {'aa': '1:2.0-1'})
