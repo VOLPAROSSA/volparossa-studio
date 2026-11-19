@@ -114,3 +114,15 @@ Ubuntu 7.0.0-1017-azure package's installed 20,571-byte module. The supervisor
 checks the exact SHA-256 and root-owned path, then unloads its own registration
 after the namespace exits. An existing registration is preserved. Successful
 cleanup requires the observed original registration state.
+
+The manual `native-webview` choice uses the original Silex release composed with the
+local dashboard. The build and both native launches share a disposable runner.
+Only bounded JSON receipts leave the job. The namespace verifies the private
+executable against the same-revision build receipt before exposing it to the
+original unprivileged UID. Following the IPv4, IPv6 and DNS calibration, the
+application can use the local Silex TCP port on loopback. The fixture creates a
+synthetic project using the local API, activates its actual dashboard Open action
+through accessibility, observes the native editor title, closes the window and
+repeats the open in a fresh process. Its success requires both normal exits,
+the live WebKit processes, the network counter checks and cleanup. Project
+publishing, editing, updates and distribution have separate acceptance gates.

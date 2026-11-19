@@ -39,6 +39,16 @@ FILENAMES = {'controller': 'isolation.py', 'root': 'isolation_root.py',
 HOST_KEYS = ('GITHUB_ACTIONS', 'RUNNER_ENVIRONMENT', 'RUNNER_OS', 'RUNNER_ARCH',
              'GITHUB_REPOSITORY', 'GITHUB_SHA', 'GITHUB_WORKFLOW_SHA', 'GITHUB_REF',
              'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_WORKSPACE', 'RUNNER_TEMP')
+GUI = os.environ.get('STUDIO_NATIVE_WEBVIEW') == '1'
+GUI_BRANCH = 'refs/heads/development/studio-native-webview-20261119'
+if GUI:
+    SOURCES['gui'] = 'integration/silex-native-runtime/webview.py'
+    FILENAMES['gui'] = 'webview.py'
+    HOST_KEYS += ('STUDIO_NATIVE_WEBVIEW',)
+GUI_STAGES = ('admission', 'display', 'bus', 'first_launch', 'seed_project', 'refresh_dashboard',
+              'first_open', 'first_editor', 'first_close', 'second_launch', 'second_open',
+              'second_editor', 'second_close', 'cleanup', 'complete')
+
 ENV = dict(PATH='/usr/sbin:/usr/bin:/sbin:/bin', LANG='C', LC_ALL='C', PYTHONDONTWRITEBYTECODE='1')
 KINDS = frozenset(('admission', 'source', 'protocol', 'deadline', 'cancelled',
                    'child', 'output_limit', 'cleanup', 'namespace', 'identity',
@@ -53,7 +63,7 @@ ADMISSION = frozenset(('uid_original', 'gid_original', 'groups_cleared', 'capabi
     'private_tmp', 'host_workspace_hidden', 'host_bus_absent', 'host_xauthority_absent',
     'display_environment_absent', 'sandbox_disable_flags_absent', 'inherited_fds_closed',
     'root_mount_readonly', 'private_resolver_profile', 'private_shared_memory', 'private_mqueue'))
-WORKER_STAGES = frozenset(('mounts', 'admission_actor', 'network_setup', 'synthetic_calibration', 'complete'))
+WORKER_STAGES = frozenset(('mounts', 'admission_actor', 'network_setup', 'synthetic_calibration', 'gui_firewall', 'gui_actor', 'complete'))
 ACTOR_PREDICATES = ADMISSION | {'shape', 'protocol', 'dns', 'ipv4_datagram', 'ipv6_datagram'}
 RESOLVER = b'nameserver 127.0.0.53\noptions attempts:1 timeout:1\n'
 # Nested cleanup reserves under the ORIGINAL 120s end: namespace owner gets 6s
@@ -279,7 +289,7 @@ class Owner:
         self.lifecycle, self.work, self.end, self.control = lifecycle, work, end, control
         self.started = self.joined = 0
         self.last_output = b''
-        self.roles_started = dict.fromkeys(('tool', 'admission', 'calibration', 'namespace', 'root'), 0)
+        self.roles_started = dict.fromkeys(('tool', 'admission', 'calibration', 'namespace', 'root', 'gui'), 0)
         self.roles_joined = dict(self.roles_started)
 
     def run(self, argv, *, environment=None, payload=None, keep_stdin=False,
@@ -397,7 +407,7 @@ def admission_environment():
         'RUNNER_OS': 'Linux', 'RUNNER_ARCH': 'X64', 'GITHUB_REPOSITORY': 'VOLPAROSSA/volparossa-studio'}.items():
         require(os.environ.get(key) == value)
     require(os.environ.get('GITHUB_REF') in (
-        'refs/heads/main', 'refs/heads/feature/native-bootstrap-runtime-20261029'))
+        'refs/heads/main', 'refs/heads/feature/native-bootstrap-runtime-20261029', GUI_BRANCH))
     revision = os.environ.get('GITHUB_SHA', '')
     require(re.fullmatch('[0-9a-f]{40}', revision) and os.environ.get('GITHUB_WORKFLOW_SHA') == revision)
     require(not any(key.startswith('LD_') or key in ('PYTHONPATH', 'PYTHONHOME') for key in os.environ))
@@ -610,7 +620,8 @@ def rules(uid):
 ''' % (uid, uid, uid)).encode()
 
 
-def counters(raw):
+def counters(raw, *, gui=False):
+    names = {'denied4', 'denied6', 'dns', 'dns_reply'} | ({'gui_request', 'gui_response'} if gui else set())
     value = parse(raw)
     require(type(value) is dict and value.keys() == {'nftables'} and type(value['nftables']) is list, 'observer')
     result = {}
@@ -622,12 +633,80 @@ def counters(raw):
         counter = row['counter']
         require(type(counter) is dict and counter.keys() <= {'family', 'table', 'name', 'handle', 'packets', 'bytes'}
                 and counter.get('family') == 'inet' and counter.get('table') == 'vpcal'
-                and counter.get('name') in ('denied4', 'denied6', 'dns', 'dns_reply')
+                and counter.get('name') in names
                 and counter['name'] not in result, 'observer')
-        require(all(type(counter.get(key)) is int and 0 <= counter[key] <= 4096 for key in ('packets', 'bytes')), 'observer')
+        require(all(type(counter.get(key)) is int and 0 <= counter[key] <= (128 * 1024**2 if gui else 4096) for key in ('packets', 'bytes')), 'observer')
         result[counter['name']] = dict(packets=counter['packets'], bytes=counter['bytes'])
-    require(set(result) == {'denied4', 'denied6', 'dns', 'dns_reply'}, 'observer')
+    require(set(result) == names, 'observer')
     return result
+
+
+def release_input(uid, revision):
+    temporary = Path(os.environ['RUNNER_TEMP'])
+    directory(temporary, uid)
+    receipt = parse(read(temporary / 'silex-original-dashboard-build.json', MAX_JSON, owner=uid))
+    require(receipt['operation'] == 'private_original_dashboard_native_release' and
+        receipt['studio_revision'] == revision and receipt['source_commit'] == '672efed69dda04c0a1e968859239e042f00d9538' and
+        receipt['status'] == 'passed' and all(receipt[k] is True for k in ('release_compilation_passed',
+        'immutable_source_inputs_preserved', 'private_tool_tree_removed', 'compiled_target_retained',
+        'owned_groups_joined', 'desktop_url_tests_passed', 'native_build', 'sdk_gate_verified')), 'source')
+    binary = receipt['binary']
+    require(type(binary) is dict and binary.keys() == {'bytes', 'sha256', 'mode', 'links'}
+        and type(binary['bytes']) is int and 1024**2 <= binary['bytes'] <= 128 * 1024**2
+        and re.fullmatch('[0-9a-f]{64}', binary['sha256']), 'source')
+    path = temporary / 'silex-original-dashboard-build-target/release/silex-desktop'
+    require(path.resolve(strict=True) == path, 'filesystem')
+    source = path.open('rb')
+    try:
+        info = os.fstat(source.fileno())
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == uid and stat.S_IMODE(info.st_mode) == binary['mode']
+            and info.st_mode & 0o100 and not info.st_mode & 0o022 and info.st_nlink == binary['links']
+            and info.st_size == binary['bytes'], 'source')
+    except BaseException:
+        source.close()
+        raise
+    return source, binary
+
+
+def copy_release(source, binary, destination, gid):
+    before = stable(os.fstat(source.fileno()))
+    digest = hashlib.sha256()
+    total = 0
+    with destination.open('xb') as target:
+        while block := source.read(1024 * 1024):
+            if total == 0:
+                require(block[:6] == b'\x7fELF\x02\x01', 'source')
+            total += len(block)
+            require(total <= binary['bytes'], 'source')
+            digest.update(block)
+            target.write(block)
+        require(total == binary['bytes'] and digest.hexdigest() == binary['sha256'] and
+            before == stable(os.fstat(source.fileno())), 'source')
+        os.fchown(target.fileno(), 0, gid)
+        os.fchmod(target.fileno(), 0o550)
+
+
+def gui_policy(uid):
+    require(type(uid) is int and uid >= 1000, 'identity')
+    # Only the application server's loopback TCP stream may pass. External
+    # datagrams and DNS still encounter the same calibrated drop counters.
+    return ("""flush chain inet vpcal output
+add counter inet vpcal gui_request
+add counter inet vpcal gui_response
+add rule inet vpcal output oifname "lo" meta skuid %d tcp dport 6805 counter name gui_request accept
+add rule inet vpcal output oifname "lo" tcp sport 6805 counter name gui_response accept
+add rule inet vpcal output meta skuid %d meta nfproto ipv4 counter name denied4 drop
+add rule inet vpcal output meta skuid %d meta nfproto ipv6 counter name denied6 drop
+""" % (uid, uid, uid)).encode()
+
+
+def verify_gui(value):
+    require(type(value) is dict and value.keys() == {'status', 'stage', 'process_groups_started', 'process_groups_joined',
+        'desktop_launches', 'native_window_closes', 'original_project_reopened', 'project_id_sha256'} and
+        value['status'] == 'passed' and value['stage'] == 'complete' and
+        type(value['process_groups_started']) is int and value['process_groups_started'] == value['process_groups_joined'] == 4
+        and type(value['desktop_launches']) is int and value['desktop_launches'] == value['native_window_closes'] == 2
+        and value['original_project_reopened'] is True and re.fullmatch('[0-9a-f]{64}', value['project_id_sha256']), 'protocol')
 
 
 def namespace_init():
@@ -655,9 +734,14 @@ def namespace_init():
                   failure_kind=None, actor_failure_predicate=None, actor_failure_site=[])
     primary = None
     dns = None
+    gui_source = None
     try:
         # Cache every source byte before hiding the original workspace/home/run.
         actor = read(stage / 'isolation_actor.py', MAX_SOURCE, owner=0)
+        if GUI:
+            gui_source, binary = release_input(uid, meta['revision'])
+            gui_actor = read(stage / 'webview.py', MAX_SOURCE, owner=0)
+            frozen = read(stage / 'lifecycle.py', MAX_SOURCE, owner=0)
         resolver = resolver_target()
         os.chdir('/')
         # unshare already cloned this private mount tree and its child mounts.
@@ -675,6 +759,11 @@ def namespace_init():
                    'nosuid,nodev,noexec', 'mqueue', '/dev/mqueue'])
         actor_parent(Path('/run/fixture'), gid)
         write_new(Path('/run/fixture/isolation_actor.py'), actor, mode=0o444)
+        if GUI:
+            for name, data in (('webview.py', gui_actor), ('lifecycle.py', frozen)):
+                write_new(Path('/run/fixture') / name, data, mode=0o444)
+            copy_release(gui_source, binary, Path('/run/fixture/silex-desktop'), gid)
+            gui_source.close()
         home = Path('/home/fixture')
         home.mkdir(mode=0o700)
         os.chown(home, uid, gid)
@@ -746,10 +835,32 @@ def namespace_init():
             ipv4_drop_packets=after['denied4']['packets'], ipv6_drop_packets=after['denied6']['packets'],
             dns_queries=queries, dns_replies=replies,
             dns_output_packets=after['dns']['packets'], dns_reply_packets=after['dns_reply']['packets'])
+        if GUI:
+            report['stage'] = 'gui_firewall'
+            dns.close()
+            dns = None
+            owner.run(['/usr/sbin/nft', '-f', '-'], payload=gui_policy(uid))
+            start = counters(owner.run(['/usr/sbin/nft', '--json', 'list', 'table', 'inet', 'vpcal']), gui=True)
+            require(all(start[k] == after[k] for k in after), 'observer')
+            report['stage'] = 'gui_actor'
+            command = actor_command(uid, gid, 'admission')[:-2] + ['/run/fixture/webview.py']
+            gui = parse(owner.run(command, environment=environment, seconds=72, role='gui'))
+            verify_gui(gui)
+            stop = counters(owner.run(['/usr/sbin/nft', '--json', 'list', 'table', 'inet', 'vpcal']), gui=True)
+            require(all(stop[k] == start[k] for k in ('dns', 'dns_reply', 'denied4', 'denied6'))
+                    and all(start[k]['packets'] == 0 < stop[k]['packets'] for k in ('gui_request', 'gui_response')), 'observer')
+            report['native_webview'] = dict(actor=gui, binary_sha256=binary['sha256'], counters_before=start, counters_after=stop)
         report.update(status='passed', stage='complete')
     except BaseException as error:
         primary = error
         report['failure_kind'] = error.kind if isinstance(error, Rejected) else 'namespace'
+        if GUI and report['stage'] == 'gui_actor':
+            try:
+                failed_gui = parse(owner.last_output)
+                require(failed_gui.get('status') == 'failed' and failed_gui.get('stage') in GUI_STAGES)
+                report['gui_failure_stage'] = failed_gui['stage']
+            except BaseException:
+                pass
         try:
             failed = parse(owner.last_output)
             require(type(failed) is dict and failed.keys() == {'schema', 'operation', 'status', 'predicate', 'site'}
@@ -762,6 +873,8 @@ def namespace_init():
             pass
     finally:
         def finish():
+            if gui_source is not None:
+                gui_source.close()
             if dns is not None:
                 dns.close()
             # Namespace PID1 is also an orphan reaper. No arbitrary foreign PID.
@@ -841,6 +954,8 @@ def staged_supervisor():
             report['worker'] = {key: failed[key] for key in
                 ('schema', 'operation', 'status', 'stage', 'failure_kind', 'namespace_groups_started',
                  'namespace_groups_joined', 'actors_started', 'actors_joined', 'owner_scope', 'actor_failure_predicate', 'actor_failure_site')}
+            if GUI and failed.get('gui_failure_stage') in GUI_STAGES:
+                report['worker']['gui_failure_stage'] = failed['gui_failure_stage']
         except BaseException:
             pass
     finally:

@@ -155,7 +155,7 @@ def verify_root(value, revision, hashes):
     worker = value['worker']
     S.require(type(worker) is dict and worker.keys() == {'schema', 'operation', 'status', 'stage', 'admission',
         'calibration', 'namespace_groups_started', 'namespace_groups_joined', 'actors_started', 'actors_joined', 'owner_scope'}
-        | {'failure_kind', 'actor_failure_predicate', 'actor_failure_site'}
+        | {'failure_kind', 'actor_failure_predicate', 'actor_failure_site'} | ({'native_webview'} if S.GUI else set())
         and type(worker['schema']) is int and worker['schema'] == 1
         and worker['operation'] == 'namespace_isolation_worker' and worker['status'] == 'passed'
         and worker['stage'] == 'complete' and worker['owner_scope'] == 'namespace_process_groups'
@@ -174,6 +174,15 @@ def verify_root(value, revision, hashes):
         'ipv6_attempts', 'ipv4_drop_packets', 'ipv6_drop_packets', 'dns_queries', 'dns_replies',
         'dns_output_packets', 'dns_reply_packets'} and calibration['synthetic_actor'] is True
         and all(type(v) is int and v == 1 for k, v in calibration.items() if k != 'synthetic_actor'), 'observer')
+    if S.GUI:
+        gui = worker['native_webview']
+        S.require(type(gui) is dict and gui.keys() == {'actor', 'binary_sha256', 'counters_before', 'counters_after'}
+            and re.fullmatch('[0-9a-f]{64}', gui['binary_sha256']), 'protocol')
+        S.verify_gui(gui['actor'])
+        before, after = gui['counters_before'], gui['counters_after']
+        S.require(before.keys() == after.keys() == {'dns', 'dns_reply', 'denied4', 'denied6', 'gui_request', 'gui_response'}
+            and all(before[k] == after[k] and before[k]['packets'] == 1 for k in ('dns', 'dns_reply', 'denied4', 'denied6'))
+            and all(before[k]['packets'] == 0 < after[k]['packets'] for k in ('gui_request','gui_response')), 'observer')
     return worker
 
 
@@ -218,6 +227,9 @@ def root_failure(raw, revision, hashes):
                 keys = {'schema', 'operation', 'status', 'stage', 'failure_kind',
                     'namespace_groups_started', 'namespace_groups_joined', 'actors_started',
                     'actors_joined', 'owner_scope', 'actor_failure_predicate', 'actor_failure_site'}
+                if S.GUI and 'gui_failure_stage' in candidate:
+                    S.require(candidate['gui_failure_stage'] in S.GUI_STAGES, 'protocol')
+                    keys.add('gui_failure_stage')
                 S.require(candidate.keys() == keys and type(candidate['schema']) is int and candidate['schema'] == 1
                     and candidate['operation'] == 'namespace_isolation_worker'
                     and candidate['stage'] in S.WORKER_STAGES and candidate['failure_kind'] in S.KINDS
@@ -231,6 +243,8 @@ def root_failure(raw, revision, hashes):
                 worker = {name: candidate[name] for name in ('stage', 'failure_kind',
                     'namespace_groups_started', 'namespace_groups_joined', 'actors_started',
                     'actors_joined', 'actor_failure_predicate', 'actor_failure_site')}
+                if S.GUI and 'gui_failure_stage' in candidate:
+                    worker['gui_failure_stage'] = candidate['gui_failure_stage']
             else:
                 # No successful worker detail is copied into a failure receipt.
                 S.require(candidate.get('status') == 'passed', 'protocol')
@@ -326,7 +340,7 @@ def main():
     S.require(ROOT.stat().st_uid == uid and os.getgid() == gid == pwd.getpwuid(uid).pw_gid)
     temporary = Path(os.environ['RUNNER_TEMP'])
     S.directory(temporary, uid)
-    artifact = temporary / 'silex-native-isolation.json'
+    artifact = temporary / ('silex-native-webview.json' if S.GUI else 'silex-native-isolation.json')
     S.require(not artifact.exists() and not artifact.is_symlink(), 'filesystem')
     lifecycle = S.load_lifecycle(ROOT / S.LIFECYCLE, S.LIFECYCLE_SHA, uid)
     owner = S.Owner(lifecycle, work_ns / 1e9, end_ns / 1e9, control=False)
@@ -367,6 +381,8 @@ def main():
         value = S.parse(raw)
         verify_root(value, revision, hashes)
         report['root_result'] = value
+        if S.GUI:
+            report.update(operation='native_webview_project_reopen', application_executed=True, display_started=True)
         root_acknowledged = True
         S.require(S.source_payloads(owner, ROOT, revision, uid) == payloads, 'source')
         report['stage'] = 'complete'

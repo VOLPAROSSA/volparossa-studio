@@ -17,7 +17,7 @@ on:
       native_followup:
         description: 'Explicit native prerequisite; no native GUI application execution'
         type: choice
-        options: [none, bridge, verify-lock, sdk-admission, sdk-baseline, sdk-fetch, sdk-install, native-build, dashboard-unit, fs-identifier-rename, local-native-build, dashboard-compose-unit, dashboard-crud, runtime-inventory, runtime-sdk-inventory, sdk-isolation]
+        options: [none, bridge, verify-lock, sdk-admission, sdk-baseline, sdk-fetch, sdk-install, native-build, dashboard-unit, fs-identifier-rename, local-native-build, dashboard-compose-unit, dashboard-crud, runtime-inventory, runtime-sdk-inventory, sdk-isolation, native-webview]
         default: none
 
 permissions:
@@ -471,9 +471,12 @@ jobs:
 
   original-dashboard-build:
     if: >-
-      github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'local-native-build' &&
+      github.event_name == 'workflow_dispatch' && !inputs.native_inventory &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-local-dashboard-20261029')
+      ((inputs.native_followup == 'local-native-build' &&
+        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-local-dashboard-20261029')) ||
+       (inputs.native_followup == 'native-webview' &&
+        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development/studio-native-webview-20261119')))
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -581,6 +584,15 @@ jobs:
         run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/install_sdk.py"
       - name: Compile the FS plus original local dashboard release without starting or distributing it
         run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-dashboard/local_build.py"
+      - name: Check native controls, inventory tools and reopen the project in the actual private WebView
+        if: inputs.native_followup == 'native-webview'
+        run: |
+          set -euo pipefail
+          python3 -I -B studio/integration/silex-native-runtime/test_isolation.py -v
+          python3 -I -B studio/integration/silex-native-runtime/test_inventory.py -v
+          python3 -I -B studio/integration/silex-native-runtime/test_webview.py -v
+          python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-runtime/inventory.py"
+          STUDIO_NATIVE_WEBVIEW=1 python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-runtime/isolation.py"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -591,6 +603,8 @@ jobs:
             ${{ runner.temp }}/silex-native-sdk-install-root.json
             ${{ runner.temp }}/silex-native-base-fetch.json
             ${{ runner.temp }}/silex-original-dashboard-build.json
+            ${{ runner.temp }}/silex-native-runtime-inventory.json
+            ${{ runner.temp }}/silex-native-webview.json
           retention-days: 14
           if-no-files-found: warn
 
@@ -959,8 +973,8 @@ jobs:
           import hashlib, pathlib
           root = pathlib.Path('studio/integration')
           expected = {
-            'silex-native-runtime/isolation.py': '5ae53609532eba2b17b7cb9dfe8ea25f33db1632a29be455bb812d3e9af7b9fc',
-            'silex-native-runtime/isolation_root.py': 'cf8b6fe35f292a7c94f5e16ed7ad5e05a7df16772f3c4c2ddd8a29b660f50769',
+            'silex-native-runtime/isolation.py': 'de881089af282689f75ee03cccfff403cd4df5d52ca9c17dacc44978b9f4930c',
+            'silex-native-runtime/isolation_root.py': 'aecb65cfdf5857073583d7bed2d37dd54426dc6e78724f260ffc8ebc2be0e4bd',
             'silex-native-runtime/isolation_actor.py': 'b2dd0793ae14775c51a1f72fb5b7bf5c58e482e50e9f7987f3731b18b94f8de6',
             'silex-native-runtime/test_isolation.py': 'cff4436bb9604db6a868e0427792ec657dfd8690dc3b5ac3f11c9a9d0de1f80b',
             'silex-export/lifecycle.py': 'a3fe1d2fe7ba51c7f63a73ad505161d73e0d8f5b112a9af575f62e70f467da9e',
