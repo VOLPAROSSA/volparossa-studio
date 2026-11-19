@@ -24,9 +24,9 @@ DRIVER_SUBSTAGES = frozenset(('not_started', 'carrier_authentication', 'fixture_
     'context_files', 'context_validate', 'context_write', 'complete', 'unavailable'))
 PINS = {
     BOOTSTRAP / 'native_build.py': '68cf00741ff3ff0047bc013b73c88e845e6a15c8ea85677558097c004204dfe4',
-    HERE / 'local_build.py': '6d841ef0db3369d40887e836e992b8ba751601fe8f423c4842edb15c06ab49eb',
+    HERE / 'local_build.py': 'fe9b4272303a36ed024875b387822748f9aeac7b5f1da698a981729cc75ac6f6',
     HERE / 'check.py': '17659daef9eedba2ff8440e40eaccaa71b520ffeae953a4fc2882e3739356ae7',
-    FS / 'proof.py': '7bbfcd6b64c750dafb4c304f996edfb2e4f6be29eff9659292e48f0b3cc4d56e',
+    FS / 'proof.py': '6c50cc06a2d8a6d416c7b8c0d2dc6e15300817f95ba747eeb77528c4eb8c311e',
     FS / 'manifest.json': 'ca7f1b9b04fb7e5be36c4ed44511ae5950185df4e4572918c7a0530302e96edc',
     FS / 'prepare.py': 'd2f1cd0d964f4d89d932ab4d26201cc9d8eae0a97408087d1f102b9331bb4f3e',
 }
