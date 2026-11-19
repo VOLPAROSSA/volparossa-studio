@@ -24,7 +24,7 @@ DRIVER_SUBSTAGES = frozenset(('not_started', 'carrier_authentication', 'fixture_
     'context_files', 'context_validate', 'context_write', 'complete', 'unavailable'))
 PINS = {
     BOOTSTRAP / 'native_build.py': '943716c8cb7d32b71cec929cba10bc8102a07cf454332509a0dcb58db317b300',
-    HERE / 'local_build.py': '8f74655b8d0ce92e9ee6e0378fcff9c8de3d1f367adfda361b67486738e8dff8',
+    HERE / 'local_build.py': 'ecdbe8fef9c12aad7bb7df4bd47cd2bc40c1b8ed8f31d8167bc9ee0f4fdd6a72',
     HERE / 'check.py': '3ae8b97d887e9ab6bf251e91eb9348931c6703af64cfc1bc0242f181836f98a4',
     FS / 'proof.py': 'a9a6eb24d8e7f863284d32a82ad2bc0ecbba5729124c7f755fddaf451cf40357',
     FS / 'manifest.json': 'ca7f1b9b04fb7e5be36c4ed44511ae5950185df4e4572918c7a0530302e96edc',
@@ -34,7 +34,7 @@ FALSE_FLAGS = ('native_application_executed', 'native_webview_verified', 'native
     'native_runtime_acceptance', 'full_application_privacy', 'no_external_attempts_proven',
     'native_signing_consent_proven', 'publication_authorized', 'full_studio_acceptance',
     'mount_isolation_proven', 'ipc_isolation_proven', 'proc_mount_isolation_proven',
-    'sdk_installed', 'browser_downloaded', 'production_server_cli_proven')
+    'sdk_installed', 'production_server_cli_proven')
 
 
 def load(name, path):
@@ -126,7 +126,8 @@ def check_runtime(p, value, revision):
     require(type(value['browser_receipts']) is list and len(value['browser_receipts']) == 2)
     first, second = [p.browser_receipt(item, phase)
                      for item, phase in zip(value['browser_receipts'], ('first', 'second'))]
-    require(first['ids'] == second['ids'])
+    require(first['ids'] == second['ids']
+            and first['browser_version'] == second['browser_version'] == '158.0.8127.36')
     check_logs(value['log_observations'])
     require(len(value['log_observations']) == 4)
     return value
@@ -241,7 +242,7 @@ def main():
     require(sys.flags.isolated == 1 and sys.flags.dont_write_bytecode == 1
         and sys.argv == [str(HERE / 'crud.py')]
         and os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
-        and os.environ.get('GITHUB_REF') == 'refs/heads/feature/native-local-dashboard-20261029')
+        and os.environ.get('GITHUB_REF') in ('refs/heads/main', 'refs/heads/feature/native-local-dashboard-20261029'))
     for path, digest in PINS.items():
         require(hashlib.sha256(path.read_bytes()).hexdigest() == digest)
     p = load('crud_protocol', HERE / 'crud_protocol.py')
@@ -279,7 +280,7 @@ def main():
         runtime=None, runtime_failure=None, compiler_diagnostic=None, pid_namespace_joined=False,
         driver_diagnostic={'substage': 'not_started'},
         owned_group_count=0, owned_groups_joined=False, private_tool_tree_removed=False,
-        public_fixture_only=True, **{key: False for key in FALSE_FLAGS})
+        public_fixture_only=True, browser_downloaded=True, **{key: False for key in FALSE_FLAGS})
     primary = None
     example_identity = None
     example_attempted = False
@@ -361,8 +362,9 @@ def main():
             log=work / 'logs/driver-install.log', seconds=180)
         diagnostic['driver_install_returned'] = True
         chrome, browser_sha = installed_browser(p, diagnostic)
+        require(Path(chrome).resolve(strict=True) == Path('/opt/google/chrome/google-chrome'))
+        require(browser_sha == '08d5a3fba3197010b28113da201bd31a49b4439619dbf558f8040e4015c787bb')
         # Installed browser identity is observed, never represented as source authentication.
-        report['browser_binary_sha256'] = browser_sha
         value = dict(schema=1, revision=revision, root=str(work), node=str(node), chrome=chrome,
             server=str(work / 'server'), parent_net=os.readlink('/proc/self/ns/net'),
             parent_pid=os.readlink('/proc/self/ns/pid'), uid=os.getuid(), gid=os.getgid(),

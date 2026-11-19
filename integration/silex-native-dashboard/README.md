@@ -85,18 +85,33 @@ The unchanged server source closure reuses its32-test result from40826860067.
 
 The explicit `dashboard-crud` disposable hosted profile compiles an original
 Rust example against the actual Silex server library, using its public router.
-It runs the original dashboard in the installed Chrome with its sandbox requested,
+It runs the original dashboard in the pinned Google Chrome with its sandbox requested,
 through the unchanged Core NET/PID fixture wrapper pinned to e58d1c9. Two server
 and browser runs exercise create, typed rename, raw unrelated-byte preservation,
 duplicate, persistence across restart and delete, plus42 invalid-ID HTTP denials.
 The temporary example is removed and exact source inputs rechecked before success.
-Twenty-one Python controls precede provisioning. Only bounded JSON receipts leave
-the runner; no application binaries, payloads, screenshots or raw logs are artifacts.
-This profile installs no SDK and downloads no browser. Installed Chrome identity
-is observed rather than represented as source authentication. It does not prove
-native WebKit/GUI, mount/IPC/private-proc isolation, no external attempts, native
-privacy/consent, production server CLI, publication or full Studio acceptance.
-Actual hosted evidence remains required; source review alone is insufficient.
+The hosted controls run before provisioning. Only bounded JSON receipts leave the runner.
+The historical probes 40836183340 and 44437020038 built the Rust router and stopped
+when the installed Chrome failed the executable write-permission check. The second
+probe joined all 21 groups and removed its private build tree.
+
+The current profile selects Google's amd64 `google-chrome-stable` package
+158.0.8127.36-1. The signed November 18 stable repository lists its 152,702,276
+bytes and SHA-256 `4696bce00b128f385a870ba2eb6eede61698f22374ea0d8e09af8a1c6543d397`.
+The signed InRelease SHA-256 is `9135540173d3b6081d130214a7b4e4e46cb1e8190e63f71fca7622c754e41bad`.
+Google's signing key fingerprint is `EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796`.
+
+The job extracts the authenticated browser data into a temporary private mount
+at the canonical browser path. It verifies the vendor's executable and sandbox
+helper ownership and modes, seals the mount read-only and checks actual runtime
+ELF dependencies. The nonroot fixture verifies the full browser digest and
+requires both fresh sessions to report the pinned version. The transient unit
+and download are removed before the package receipt is written. The receipt
+also requires the original host executable's identity and metadata to match.
+The test covers the library router, original dashboard and browser. Native
+webview, production CLI and public hosting each require separate runtime evidence.
+
+[Vendor repository](https://dl.google.com/linux/chrome/deb/dists/stable/InRelease)
 
 First CRUD run40834571735 passed all54 controls and actual library-example
 compilation, then failed at driver preparation before a browser result. Its

@@ -38,7 +38,7 @@ def browser(phase='first'):
         sandbox_requested=True, browser_closed=True, context_closed=True, external_denied=0,
         requests=12, ids=list(IDS), metadata_before_sha256='a' * 64 if phase == 'first' else None,
         metadata_after_sha256='b' * 64 if phase == 'first' else None,
-        other_bytes_preserved=phase == 'first', typed_rename_only=True, browser_version='145.0.1.2',
+        other_bytes_preserved=phase == 'first', typed_rename_only=True, browser_version='158.0.8127.36',
         failure_action=None, failure_http_status=None, **{key: False for key in P.CHROME_FLAGS})
 
 
@@ -128,6 +128,13 @@ class CrudTests(unittest.TestCase):
                 dict(value, binary_bytes=True), dict(value, binary_bytes=512 * 1024 * 1024 + 1),
                 dict(value, launcher_present=0), dict(value, fixture_files_copied=4)):
             with self.subTest(bad=bad), self.assertRaises(RuntimeError): M.check_driver_diagnostic(bad)
+
+    def test_runtime_rejects_a_different_browser_release_in_either_session(self):
+        for index in (0, 1):
+            observed = runtime()
+            observed['browser_receipts'][index]['browser_version'] = '157.0.8103.50'
+            with self.assertRaises(RuntimeError):
+                M.check_runtime(P, observed, 'a' * 40)
 
     def test_fixed_offline_server_example_command_has_no_desktop_sdk_or_production_cli(self):
         self.assertEqual(list(map(str, M.build_command(Path('/compiler')))),
