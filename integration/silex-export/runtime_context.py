@@ -14,11 +14,14 @@ CONTEXT_KEYS = frozenset(('STUDIO_NODE', 'STUDIO_CHROME', 'STUDIO_SILEX_SOURCE',
 
 def checked_context(path, values):
     temporary = Path(path).parent
-    if set(values) not in (CONTEXT_KEYS, CONTEXT_KEYS | {'STUDIO_FIXTURE_IMAGE'}) or any(type(value) is not str for value in values.values()):
+    if set(values) not in (CONTEXT_KEYS, CONTEXT_KEYS | {'STUDIO_FIXTURE_IMAGE'},
+                           CONTEXT_KEYS | {'STUDIO_FIXTURE_IMAGE', 'STUDIO_CAPTURE_NATIVE_PROJECT'}) or any(type(value) is not str for value in values.values()):
         raise ValueError('closed runtime context required')
     expected = {'STUDIO_NODE': temporary / 'node/node', 'STUDIO_SILEX_SOURCE': temporary / 'silex',
         'STUDIO_FIXTURE_TEMP': temporary, 'STUDIO_ZIP_OUTPUT': temporary / 'actual-export.zip',
         'STUDIO_BROWSER_RECEIPT': temporary / 'browser.json', 'RUNNER_TEMP': temporary.parent}
+    if 'STUDIO_CAPTURE_NATIVE_PROJECT' in values and values['STUDIO_CAPTURE_NATIVE_PROJECT'] != '1':
+        raise ValueError('explicit native project capture required')
     if 'STUDIO_FIXTURE_IMAGE' in values:
         expected['STUDIO_FIXTURE_IMAGE'] = temporary / CHART_NAME
     if any(values[key] != str(value) for key, value in expected.items()):
@@ -32,6 +35,8 @@ def checked_context(path, values):
 
 def write_context(path, env):
     keys = CONTEXT_KEYS | ({'STUDIO_FIXTURE_IMAGE'} if 'STUDIO_FIXTURE_IMAGE' in env else set())
+    if 'STUDIO_CAPTURE_NATIVE_PROJECT' in env:
+        keys = keys | {'STUDIO_CAPTURE_NATIVE_PROJECT'}
     values = checked_context(path, {key: env[key] for key in keys})
     data = (json.dumps(values, sort_keys=True) + '\n').encode()
     if len(data) > 16384:
