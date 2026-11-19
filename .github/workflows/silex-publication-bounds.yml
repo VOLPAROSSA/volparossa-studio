@@ -466,10 +466,9 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      ((github.ref == 'refs/heads/main' &&
-        (inputs.native_followup == 'local-native-build' || inputs.native_followup == 'native-webview')) ||
-       (inputs.native_followup == 'native-site-export' &&
-        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development/studio-native-site-export-20261119')))
+      github.ref == 'refs/heads/main' &&
+      (inputs.native_followup == 'local-native-build' || inputs.native_followup == 'native-webview' ||
+       inputs.native_followup == 'native-site-export')
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -596,8 +595,6 @@ jobs:
       - name: Install only the reviewed SDK closure offline on this disposable runner
         run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/install_sdk.py"
       - name: Compile the FS plus original local dashboard release without starting or distributing it
-        env:
-          STUDIO_NATIVE_EXPORT_BUILD: ${{ inputs.native_followup == 'native-site-export' && '1' || '0' }}
         run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-dashboard/local_build.py"
       - name: Check out the reviewed Core site packer
         if: inputs.native_followup == 'native-site-export'

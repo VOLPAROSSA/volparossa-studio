@@ -5,6 +5,30 @@ Updated 2026-11-19. Requirements are the complete permanent
 incorporated by the full Core goal. This file records Studio evidence and next
 work, without replacing that scope or the shared Core execution ledger.
 
+## Native editor export to Core — 2026-11-19
+
+The native Silex dashboard created a filesystem-backed project. The fixture
+saved a heading containing its new project ID through the local API. Two fresh
+WebKit editor processes opened that project and displayed the saved heading.
+In the second editor, Alt+P and Publish selected Silex's File system hosting
+connector. It wrote `index.html` (411 bytes) and the stylesheet referenced by
+that page (156 bytes) into the project's local publication directory.
+[Native trial at Studio b0f77d2](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44553636524)
+
+Core `c8689558` packed that directory into a 701-byte site bundle. Its SHA-256
+was `1991c962faf8c12ef65863a06ff5a6504ef2c6d7240bc5ff65a558d8973abbe2`.
+The trial compared the original files before and after packing, checked both
+hashes against Core's asset inventory and hashed the actual bundle. The Core
+receipt requires owner review and reports unsigned local preparation. All four
+GUI process groups exited and the runner restored its initial network state.
+The manual `native-site-export` workflow runs on protected `main`.
+[Original reports](evidence/native-webview/44553636524/)
+· [Owner workflow](../integration/silex-native-runtime/README.md#prepare-the-native-editors-local-output-for-core)
+
+The independent Firefox hosting trial below used a separate five-asset site.
+Owner authorization, signing and independent retrieval during a publisher
+outage remain to be demonstrated together for this native export.
+
 ## Native Silex desktop reopens a saved canvas — 2026-11-19
 
 The original Silex v3.9.0 desktop at `672efed69dda04c0a1e968859239e042f00d9538`

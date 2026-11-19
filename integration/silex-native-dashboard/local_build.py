@@ -252,9 +252,7 @@ def main():
     require(sys.flags.isolated == 1 and sys.flags.dont_write_bytecode == 1
             and sys.argv == [str(HERE / 'local_build.py')]
             and os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
-            and (os.environ.get('GITHUB_REF') == 'refs/heads/main' or
-                (os.environ.get('STUDIO_NATIVE_EXPORT_BUILD') == '1' and os.environ.get('GITHUB_REF') ==
-                 'refs/heads/development/studio-native-site-export-20261119')))
+            and os.environ.get('GITHUB_REF') == 'refs/heads/main')
     for path, expected in PINS.items():
         require(hashlib.sha256(path.read_bytes()).hexdigest() == expected)
     require(hashlib.sha256((HERE / 'compose.py').read_bytes()).hexdigest() == COMPOSE_SHA256)
