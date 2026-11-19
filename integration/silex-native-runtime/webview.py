@@ -168,14 +168,25 @@ def desktop_action(atspi, label, app_process):
     require(await_value(locate).do_action(0))
 
 
+def has_text(node, expected):
+    if node.get_name() == expected:
+        return True
+    text = node.get_text_iface()
+    return bool(text and text.get_character_count() == len(expected) and text.get_text(0, len(expected)) == expected)
+
+
+def project_name_input(node):
+    if node.get_name() == 'Project name':
+        return node.get_editable_text_iface()
+    return None
+
+
 def visible_canvas_heading(atspi, project_id):
     heading = 'Restored canvas ' + project_id
 
     def match(node):
-        if node.get_name() != heading:
-            text = node.get_text_iface()
-            if not text or text.get_character_count() != len(heading) or text.get_text(0, len(heading)) != heading:
-                return False
+        if not has_text(node, heading):
+            return False
         states = node.get_state_set()
         return states.contains(atspi.StateType.VISIBLE) and states.contains(atspi.StateType.SHOWING)
 
@@ -353,18 +364,26 @@ def main():
                     checkpoint(phase + '_launch')
                     await_value(lambda: app.poll() is None and available())
                     if phase == 'first':
-                        stage = 'seed_project'
+                        stage = 'empty_dashboard'
                         require(remote('GET', '/api/website?connectorId=fs-storage') == [])
-                        created = remote('PUT', '/api/website?connectorId=fs-storage', {'name': NAME})
-                        project_id = created['websiteId']
+                        await_value(lambda: find_accessible(Atspi, lambda node: has_text(node, '0 local projects.')
+                                    or has_text(node, 'No projects yet. Create your first project above.')))
+                        stage = 'project_name'
+                        field = await_value(lambda: find_accessible(Atspi, project_name_input))
+                        require(field.set_text_contents(NAME))
+                        stage = 'create_project'
+                        desktop_action(Atspi, 'Create project', app)
+                        created = await_value(lambda: remote('GET', '/api/website?connectorId=fs-storage'))
+                        require(type(created) is list and len(created) == 1 and created[0]['name'] == NAME)
+                        project_id = created[0]['websiteId']
                         require(type(project_id) is str and UUID.fullmatch(project_id))
+                        checkpoint('dashboard_created')
+                        stage = 'seed_project'
                         uri = '/api/website?websiteId=' + project_id + '&connectorId=fs-storage'
                         project = remote('GET', uri)
                         require(project['pages'] == [{}])
                         project['pages'] = [saved_page(project_id)]
                         remote('POST', uri, project)
-                        stage = 'refresh_dashboard'
-                        desktop_action(Atspi, 'Refresh', app)
                     stage = phase + '_list'
                     projects = remote('GET', '/api/website?connectorId=fs-storage')
                     require(type(projects) is list and len(projects) == 1 and projects[0]['websiteId'] == project_id

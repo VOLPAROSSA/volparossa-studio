@@ -46,6 +46,7 @@ if GUI:
     FILENAMES['gui'] = 'webview.py'
     HOST_KEYS += ('STUDIO_NATIVE_WEBVIEW',)
 GUI_STAGES = ('admission', 'display', 'bus', 'first_launch', 'seed_project', 'refresh_dashboard',
+              'empty_dashboard', 'project_name', 'create_project',
               'first_open', 'first_editor', 'first_close', 'second_launch', 'second_open',
               'second_editor', 'second_close', 'cleanup', 'complete') + tuple(
     phase + '_' + observed for phase in ('first', 'second')
@@ -54,7 +55,7 @@ GUI_STAGES = ('admission', 'display', 'bus', 'first_launch', 'seed_project', 're
                      'dirty_title', 'id_title', 'dashboard', 'loading', 'editor_url', 'unknown_page', 'webkit_process', 'canvas', 'canvas_dirty_title', 'canvas_id_title',
                      'canvas_dashboard', 'canvas_loading', 'canvas_editor_url', 'canvas_unknown_page'))
 
-GUI_CHECKPOINTS = frozenset(('bus_ready', 'accessibility_closing', 'accessibility_closed', 'display_closing',
+GUI_CHECKPOINTS = frozenset(('bus_ready', 'dashboard_created', 'accessibility_closing', 'accessibility_closed', 'display_closing',
     'display_closed', 'services_drained')) | {
     phase + '_' + action for phase in ('first', 'second') for action in
     ('launch', 'saved_page', 'webkit_process', 'canvas_read', 'close_request', 'quit_action', 'closed', 'server_stopped')}

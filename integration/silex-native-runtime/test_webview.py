@@ -76,6 +76,20 @@ class WebViewTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             gui.desktop_action(sdk, 'Refresh', process)
 
+    def test_dashboard_creation_requires_its_named_editable_input_and_exact_ready_text(self):
+        node = Mock()
+        node.get_name.return_value = 'Project name'
+        self.assertIs(gui.project_name_input(node), node.get_editable_text_iface.return_value)
+        node.get_name.return_value = 'Other input'
+        self.assertIsNone(gui.project_name_input(node))
+        text = node.get_text_iface.return_value
+        expected = '0 local projects.'
+        text.get_character_count.return_value = len(expected)
+        text.get_text.return_value = expected
+        self.assertTrue(gui.has_text(node, expected))
+        text.get_text.return_value = '1 local projects.'
+        self.assertFalse(gui.has_text(node, expected))
+
     def test_quit_requires_the_original_desktop_pid_and_the_save_quit_sibling(self):
         node, save = Mock(), Mock()
         node.get_name.return_value = 'Quit'
