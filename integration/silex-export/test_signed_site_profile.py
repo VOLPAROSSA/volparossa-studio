@@ -42,6 +42,25 @@ class SignedProfileTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 profile.arguments(invalid)
 
+    def test_native_review_is_bound_only_in_the_private_topology_context(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            core, binary = core_files(root)
+            context = root / 'viewer-context.json'
+            digest = 'a' * 64
+            profile.write_signed_context(context, core, binary, mode=profile.TOPOLOGY_MODE,
+                                         native_review_sha256=digest)
+            self.assertEqual(profile.read_core_context(context),
+                             profile.CoreContext(profile.TOPOLOGY_MODE, binary, core, digest))
+            good = json.loads(context.read_text())
+            for bad in (dict(good, schema=2), dict(good, proof_mode=profile.MODE),
+                        dict(good, native_review_sha256=digest.upper()),
+                        dict(good, native_review_sha256=None),
+                        {k: v for k, v in good.items() if k != 'native_review_sha256'}):
+                private(context, json.dumps(bad).encode())
+                with self.subTest(bad=bad), self.assertRaises(ValueError):
+                    profile.read_core_context(context)
+
     def test_schema_two_roundtrip_binds_fixed_core_and_requires_both_real_binary_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

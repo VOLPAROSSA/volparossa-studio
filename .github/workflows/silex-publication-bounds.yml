@@ -473,7 +473,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.native_followup == 'native-site-hosting' && 120 || 45 }}
     env:
-      STUDIO_CORE_REVISION: ${{ inputs.native_followup == 'native-site-hosting' && '3de80dfd08069c5a455763eee521b11a2ca3bfbb' || 'c8689558544eb56f28c4de5df805e4d9bbd5d358' }}
+      STUDIO_CORE_REVISION: ${{ inputs.native_followup == 'native-site-hosting' && '6924fe8b051ad84e09b8f21ca032a1db4c796693' || 'c8689558544eb56f28c4de5df805e4d9bbd5d358' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -670,13 +670,6 @@ jobs:
           ref: 672efed69dda04c0a1e968859239e042f00d9538
           path: silex-browser
           persist-credentials: false
-      - name: Prepare the existing Core offline hosting VM
-        if: inputs.native_followup == 'native-site-hosting' && github.ref == 'refs/heads/main'
-        working-directory: core
-        env:
-          STUDIO_PROOF_MODE: signed-site-topology
-          STUDIO_REVISION: ${{ github.sha }}
-        run: bash tests/integration/studio-topology-host.sh prepare
       - name: Reopen the authored site in native WebKit and sign its five exported files
         if: inputs.native_followup == 'native-site-hosting'
         env:
@@ -687,6 +680,13 @@ jobs:
           unset CARGO_REGISTRIES_CRATES_IO_PROTOCOL
           python3 -B studio/integration/silex-export/run.py "$GITHUB_WORKSPACE/core" "$GITHUB_WORKSPACE/silex-browser" \
             "$RUNNER_TEMP/studio-export-receipt.json" --proof-mode signed-site-topology
+      - name: Prepare the existing Core offline hosting VM
+        if: inputs.native_followup == 'native-site-hosting' && github.ref == 'refs/heads/main'
+        working-directory: core
+        env:
+          STUDIO_PROOF_MODE: signed-site-topology
+          STUDIO_REVISION: ${{ github.sha }}
+        run: bash tests/integration/studio-topology-host.sh prepare
       - name: Retrieve this native site from the independent holder while its origin is offline
         if: inputs.native_followup == 'native-site-hosting' && github.ref == 'refs/heads/main'
         working-directory: core

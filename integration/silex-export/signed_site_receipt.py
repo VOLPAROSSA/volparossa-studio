@@ -96,7 +96,7 @@ def validate_signed_proof(value, expected_assets=None):
     return value
 
 
-def read_signed_proof(path, expected_assets):
+def read_signed_proof(path, expected_assets, *, native_review_sha256=None):
     lines = read_private(path, LOG_LIMIT).decode('utf-8', errors='strict').splitlines()
     proofs = [strict_json(line[len(PREFIX):]) for line in lines if line.startswith(PREFIX)]
     if len(proofs) != 1:
@@ -107,7 +107,15 @@ def read_signed_proof(path, expected_assets):
             or sum(bool(re.fullmatch(r'test result: ok\. 1 passed; 0 failed; 0 ignored; 0 measured; [0-9]+ filtered out; finished in [0-9.]+s', line)) for line in lines) != 1
             or any(line.startswith('test result: ') and not line.startswith('test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; ') for line in lines)):
         raise ValueError('one actual successful signed-site test required')
-    return validate_signed_proof(proofs[0], expected_assets)
+    proof = validate_signed_proof(proofs[0], expected_assets)
+    if native_review_sha256 is not None:
+        digest(native_review_sha256)
+        prefix = 'STUDIO_NATIVE_OWNER_REVIEW '
+        acknowledged = [line[len(prefix):] for line in lines if line.startswith(prefix)]
+        if (acknowledged != [native_review_sha256]
+                or proof['bindings']['bundle_sha256'] != native_review_sha256):
+            raise ValueError('signed input must match the independently reviewed native bundle')
+    return proof
 
 
 def read_signed_diagnostic(path):

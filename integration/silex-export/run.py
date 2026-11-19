@@ -351,9 +351,9 @@ def main():
             if native:
                 receipt['stage'] = 'reopen_and_export_native_project'
                 receipt['native_export'] = native_handoff.prepare(core, studio, temporary, env, run)
-            execute_signed_site(core, temporary, runtime_fixture, env, receipt, run, mode=proof_mode)
-            if native and receipt['signed_site_recovery']['bindings']['bundle_sha256'] != receipt['native_export']['reviewed_bundle_sha256']:
-                raise ValueError('signed native export differs from owner-reviewed input')
+            review = receipt['native_export']['reviewed_bundle_sha256'] if native else None
+            execute_signed_site(core, temporary, runtime_fixture, env, receipt, run,
+                                mode=proof_mode, native_review_sha256=review)
             if proof_mode == TOPOLOGY_MODE:
                 receipt['stage'] = 'verify_topology_handoff'
                 handoff_files = topology_handoff.prepare(temporary, receipt, os.environ)
