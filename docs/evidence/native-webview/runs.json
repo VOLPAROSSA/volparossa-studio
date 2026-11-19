@@ -78,5 +78,40 @@
         "sha256": "b95dc03222cf3288ffbb8da970b816ede2d004ba942ed382f4887b222aa8b136"
       }
     ]
+  },
+  {
+    "run": 44523903498,
+    "revision": "dbfd2a823ac53e4567efb70b4cc5efd82897873d",
+    "conclusion": "failure",
+    "artifact_id": 14529841706,
+    "artifact_bytes": 553,
+    "artifact_sha256": "405cbbf4923b576822b6a4005f75daf62cc592f996ddec3ced0f18aee452f78c",
+    "executable": null,
+    "files": [
+      {
+        "path": "44523903498/silex-native-base-fetch.json",
+        "sha256": "3976aad26ed58d13294e25317e0fd804c0db1156ac9288c17633ded1c5d5456f"
+      }
+    ]
+  },
+  {
+    "run": 44524950940,
+    "revision": "938354076d270b3484ea3c49cdf01d421872473f",
+    "conclusion": "failure",
+    "artifact_id": 14531255532,
+    "artifact_bytes": 40335,
+    "artifact_sha256": "a5a9280995fe61578a935e1ebf9e2a07212f08d9e438efe57fae0e012e4e8c2a",
+    "executable": {
+      "bytes": 34339248,
+      "links": 2,
+      "mode": 493,
+      "sha256": "ef33ebcfae2a4d61948e17f3329e3bf554e98f91d84a5b2b16760ec0d0ea6d09"
+    },
+    "files": [
+      {
+        "path": "44524950940/silex-native-webview.json",
+        "sha256": "7c611a8a2d13110a9a7b53b56c311703df94bf5c106d3d3756a5d09aa2bbffcc"
+      }
+    ]
   }
 ]

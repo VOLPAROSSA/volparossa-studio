@@ -33,6 +33,13 @@ saved page and visible canvas. A fresh process must display that same saved
 content before this trial can establish native reopening.
 [Dashboard refresh run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44519409673)
 
+On source `93835407`, the original desktop displayed the saved project in the
+native WebKit canvas. The trial reached the first normal close request and
+stopped before confirming process exit. Silex can ask whether to save changes
+when quitting. The follow-up recognizes its two explicit choices in the owned
+GTK dialog and records how each desktop process closed.
+[First confirmed native canvas](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44524950940)
+
 ## A fresh browser opens a Studio site after its publisher goes offline — 2026-11-18
 
 A single hosted trial followed a synthetic public site from its saved Silex

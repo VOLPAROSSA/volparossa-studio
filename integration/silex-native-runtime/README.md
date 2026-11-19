@@ -125,6 +125,7 @@ module matched the file from the independently verified 148,428,992-byte
 archive under the Ubuntu-signed Noble Updates index. Both inspected modules
 declared no kernel dependencies and matched their own kernel version.
 [Hosted AWS observation](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44519106391)
+· [Ubuntu package, signed index and module digests](../../docs/evidence/native-webview/ubuntu-veth.json)
 
 The manual `native-webview` choice uses the original Silex release composed with the
 local dashboard. The build and both native launches share a disposable runner.
