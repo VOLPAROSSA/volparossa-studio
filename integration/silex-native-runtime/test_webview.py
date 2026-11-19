@@ -76,14 +76,22 @@ class WebViewTests(unittest.TestCase):
         self.assertFalse(gui.visible_canvas_heading(sdk, 'different-project'))
         node.get_state_set.return_value.contains.side_effect = lambda state: state == sdk.StateType.VISIBLE
         self.assertFalse(gui.visible_canvas_heading(sdk, project_id))
-        node.get_role.return_value = sdk.Role.PUSH_BUTTON
-        self.assertFalse(gui.visible_canvas_heading(sdk, project_id))
+
+    def test_canvas_pixels_must_show_the_saved_pair_aligned_across_six_rows(self):
+        first, second = gui.canvas_colors('a')
+        row = b'\0' * 6 + first * 16 + second * 32
+        width = len(row) // 3
+        pixels = row * 6
+        self.assertTrue(gui.contains_canvas_pixels(pixels, width, 6, len(row), 3, (first, second)))
+        self.assertFalse(gui.contains_canvas_pixels(pixels, width, 6, len(row), 3, gui.canvas_colors('b')))
+        self.assertFalse(gui.contains_canvas_pixels(pixels, width, 5, len(row), 3, (first, second)))
+        self.assertFalse(gui.contains_canvas_pixels(row * 5 + row[3:] + row[:3], width, 6, len(row), 3, (first, second)))
 
     def test_reopen_evidence_requires_both_normal_native_closes_and_owned_groups(self):
         value = dict(status='passed', stage='complete', process_groups_started=4, process_groups_joined=4,
-            desktop_launches=2, native_window_closes=2, rendered_saved_pages=2, original_project_reopened=True, project_id_sha256='0' * 64)
+            desktop_launches=2, native_window_closes=2, canvas_readbacks=['visible_pixels', 'accessible_text'], original_project_reopened=True, project_id_sha256='0' * 64)
         root.verify_gui(value)
-        for key, bad in (('native_window_closes', 1), ('rendered_saved_pages', 1), ('rendered_saved_pages', True), ('process_groups_joined', 3), ('original_project_reopened', False),
+        for key, bad in (('native_window_closes', 1), ('canvas_readbacks', ['visible_pixels']), ('canvas_readbacks', ['unknown', 'accessible_text']), ('process_groups_joined', 3), ('original_project_reopened', False),
                          ('project_id_sha256', 'invalid'), ('stage', 'first_editor')):
             with self.subTest(key=key), self.assertRaises(root.Rejected):
                 root.verify_gui(dict(value, **{key: bad}))

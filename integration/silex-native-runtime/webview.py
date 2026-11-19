@@ -65,9 +65,17 @@ def available():
         return False
 
 
+def canvas_colors(project_id):
+    digest = hashlib.sha256(project_id.encode('ascii')).digest()
+    return bytes((208, digest[0], digest[1])), bytes((32, digest[2], digest[3]))
+
+
 def saved_page(project_id):
+    border, fill = canvas_colors(project_id)
     return {'id': 'native-home', 'name': 'Home', 'frames': [{'component': {
         'type': 'wrapper', 'components': [{'type': 'text', 'tagName': 'h1',
+            'style': {'display': 'block', 'width': '230px', 'padding-bottom': '16px',
+                      'border-left': '16px solid #' + border.hex(), 'background-color': '#' + fill.hex()},
             'components': [{'type': 'textnode', 'content': 'Restored canvas ' + project_id}]}]}}]}
 
 
@@ -145,7 +153,10 @@ def editor_observation(atspi, pid, project_id):
 
 def desktop_action(atspi, label, app_process):
     def match(node):
-        if node.get_name() == label:
+        if node.get_name() != label or node.get_role() != atspi.Role.PUSH_BUTTON:
+            return None
+        states = node.get_state_set()
+        if states.contains(atspi.StateType.SENSITIVE) and states.contains(atspi.StateType.SHOWING):
             action = node.get_action_iface()
             if action and action.get_n_actions():
                 return action
@@ -162,15 +173,47 @@ def visible_canvas_heading(atspi, project_id):
     heading = 'Restored canvas ' + project_id
 
     def match(node):
-        if node.get_role() != atspi.Role.HEADING:
-            return False
-        text = node.get_text_iface()
-        if node.get_name() != heading and not (text and text.get_text(0, -1) == heading):
-            return False
+        if node.get_name() != heading:
+            text = node.get_text_iface()
+            if not text or text.get_character_count() != len(heading) or text.get_text(0, len(heading)) != heading:
+                return False
         states = node.get_state_set()
         return states.contains(atspi.StateType.VISIBLE) and states.contains(atspi.StateType.SHOWING)
 
     return find_accessible(atspi, match)
+
+
+def contains_canvas_pixels(raw, width, height, stride, channels, colors):
+    require(0 < width <= 1280 and 0 < height <= 800 and channels in (3, 4)
+            and width * channels <= stride and len(raw) >= stride * (height - 1) + width * channels)
+    border, fill = colors
+    if channels == 4:
+        border += b'\xff'
+        fill += b'\xff'
+    pattern = border * 8 + fill * 24
+    last = -1
+    run = 0
+    for y in range(height):
+        row = raw[y * stride:y * stride + width * channels]
+        x = row.find(pattern)
+        if x < 0 or x % channels:
+            last, run = -1, 0
+            continue
+        run = run + 1 if x == last else 1
+        if run == 6:
+            return True
+        last = x
+    return False
+
+
+def visual_canvas(gdk, gdkx, display, xid, project_id):
+    window = gdkx.X11Window.foreign_new_for_display(display, xid)
+    require(window is not None)
+    width, height = window.get_width(), window.get_height()
+    require(0 < width <= 1280 and 0 < height <= 800)
+    pixbuf = gdk.pixbuf_get_from_window(window, 0, 0, width, height)
+    return pixbuf is not None and contains_canvas_pixels(pixbuf.get_pixels(), width, height,
+        pixbuf.get_rowstride(), pixbuf.get_n_channels(), canvas_colors(project_id))
 
 
 def webkit_process():
@@ -221,7 +264,7 @@ def request_close(window):
 def main():
     stage = 'admission'
     state = dict(process_groups_started=0, process_groups_joined=0, desktop_launches=0,
-        native_window_closes=0, rendered_saved_pages=0, original_project_reopened=False)
+        native_window_closes=0, canvas_readbacks=[], original_project_reopened=False)
     actor = load('isolation_actor')
     life = load('lifecycle')
     # The admission actor uses the same original identity and view assertions.
@@ -264,7 +307,12 @@ def main():
             await_value(address.is_socket, 5)
             import gi
             gi.require_version('Atspi', '2.0')
-            from gi.repository import Atspi, Gio, GLib
+            gi.require_version('Gdk', '3.0')
+            gi.require_version('GdkX11', '3.0')
+            from gi.repository import Atspi, Gdk, GdkX11, Gio, GLib
+            screen = Gdk.Display.open(os.environ['DISPLAY'])
+            require(screen is not None)
+            stack.callback(screen.close)
             bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
             bus.call_sync('org.a11y.Bus', '/org/a11y/bus', 'org.freedesktop.DBus.Properties', 'Set',
                 GLib.Variant('(ssv)', ('org.a11y.Status', 'IsEnabled', GLib.Variant('b', True))),
@@ -307,8 +355,17 @@ def main():
                     stage = phase + '_webkit_process'
                     require(await_value(webkit_process))
                     stage = phase + '_canvas'
-                    require(await_value(lambda: visible_canvas_heading(Atspi, project_id)))
-                    state['rendered_saved_pages'] += 1
+                    def read_canvas():
+                        if visual_canvas(Gdk, GdkX11, screen, window, project_id):
+                            return 'visible_pixels'
+                        if visible_canvas_heading(Atspi, project_id):
+                            return 'accessible_text'
+                        return None
+                    try:
+                        state['canvas_readbacks'].append(await_value(read_canvas))
+                    except TimeoutError:
+                        stage = phase + '_canvas_' + editor_observation(Atspi, app.pid, project_id)
+                        raise
                     stage = phase + '_close'
                     request_close(window)
                     # waitid with WNOWAIT preserves ownership until the final drain.

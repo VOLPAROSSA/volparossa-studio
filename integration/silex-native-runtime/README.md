@@ -123,7 +123,9 @@ original unprivileged UID. Following the IPv4, IPv6 and DNS calibration, the
 application can use the local Silex TCP port on loopback. The fixture creates a
 synthetic project and saves a heading unique to it using the local API. It selects
 the dashboard’s Open action through accessibility, reads the native editor title
-and the visible heading in the canvas, closes the window and repeats these checks
-in a fresh process. Its success requires both normal exits,
+and checks the saved canvas content in the visible native window. The readback
+uses its exact accessible text or the adjacent border and fill colors derived from
+the project ID. Pixel samples stay inside the disposable display. It closes the
+window and repeats these checks in a fresh process. Its success requires both normal exits,
 the live WebKit processes, the network counter checks and cleanup. Project
 publishing, editing, updates and distribution have separate acceptance gates.
