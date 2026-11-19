@@ -63,6 +63,15 @@ class WebViewTests(unittest.TestCase):
         with self.assertRaises(root.Rejected):
             root.gui_policy(0)
 
+    def test_wait_services_glib_updates_before_reading_cached_accessibility(self):
+        context = Mock()
+        context.iteration.side_effect = [True, False]
+        self.assertEqual(gui.await_value(lambda: context.iteration.call_count, context=context), 2)
+        self.assertTrue(all(call.args == (False,) for call in context.iteration.call_args_list))
+        context = Mock()
+        context.iteration.return_value = True
+        self.assertEqual(gui.await_value(lambda: context.iteration.call_count, context=context), 128)
+
     def test_dashboard_action_uses_the_exact_named_action_and_observes_the_live_application(self):
         sdk, process = Mock(), Mock()
         process.poll.return_value = None

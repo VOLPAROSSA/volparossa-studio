@@ -35,9 +35,15 @@ def load(name):
     return module
 
 
-def await_value(check, seconds=18):
+def await_value(check, seconds=18, context=None):
     end = time.monotonic() + seconds
     while time.monotonic() < end:
+        if context is not None:
+            # AT-SPI updates its accessibility cache through GLib idle sources.
+            # Dispatch a bounded batch before reading the tree without blocking.
+            for _ in range(128):
+                if not context.iteration(False):
+                    break
         value = check()
         if value:
             return value
@@ -153,7 +159,7 @@ def editor_observation(atspi, pid, project_id):
     return find_accessible(atspi, observe) or page
 
 
-def desktop_action(atspi, label, app_process):
+def desktop_action(atspi, label, app_process, context=None):
     def match(node):
         if node.get_name() == label:
             action = node.get_action_iface()
@@ -165,7 +171,7 @@ def desktop_action(atspi, label, app_process):
         require(app_process.poll() is None)
         return find_accessible(atspi, match)
 
-    require(await_value(locate).do_action(0))
+    require(await_value(locate, context=context).do_action(0))
 
 
 def has_text(node, expected):
@@ -395,6 +401,8 @@ def main():
             bus.call_sync('org.a11y.Bus', '/org/a11y/bus', 'org.freedesktop.DBus.Properties', 'Set',
                 GLib.Variant('(ssv)', ('org.a11y.Status', 'IsEnabled', GLib.Variant('b', True))),
                 None, Gio.DBusCallFlags.NONE, 3000, None)
+            events = GLib.MainContext.default()
+            Atspi.set_main_context(events)
             Atspi.set_timeout(1000, 1500)
             Atspi.init()
             checkpoint('bus_ready')
@@ -412,9 +420,9 @@ def main():
                         def enter_name():
                             field = find_accessible(Atspi, project_name_input)
                             return field is not None and field.set_text_contents(NAME)
-                        await_value(enter_name)
+                        await_value(enter_name, context=events)
                         stage = 'create_project'
-                        desktop_action(Atspi, 'Create project', app)
+                        desktop_action(Atspi, 'Create project', app, events)
                         created = await_value(lambda: remote('GET', '/api/website?connectorId=fs-storage'))
                         require(type(created) is list and len(created) == 1 and created[0]['name'] == NAME)
                         project_id = created[0]['websiteId']
@@ -437,10 +445,10 @@ def main():
                     require(remote('GET', uri)['pages'] == [saved_page(project_id)])
                     stage = phase + '_open'
                     checkpoint(phase + '_saved_page')
-                    desktop_action(Atspi, 'Open project: ' + NAME, app)
+                    desktop_action(Atspi, 'Open project: ' + NAME, app, events)
                     stage = phase + '_editor'
                     try:
-                        window, title_state = await_value(lambda: editor_window(app.pid))
+                        window, title_state = await_value(lambda: editor_window(app.pid), context=events)
                         state['editor_title_states'].append(title_state)
                     except TimeoutError:
                         stage = phase + '_' + editor_observation(Atspi, app.pid, project_id)
@@ -464,7 +472,7 @@ def main():
                             return 'accessible_text'
                         return None
                     try:
-                        state['canvas_readbacks'].append(await_value(read_canvas))
+                        state['canvas_readbacks'].append(await_value(read_canvas, context=events))
                     except TimeoutError:
                         stage = phase + '_canvas_' + editor_observation(Atspi, app.pid, project_id)
                         raise
@@ -493,7 +501,7 @@ def main():
                         else:
                             stage = phase + '_exit'
                         return False
-                    await_value(normal_exit, 12)
+                    await_value(normal_exit, 12, context=events)
                     state['native_window_closes'] += 1
                     state['close_actions'].append(choice)
                     checkpoint(phase + '_closed')
