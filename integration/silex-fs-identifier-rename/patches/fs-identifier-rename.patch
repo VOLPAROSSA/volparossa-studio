@@ -1,0 +1,1938 @@
+diff --git a/desktop/src-tauri/src/mcp.rs b/desktop/src-tauri/src/mcp.rs
+--- a/desktop/src-tauri/src/mcp.rs
++++ b/desktop/src-tauri/src/mcp.rs
+@@ -25,6 +25,18 @@
+ use tokio::sync::oneshot;
+ 
+ use crate::AppState;
++
++// The locked reqwest feature set does not expose RequestBuilder::query.
++// Use the already declared url dependency without expanding Cargo features.
++fn rename_website_url(base_url: &str, website_id: &str) -> Result<url::Url, McpError> {
++    let mut endpoint = url::Url::parse(&format!("{base_url}/api/website/rename"))
++        .map_err(|_| McpError::internal_error("Invalid local website endpoint", None))?;
++    endpoint
++        .query_pairs_mut()
++        .append_pair("websiteId", website_id)
++        .append_pair("connectorId", "fs-storage");
++    Ok(endpoint)
++}
+ 
+ // ==========================================================================
+ // Shared state
+@@ -502,13 +514,10 @@
+                     .name
+                     .as_deref()
+                     .ok_or_else(|| McpError::invalid_params("name is required", None))?;
+-                let url = format!(
+-                    "{}/api/website/meta?websiteId={}&connectorId=fs-storage",
+-                    base_url, wid
+-                );
++                let url = rename_website_url(&base_url, wid)?;
+                 let body = serde_json::json!({ "name": name });
+                 match client
+-                    .post(&url)
++                    .post(url)
+                     .header("Content-Type", "application/json")
+                     .body(body.to_string())
+                     .send()
+@@ -517,7 +526,7 @@
+                     Ok(resp) => {
+                         if resp.status().is_success() {
+                             Ok(CallToolResult::success(vec![Content::text(
+-                                format!("{{\"success\":true,\"message\":\"Renamed to '{}'\"}}", name)
++                                serde_json::json!({"success":true,"message":format!("Renamed to '{}'", name)}).to_string()
+                             )]))
+                         } else {
+                             let body = resp.text().await.unwrap_or_default();
+@@ -866,3 +875,55 @@
+         }
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::rename_website_url;
++
++    #[test]
++    fn rename_endpoint_encodes_only_fixed_query_fields() {
++        for id in [
++            "e88c8b28-20d8-4f61-a684-ecf375198cc6",
++            "site&connectorId=other?#/% +",
++            "public-界🦊",
++        ] {
++            let endpoint = rename_website_url("http://127.0.0.1:6805", id).unwrap();
++            assert_eq!(endpoint.scheme(), "http");
++            assert_eq!(endpoint.host_str(), Some("127.0.0.1"));
++            assert_eq!(endpoint.port(), Some(6805));
++            assert_eq!(endpoint.path(), "/api/website/rename");
++            assert!(endpoint.fragment().is_none());
++            assert_eq!(
++                endpoint.query_pairs().into_owned().collect::<Vec<_>>(),
++                vec![
++                    ("websiteId".to_owned(), id.to_owned()),
++                    ("connectorId".to_owned(), "fs-storage".to_owned()),
++                ]
++            );
++        }
++    }
++
++    #[test]
++    fn rename_endpoint_rejects_invalid_base_without_echoing_input() {
++        let error = rename_website_url("://PRIVATE-fixture-token", "public-id").unwrap_err();
++        assert_eq!(error.message, "Invalid local website endpoint");
++        assert!(error.data.is_none());
++    }
++
++    #[test]
++    fn rename_endpoint_builds_post_without_optional_reqwest_query_feature() {
++        let endpoint = rename_website_url("http://127.0.0.1:6805", "public-id").unwrap();
++        let request = reqwest::Client::new()
++            .post(endpoint)
++            .header("Content-Type", "application/json")
++            .body(r#"{"name":"Public fixture"}"#)
++            .build()
++            .unwrap();
++        assert_eq!(request.method(), reqwest::Method::POST);
++        assert_eq!(request.url().path(), "/api/website/rename");
++        assert_eq!(
++            request.body().and_then(|body| body.as_bytes()),
++            Some(br#"{"name":"Public fixture"}"#.as_slice())
++        );
++    }
++}
+diff --git a/server-rust/src/connectors/fs_hosting.rs b/server-rust/src/connectors/fs_hosting.rs
+--- a/server-rust/src/connectors/fs_hosting.rs
++++ b/server-rust/src/connectors/fs_hosting.rs
+@@ -193,6 +193,7 @@
+ 
+         // Create connector data for this hosting connector
+         let storage_data = ConnectorData {
++            supports_website_rename: false,
+             connector_id: self.connector_id().to_string(),
+             connector_type: self.connector_type(),
+             display_name: self.display_name().to_string(),
+diff --git a/server-rust/src/connectors/fs_storage.rs b/server-rust/src/connectors/fs_storage.rs
+--- a/server-rust/src/connectors/fs_storage.rs
++++ b/server-rust/src/connectors/fs_storage.rs
+@@ -17,6 +17,11 @@
+ //! - pages/ (individual page files)
+ 
+ mod bounded_asset;
++mod identifier;
++mod metadata;
++
++#[cfg(all(test, target_os = "linux"))]
++mod tests;
+ 
+ use async_trait::async_trait;
+ use chrono::{DateTime, Utc};
+@@ -60,6 +65,10 @@
+ 
+     /// Permits remain owned by blocking reads even if their caller is cancelled.
+     publication_reads: std::sync::Arc<tokio::sync::Semaphore>,
++
++    /// One bounded lock table (no per-ID map). Blocking metadata work owns its
++    /// guard through completion, even after its async caller is cancelled.
++    metadata_mutations: std::sync::Arc<tokio::sync::Mutex<()>>,
+ }
+ 
+ impl FsStorage {
+@@ -73,29 +82,26 @@
+             data_path,
+             assets_folder,
+             publication_reads: std::sync::Arc::new(tokio::sync::Semaphore::new(2)),
++            metadata_mutations: std::sync::Arc::new(tokio::sync::Mutex::new(())),
+         }
+     }
+ 
+     /// Get the path to a website's directory
+-    fn website_path(&self, website_id: &str) -> PathBuf {
+-        self.data_path.join(website_id)
++    fn website_path(&self, website_id: &str) -> ConnectorResult<PathBuf> {
++        identifier::validate(website_id)?;
++        Ok(self.data_path.join(website_id))
+     }
+ 
+     /// Get the path to a website's data file
+-    fn website_data_path(&self, website_id: &str) -> PathBuf {
+-        self.website_path(website_id)
+-            .join(constants::WEBSITE_DATA_FILE)
+-    }
+-
+-    /// Get the path to a website's metadata file
+-    fn website_meta_path(&self, website_id: &str) -> PathBuf {
+-        self.website_path(website_id)
+-            .join(constants::WEBSITE_META_DATA_FILE)
++    fn website_data_path(&self, website_id: &str) -> ConnectorResult<PathBuf> {
++        Ok(self
++            .website_path(website_id)?
++            .join(constants::WEBSITE_DATA_FILE))
+     }
+ 
+     /// Get the path to a website's assets folder
+-    fn assets_path(&self, website_id: &str) -> PathBuf {
+-        self.website_path(website_id).join(&self.assets_folder)
++    fn assets_path(&self, website_id: &str) -> ConnectorResult<PathBuf> {
++        Ok(self.website_path(website_id)?.join(&self.assets_folder))
+     }
+ 
+     /// Ensure the data directory (the storage root) exists.
+@@ -236,7 +242,7 @@
+                 let slug = Self::get_page_slug(page_name);
+                 let file_name = format!("{}-{}.json", slug, page_id);
+                 let file_path = self
+-                    .website_path(website_id)
++                    .website_path(website_id)?
+                     .join(pages_folder)
+                     .join(&file_name);
+ 
+@@ -379,7 +385,7 @@
+         _session: &serde_json::Value,
+         website_id: &WebsiteId,
+     ) -> ConnectorResult<WebsiteData> {
+-        let path = self.website_data_path(website_id);
++        let path = self.website_data_path(website_id)?;
+ 
+         // Read the main website data file
+         let content = fs::read_to_string(&path).await.map_err(|e| {
+@@ -403,7 +409,7 @@
+         let website_id = Uuid::new_v4().to_string();
+ 
+         // Create the website directory with assets folder
+-        fs::create_dir_all(self.assets_path(&website_id)).await?;
++        fs::create_dir_all(self.assets_path(&website_id)?).await?;
+ 
+         // Save the metadata
+         self.set_website_meta(session, &website_id, meta).await?;
+@@ -421,7 +427,7 @@
+         website_id: &WebsiteId,
+         data: &WebsiteData,
+     ) -> ConnectorResult<()> {
+-        let website_path = self.website_path(website_id);
++        let website_path = self.website_path(website_id)?;
+ 
+         // Ensure the website directory exists
+         fs::create_dir_all(&website_path).await?;
+@@ -470,7 +476,7 @@
+         _session: &serde_json::Value,
+         website_id: &WebsiteId,
+     ) -> ConnectorResult<()> {
+-        let path = self.website_path(website_id);
++        let path = self.website_path(website_id)?;
+ 
+         fs::remove_dir_all(&path).await.map_err(|e| {
+             if e.kind() == std::io::ErrorKind::NotFound {
+@@ -488,11 +494,11 @@
+         session: &serde_json::Value,
+         website_id: &WebsiteId,
+     ) -> ConnectorResult<WebsiteId> {
+-        // Generate a new ID for the duplicate
++        let source_path = self.website_path(website_id)?;
++        // Generate a new ID only after validating the supplied source ID.
+         let new_website_id = Uuid::new_v4().to_string();
+ 
+-        let source_path = self.website_path(website_id);
+-        let dest_path = self.website_path(&new_website_id);
++        let dest_path = self.website_path(&new_website_id)?;
+ 
+         // Copy the entire directory
+         copy_dir_recursive(source_path, dest_path).await?;
+@@ -520,7 +526,7 @@
+         website_id: &WebsiteId,
+         files: Vec<ConnectorFile>,
+     ) -> ConnectorResult<Vec<String>> {
+-        let assets_path = self.assets_path(website_id);
++        let assets_path = self.assets_path(website_id)?;
+ 
+         // Ensure assets directory exists
+         fs::create_dir_all(&assets_path).await?;
+@@ -555,7 +561,7 @@
+     ) -> ConnectorResult<Vec<u8>> {
+         // Normalize the path (remove leading slash if present)
+         let relative_path = file_name.trim_start_matches('/');
+-        let path = self.assets_path(website_id).join(relative_path);
++        let path = self.assets_path(website_id)?.join(relative_path);
+ 
+         fs::read(&path).await.map_err(|e| {
+             if e.kind() == std::io::ErrorKind::NotFound {
+@@ -575,6 +581,9 @@
+         deadline: std::time::Instant,
+     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ConnectorResult<Vec<u8>>> + Send + 'a>>
+     {
++        if let Err(error) = identifier::validate(website_id) {
++            return Box::pin(std::future::ready(Err(error)));
++        }
+         Box::pin(bounded_asset::read(
+             &self.data_path,
+             &self.assets_folder,
+@@ -590,33 +599,48 @@
+     // Metadata
+     // ==================
+ 
++    fn supports_website_rename(&self) -> bool {
++        cfg!(target_os = "linux")
++    }
++
++    async fn rename_website(
++        &self,
++        _session: &serde_json::Value,
++        website_id: &WebsiteId,
++        name: &str,
++    ) -> ConnectorResult<()> {
++        self.website_path(website_id)?;
++        metadata::change(
++            self.data_path.clone(),
++            website_id.clone(),
++            metadata::Change::Rename(name.to_owned()),
++            std::sync::Arc::clone(&self.metadata_mutations),
++        )
++        .await
++    }
++
+     async fn get_website_meta(
+         &self,
+         _session: &serde_json::Value,
+         website_id: &WebsiteId,
+     ) -> ConnectorResult<WebsiteMeta> {
+-        let meta_path = self.website_meta_path(website_id);
+-        let website_path = self.website_path(website_id);
+-
+-        // Read the metadata file
+-        let content = fs::read_to_string(&meta_path).await.map_err(|e| {
+-            if e.kind() == std::io::ErrorKind::NotFound {
+-                ConnectorError::NotFound(format!("Website '{}' not found", website_id))
+-            } else {
+-                ConnectorError::Io(e)
+-            }
+-        })?;
+-
+-        let file_content: WebsiteMetaFileContent = serde_json::from_str(&content)?;
+-
+-        // Get file stats for created/updated timestamps
+-        let metadata = fs::metadata(&website_path).await?;
+-        let created_at = metadata.created().ok().map(|t| DateTime::<Utc>::from(t));
+-        let updated_at = metadata.modified().ok().map(|t| DateTime::<Utc>::from(t));
++        let website_path = self.website_path(website_id)?;
++        let snapshot = metadata::read(
++            self.data_path.clone(),
++            website_id.clone(),
++            std::sync::Arc::clone(&self.metadata_mutations),
++        )
++        .await?;
++        let created_at = snapshot.directory.created().ok().map(DateTime::<Utc>::from);
++        let updated_at = snapshot
++            .directory
++            .modified()
++            .ok()
++            .map(DateTime::<Utc>::from);
+ 
+         let mut meta = WebsiteMeta::from_file_content(
+             website_id.clone(),
+-            file_content,
++            snapshot.content,
+             created_at,
+             updated_at,
+         );
+@@ -625,7 +649,7 @@
+         meta.repo_url = Some(format!("file://{}", website_path.display()));
+ 
+         let public_path = website_path.join("public");
+-        if fs::metadata(&public_path).await.is_ok() {
++        if snapshot.has_public {
+             meta.pages_url = Some(format!("file://{}", public_path.display()));
+         }
+ 
+@@ -638,12 +662,15 @@
+         website_id: &WebsiteId,
+         meta: &WebsiteMetaFileContent,
+     ) -> ConnectorResult<()> {
+-        let path = self.website_meta_path(website_id);
++        self.website_path(website_id)?;
+         let content = Self::serialize_json(meta)?;
+-
+-        fs::write(&path, content).await?;
+-
+-        Ok(())
++        metadata::change(
++            self.data_path.clone(),
++            website_id.clone(),
++            metadata::Change::Replace(content.into_bytes()),
++            std::sync::Arc::clone(&self.metadata_mutations),
++        )
++        .await
+     }
+ }
+ 
+diff --git a/server-rust/src/connectors/fs_storage/identifier.rs b/server-rust/src/connectors/fs_storage/identifier.rs
+new file mode 100644
+--- /dev/null
++++ b/server-rust/src/connectors/fs_storage/identifier.rs
+@@ -0,0 +1,24 @@
++/*
++ * Silex website builder - filesystem website identifier boundary.
++ * Copyright (c) 2026 VOLPAROSSA contributors
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ */
++use crate::error::{ConnectorError, ConnectorResult};
++
++/// Same single-component policy as bounded publication reads. This is specific
++/// to FsStorage: other connectors retain their own identifier namespaces.
++pub(super) fn validate(value: &str) -> ConnectorResult<()> {
++    if value.is_empty()
++        || value.len() > 128
++        || value.starts_with('.')
++        || value.contains('/')
++        || value.chars().any(|c| {
++            c.is_control() || c.is_whitespace() || matches!(c, '\\' | '%' | '?' | '#' | ':')
++        })
++    {
++        return Err(ConnectorError::InvalidInput(
++            "invalid filesystem website identifier".to_owned(),
++        ));
++    }
++    Ok(())
++}
+diff --git a/server-rust/src/connectors/fs_storage/metadata.rs b/server-rust/src/connectors/fs_storage/metadata.rs
+new file mode 100644
+--- /dev/null
++++ b/server-rust/src/connectors/fs_storage/metadata.rs
+@@ -0,0 +1,512 @@
++/*
++ * Silex website builder - rooted metadata operations.
++ * Copyright (c) 2026 VOLPAROSSA contributors
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ */
++//! Serializes cooperative metadata operations on one FsStorage instance.
++//! Legacy full replacement remains explicit; this is neither cross-process CAS
++//! nor protection against a later stale full replacement. Additional-platform
++//! rooted backends remain open; no unsafe non-Linux fallback is provided.
++use super::identifier;
++use crate::error::{ConnectorError, ConnectorResult};
++use crate::models::WebsiteMetaFileContent;
++use std::path::PathBuf;
++use std::sync::Arc;
++use tokio::sync::Mutex;
++
++#[cfg(all(test, target_os = "linux"))]
++mod tests;
++
++pub(super) const MAX_BYTES: usize = 256 * 1024;
++
++fn invalid() -> ConnectorError {
++    ConnectorError::InvalidInput("filesystem metadata operation rejected".to_owned())
++}
++
++pub(super) fn name(value: &str) -> ConnectorResult<()> {
++    if value.trim().is_empty()
++        || value.len() > 512
++        || value.chars().count() > 128
++        || value.chars().any(char::is_control)
++    {
++        return Err(invalid());
++    }
++    Ok(())
++}
++
++pub(super) struct Snapshot {
++    pub content: WebsiteMetaFileContent,
++    pub directory: std::fs::Metadata,
++    pub has_public: bool,
++}
++
++pub(super) enum Change {
++    Replace(Vec<u8>),
++    Rename(String),
++}
++
++/// There is at most one admitted metadata job and no waiter queue. The owned
++/// guard lives inside the blocking job, not its cancellable async JoinHandle.
++async fn run<T, F>(lock: Arc<Mutex<()>>, work: F) -> ConnectorResult<T>
++where
++    T: Send + 'static,
++    F: FnOnce() -> ConnectorResult<T> + Send + 'static,
++{
++    let guard = lock
++        .try_lock_owned()
++        .map_err(|_| ConnectorError::InvalidInput("filesystem metadata busy".to_owned()))?;
++    tokio::task::spawn_blocking(move || {
++        let _guard = guard;
++        work()
++    })
++    .await
++    .map_err(|_| invalid())?
++}
++
++pub(super) async fn read(
++    root: PathBuf,
++    id: String,
++    lock: Arc<Mutex<()>>,
++) -> ConnectorResult<Snapshot> {
++    identifier::validate(&id)?;
++    #[cfg(target_os = "linux")]
++    {
++        run(lock, move || linux::read(&root, &id)).await
++    }
++    #[cfg(not(target_os = "linux"))]
++    {
++        let _ = (root, lock);
++        Err(invalid())
++    }
++}
++
++pub(super) async fn change(
++    root: PathBuf,
++    id: String,
++    change: Change,
++    lock: Arc<Mutex<()>>,
++) -> ConnectorResult<()> {
++    identifier::validate(&id)?;
++    match &change {
++        Change::Replace(bytes) if bytes.len() > MAX_BYTES => return Err(invalid()),
++        Change::Rename(value) => name(value)?,
++        Change::Replace(_) => {}
++    }
++    #[cfg(target_os = "linux")]
++    {
++        run(lock, move || linux::change(&root, &id, change, || {})).await
++    }
++    #[cfg(not(target_os = "linux"))]
++    {
++        let _ = (root, change, lock);
++        Err(invalid())
++    }
++}
++
++/// Reject duplicate object members at every level; a name-only change must not
++/// silently discard an ambiguous setting or an unknown future metadata field.
++struct Unique(serde_json::Value);
++impl<'de> serde::Deserialize<'de> for Unique {
++    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
++        struct Visitor;
++        impl<'de> serde::de::Visitor<'de> for Visitor {
++            type Value = Unique;
++            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++                f.write_str("unambiguous JSON")
++            }
++            fn visit_bool<E: serde::de::Error>(self, v: bool) -> Result<Unique, E> {
++                Ok(Unique(v.into()))
++            }
++            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Unique, E> {
++                Ok(Unique(v.into()))
++            }
++            fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<Unique, E> {
++                Ok(Unique(v.into()))
++            }
++            fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<Unique, E> {
++                serde_json::Number::from_f64(v)
++                    .map(|n| Unique(n.into()))
++                    .ok_or_else(|| E::custom("invalid number"))
++            }
++            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Unique, E> {
++                Ok(Unique(v.into()))
++            }
++            fn visit_string<E: serde::de::Error>(self, v: String) -> Result<Unique, E> {
++                Ok(Unique(v.into()))
++            }
++            fn visit_unit<E: serde::de::Error>(self) -> Result<Unique, E> {
++                Ok(Unique(serde_json::Value::Null))
++            }
++            fn visit_seq<A: serde::de::SeqAccess<'de>>(
++                self,
++                mut seq: A,
++            ) -> Result<Unique, A::Error> {
++                let mut values = Vec::new();
++                while let Some(value) = seq.next_element::<Unique>()? {
++                    values.push(value.0);
++                }
++                Ok(Unique(values.into()))
++            }
++            fn visit_map<A: serde::de::MapAccess<'de>>(
++                self,
++                mut map: A,
++            ) -> Result<Unique, A::Error> {
++                let mut values = serde_json::Map::new();
++                while let Some(key) = map.next_key::<String>()? {
++                    if values.contains_key(&key) {
++                        return Err(serde::de::Error::custom("duplicate metadata member"));
++                    }
++                    values.insert(key, map.next_value::<Unique>()?.0);
++                }
++                Ok(Unique(values.into()))
++            }
++        }
++        deserializer.deserialize_any(Visitor)
++    }
++}
++
++fn document(bytes: &[u8]) -> ConnectorResult<serde_json::Value> {
++    if bytes.len() > MAX_BYTES {
++        return Err(invalid());
++    }
++    let Unique(value) = serde_json::from_slice(bytes).map_err(|_| invalid())?;
++    // Validate the existing known schema while retaining unknown fields.
++    let _: WebsiteMetaFileContent = serde_json::from_value(value.clone()).map_err(|_| invalid())?;
++    Ok(value)
++}
++
++fn whitespace(bytes: &[u8], mut offset: usize) -> usize {
++    while bytes.get(offset).is_some_and(u8::is_ascii_whitespace) {
++        offset += 1;
++    }
++    offset
++}
++
++/// These scanners run only AFTER strict duplicate/schema JSON validation. They
++/// locate byte spans and never interpret or reserialize untouched values.
++fn quoted_end(bytes: &[u8], start: usize) -> ConnectorResult<usize> {
++    if bytes.get(start) != Some(&b'"') {
++        return Err(invalid());
++    }
++    let mut offset = start + 1;
++    while let Some(byte) = bytes.get(offset) {
++        match byte {
++            b'\\' => offset += 2,
++            b'"' => return Ok(offset + 1),
++            _ => offset += 1,
++        }
++    }
++    Err(invalid())
++}
++
++fn value_end(bytes: &[u8], start: usize) -> ConnectorResult<usize> {
++    if bytes.get(start) == Some(&b'"') {
++        return quoted_end(bytes, start);
++    }
++    let mut depth = 0;
++    let mut offset = start;
++    while let Some(byte) = bytes.get(offset) {
++        match byte {
++            b'"' => {
++                offset = quoted_end(bytes, offset)?;
++                continue;
++            }
++            b'[' | b'{' => depth += 1,
++            b']' | b'}' if depth > 0 => {
++                depth -= 1;
++                if depth == 0 {
++                    return Ok(offset + 1);
++                }
++            }
++            b',' | b'}' | b' ' | b'\t' | b'\r' | b'\n' if depth == 0 => return Ok(offset),
++            _ => {}
++        }
++        offset += 1;
++    }
++    Err(invalid())
++}
++
++/// Replace ONLY the top-level name string value. In particular, the JSON
++/// validator's f64 representation is never used to persist a number token.
++fn renamed_bytes(bytes: &[u8], replacement: &str) -> ConnectorResult<Vec<u8>> {
++    name(replacement)?;
++    document(bytes)?;
++    let mut offset = whitespace(bytes, 0);
++    if bytes.get(offset) != Some(&b'{') {
++        return Err(invalid());
++    }
++    offset = whitespace(bytes, offset + 1);
++    loop {
++        let key_end = quoted_end(bytes, offset)?;
++        let key: String = serde_json::from_slice(&bytes[offset..key_end]).map_err(|_| invalid())?;
++        offset = whitespace(bytes, key_end);
++        if bytes.get(offset) != Some(&b':') {
++            return Err(invalid());
++        }
++        let start = whitespace(bytes, offset + 1);
++        let end = value_end(bytes, start)?;
++        if key == "name" {
++            if bytes.get(start) != Some(&b'"') {
++                return Err(invalid());
++            }
++            let encoded = serde_json::to_vec(replacement).map_err(|_| invalid())?;
++            let length = bytes
++                .len()
++                .checked_sub(end - start)
++                .and_then(|n| n.checked_add(encoded.len()))
++                .filter(|n| *n <= MAX_BYTES)
++                .ok_or_else(invalid)?;
++            let mut result = Vec::new();
++            result.try_reserve_exact(length).map_err(|_| invalid())?;
++            result.extend_from_slice(&bytes[..start]);
++            result.extend_from_slice(&encoded);
++            result.extend_from_slice(&bytes[end..]);
++            return Ok(result);
++        }
++        offset = whitespace(bytes, end);
++        if bytes.get(offset) != Some(&b',') {
++            return Err(invalid());
++        }
++        offset = whitespace(bytes, offset + 1);
++    }
++}
++
++#[cfg(target_os = "linux")]
++pub(super) mod linux {
++    use super::*;
++    use rustix::fs::{
++        fchmod, openat2, renameat, unlinkat, AtFlags, Mode, OFlags, ResolveFlags, CWD,
++    };
++    use std::fs::{File, Metadata};
++    use std::io::{Read, Write};
++    use std::os::unix::fs::MetadataExt;
++    use std::path::Path;
++
++    fn flags() -> OFlags {
++        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC
++    }
++    fn resolve() -> ResolveFlags {
++        ResolveFlags::BENEATH | ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS
++    }
++    fn identity(m: &Metadata) -> [i128; 11] {
++        [
++            i128::from(m.dev()),
++            i128::from(m.ino()),
++            i128::from(m.mode()),
++            i128::from(m.uid()),
++            i128::from(m.gid()),
++            i128::from(m.nlink()),
++            i128::from(m.len()),
++            i128::from(m.mtime()),
++            i128::from(m.mtime_nsec()),
++            i128::from(m.ctime()),
++            i128::from(m.ctime_nsec()),
++        ]
++    }
++    struct Rooted {
++        root: File,
++        site: File,
++        id: String,
++    }
++    impl Rooted {
++        fn open(root: &Path, id: &str) -> ConnectorResult<Self> {
++            identifier::validate(id)?;
++            let root = File::from(
++                openat2(
++                    CWD,
++                    root,
++                    flags(),
++                    Mode::empty(),
++                    ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
++                )
++                .map_err(|_| invalid())?,
++            );
++            let site = File::from(
++                openat2(&root, id, flags(), Mode::empty(), resolve()).map_err(|_| invalid())?,
++            );
++            Ok(Self {
++                root,
++                site,
++                id: id.to_owned(),
++            })
++        }
++        fn same_site(&self) -> ConnectorResult<()> {
++            let current = File::from(
++                openat2(
++                    &self.root,
++                    self.id.as_str(),
++                    flags(),
++                    Mode::empty(),
++                    resolve(),
++                )
++                .map_err(|_| invalid())?,
++            );
++            let before = self.site.metadata()?;
++            let after = current.metadata()?;
++            if (before.dev(), before.ino()) != (after.dev(), after.ino()) {
++                return Err(invalid());
++            }
++            Ok(())
++        }
++        fn current(&self) -> ConnectorResult<Option<Current>> {
++            let descriptor = match openat2(
++                &self.site,
++                "meta.json",
++                OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
++                Mode::empty(),
++                resolve(),
++            ) {
++                Ok(fd) => fd,
++                Err(rustix::io::Errno::NOENT) => return Ok(None),
++                Err(_) => return Err(invalid()),
++            };
++            let mut file = File::from(descriptor);
++            let before = file.metadata()?;
++            if !before.is_file() || before.nlink() != 1 || before.len() > MAX_BYTES as u64 {
++                return Err(invalid());
++            }
++            let mut bytes =
++                Vec::with_capacity(usize::try_from(before.len()).map_err(|_| invalid())?);
++            Read::by_ref(&mut file)
++                .take((MAX_BYTES + 1) as u64)
++                .read_to_end(&mut bytes)?;
++            if bytes.len() != usize::try_from(before.len()).map_err(|_| invalid())?
++                || identity(&before) != identity(&file.metadata()?)
++            {
++                return Err(invalid());
++            }
++            Ok(Some(Current {
++                file,
++                before,
++                bytes,
++            }))
++        }
++    }
++    struct Current {
++        file: File,
++        before: Metadata,
++        bytes: Vec<u8>,
++    }
++    struct Pending<'a> {
++        site: &'a File,
++        name: String,
++        identity: (u64, u64),
++        armed: bool,
++    }
++    impl Drop for Pending<'_> {
++        fn drop(&mut self) {
++            if self.armed {
++                // A replaced name is no longer our owned temporary. Never
++                // follow or remove that replacement during error cleanup.
++                if let Ok(fd) = openat2(
++                    self.site,
++                    self.name.as_str(),
++                    OFlags::PATH | OFlags::NOFOLLOW | OFlags::CLOEXEC,
++                    Mode::empty(),
++                    resolve(),
++                ) {
++                    if let Ok(info) = File::from(fd).metadata() {
++                        if (info.dev(), info.ino()) == self.identity {
++                            let _ = unlinkat(self.site, self.name.as_str(), AtFlags::empty());
++                        }
++                    }
++                }
++            }
++        }
++    }
++    pub(super) fn read(root: &Path, id: &str) -> ConnectorResult<Snapshot> {
++        let rooted = Rooted::open(root, id)?;
++        let current = rooted
++            .current()?
++            .ok_or_else(|| ConnectorError::NotFound("website metadata absent".to_owned()))?;
++        let value = document(&current.bytes)?;
++        rooted.same_site()?;
++        let has_public = openat2(&rooted.site, "public", flags(), Mode::empty(), resolve()).is_ok();
++        Ok(Snapshot {
++            content: serde_json::from_value(value)?,
++            directory: rooted.site.metadata()?,
++            has_public,
++        })
++    }
++    pub(super) fn change<F: FnOnce()>(
++        root: &Path,
++        id: &str,
++        change: Change,
++        before_commit: F,
++    ) -> ConnectorResult<()> {
++        let rooted = Rooted::open(root, id)?;
++        let current = rooted.current()?;
++        let bytes = match change {
++            Change::Replace(bytes) => bytes,
++            Change::Rename(value) => {
++                name(&value)?;
++                let old = current.as_ref().ok_or_else(|| {
++                    ConnectorError::NotFound("website metadata absent".to_owned())
++                })?;
++                renamed_bytes(&old.bytes, &value)?
++            }
++        };
++        if bytes.len() > MAX_BYTES {
++            return Err(invalid());
++        }
++        let temporary = format!(".meta-{}.tmp", uuid::Uuid::new_v4());
++        let descriptor = openat2(
++            &rooted.site,
++            temporary.as_str(),
++            OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
++            Mode::RUSR | Mode::WUSR,
++            resolve(),
++        )
++        .map_err(|_| invalid())?;
++        let mut output = File::from(descriptor);
++        let owned = output.metadata()?;
++        let mut pending = Pending {
++            site: &rooted.site,
++            name: temporary,
++            identity: (owned.dev(), owned.ino()),
++            armed: true,
++        };
++        fchmod(&output, Mode::RUSR | Mode::WUSR).map_err(|_| invalid())?;
++        output.write_all(&bytes)?;
++        output.sync_all()?;
++        let prepared = output.metadata()?;
++        before_commit();
++        rooted.same_site()?;
++        let visible = File::from(
++            openat2(
++                &rooted.site,
++                pending.name.as_str(),
++                OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
++                Mode::empty(),
++                resolve(),
++            )
++            .map_err(|_| invalid())?,
++        );
++        if identity(&prepared) != identity(&output.metadata()?)
++            || identity(&prepared) != identity(&visible.metadata()?)
++            || prepared.nlink() != 1
++            || prepared.mode() & 0o777 != 0o600
++        {
++            return Err(invalid());
++        }
++        let now = rooted.current()?;
++        match (&current, &now) {
++            (None, None) => {}
++            (Some(before), Some(after))
++                if identity(&before.before) == identity(&before.file.metadata()?)
++                    && identity(&before.before) == identity(&after.before) => {}
++            _ => return Err(invalid()),
++        }
++        renameat(
++            &rooted.site,
++            pending.name.as_str(),
++            &rooted.site,
++            "meta.json",
++        )
++        .map_err(|_| invalid())?;
++        pending.armed = false;
++        rooted.site.sync_all()?;
++        rooted.same_site()?;
++        Ok(())
++    }
++}
+diff --git a/server-rust/src/connectors/fs_storage/metadata/tests.rs b/server-rust/src/connectors/fs_storage/metadata/tests.rs
+new file mode 100644
+--- /dev/null
++++ b/server-rust/src/connectors/fs_storage/metadata/tests.rs
+@@ -0,0 +1,337 @@
++/*
++ * Copyright (c) 2026 VOLPAROSSA contributors
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ */
++use super::*;
++use std::fs;
++use std::os::unix::fs::{symlink, PermissionsExt};
++
++fn fixture() -> tempfile::TempDir {
++    let root = tempfile::tempdir().unwrap();
++    fs::create_dir(root.path().join("legacy-site")).unwrap();
++    fs::write(root.path().join("legacy-site/meta.json"), br#"{"name":"old","imageUrl":"public-preview","connectorUserSettings":{"fs":{"keep":true}},"future":{"nested":[1,2]}}"#).unwrap();
++    root
++}
++fn no_temporary(root: &std::path::Path) {
++    assert!(fs::read_dir(root).unwrap().all(|entry| !entry
++        .unwrap()
++        .file_name()
++        .to_string_lossy()
++        .starts_with(".meta-")));
++}
++
++#[test]
++fn rename_preserves_known_and_unknown_fields_and_installs_a_private_regular_file() {
++    let root = fixture();
++    let old: serde_json::Value =
++        serde_json::from_slice(&fs::read(root.path().join("legacy-site/meta.json")).unwrap())
++            .unwrap();
++    linux::change(
++        root.path(),
++        "legacy-site",
++        Change::Rename("new name".into()),
++        || {
++            // The owned temporary is already written/fsynced here. Readers
++            // still see the complete old document until the atomic rename.
++            let visible: serde_json::Value = serde_json::from_slice(
++                &fs::read(root.path().join("legacy-site/meta.json")).unwrap(),
++            )
++            .unwrap();
++            assert_eq!(visible, old);
++        },
++    )
++    .unwrap();
++    let path = root.path().join("legacy-site/meta.json");
++    let new: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
++    assert_eq!(new["name"], "new name");
++    for field in ["imageUrl", "connectorUserSettings", "future"] {
++        assert_eq!(new[field], old[field]);
++    }
++    assert_eq!(
++        fs::metadata(path).unwrap().permissions().mode() & 0o777,
++        0o600
++    );
++    no_temporary(&root.path().join("legacy-site"));
++}
++
++#[test]
++fn name_only_commit_preserves_exact_numeric_tokens_whitespace_and_unknown_fields() {
++    let root = fixture();
++    let path = root.path().join("legacy-site/meta.json");
++    let before = br#"{ "future": {"integer":18446744073709551617,"decimal":0.10000000000000001}, "connectorUserSettings":{"fs":{"integer":18446744073709551617,"decimal":0.10000000000000001}}, "name" : "old", "imageUrl":"keep" }"#;
++    fs::write(&path, before).unwrap();
++    linux::change(
++        root.path(),
++        "legacy-site",
++        Change::Rename("new".into()),
++        || {},
++    )
++    .unwrap();
++    let expected = String::from_utf8(before.to_vec())
++        .unwrap()
++        .replacen("\"old\"", "\"new\"", 1)
++        .into_bytes();
++    assert_eq!(fs::read(&path).unwrap(), expected);
++    no_temporary(&root.path().join("legacy-site"));
++}
++
++#[test]
++fn lossless_name_span_handles_escaped_keys_nested_values_and_refuses_ambiguous_or_oversize_output()
++{
++    let root = fixture();
++    let path = root.path().join("legacy-site/meta.json");
++    for before in [
++        br#"{"name":"old","future":[{"name":"nested","s":"} [ \\ \" ]"},0.10000000000000001]}"#.as_slice(),
++        br#"{"future":[true,null,{"n":18446744073709551617}],"\u006eame":"old","connectorUserSettings":{}}"#.as_slice(),
++        br#"{ "future":false, "imageUrl":null, "name":"old" }"#.as_slice(),
++    ] {
++        fs::write(&path, before).unwrap();
++        let replacement = "new \"quoted\" \\ value";
++        linux::change(root.path(), "legacy-site", Change::Rename(replacement.into()), || {}).unwrap();
++        let encoded = serde_json::to_string(replacement).unwrap();
++        let expected = String::from_utf8(before.to_vec()).unwrap().replacen("\"old\"", &encoded, 1).into_bytes();
++        assert_eq!(fs::read(&path).unwrap(), expected);
++        no_temporary(&root.path().join("legacy-site"));
++    }
++    let duplicate = br#"{"name":"old","\u006eame":"other"}"#;
++    fs::write(&path, duplicate).unwrap();
++    assert!(linux::change(
++        root.path(),
++        "legacy-site",
++        Change::Rename("denied".into()),
++        || {}
++    )
++    .is_err());
++    assert_eq!(fs::read(&path).unwrap(), duplicate);
++    no_temporary(&root.path().join("legacy-site"));
++    let mut large = br#"{"name":"a","future":""#.to_vec();
++    large.extend(std::iter::repeat_n(b'x', MAX_BYTES - large.len() - 2));
++    large.extend_from_slice(b"\"}");
++    assert_eq!(large.len(), MAX_BYTES);
++    fs::write(&path, &large).unwrap();
++    assert!(linux::change(
++        root.path(),
++        "legacy-site",
++        Change::Rename("larger name".into()),
++        || {}
++    )
++    .is_err());
++    assert_eq!(fs::read(&path).unwrap(), large);
++    no_temporary(&root.path().join("legacy-site"));
++}
++
++#[test]
++fn rooted_metadata_refuses_site_root_file_symlinks_hardlinks_and_nonregular_files() {
++    let root = fixture();
++    let outside = fixture();
++    let sentinel = fs::read(outside.path().join("legacy-site/meta.json")).unwrap();
++    symlink(
++        outside.path().join("legacy-site"),
++        root.path().join("alias"),
++    )
++    .unwrap();
++    assert!(linux::change(root.path(), "alias", Change::Rename("denied".into()), || {}).is_err());
++    let link = root.path().join("root-link");
++    symlink(outside.path(), &link).unwrap();
++    assert!(linux::read(&link, "legacy-site").is_err());
++    let meta = root.path().join("legacy-site/meta.json");
++    fs::remove_file(&meta).unwrap();
++    symlink(outside.path().join("legacy-site/meta.json"), &meta).unwrap();
++    assert!(linux::read(root.path(), "legacy-site").is_err());
++    assert!(linux::change(
++        root.path(),
++        "legacy-site",
++        Change::Replace(b"{}".to_vec()),
++        || {}
++    )
++    .is_err());
++    fs::remove_file(&meta).unwrap();
++    fs::hard_link(outside.path().join("legacy-site/meta.json"), &meta).unwrap();
++    assert!(linux::read(root.path(), "legacy-site").is_err());
++    fs::remove_file(&meta).unwrap();
++    fs::create_dir(&meta).unwrap();
++    assert!(linux::read(root.path(), "legacy-site").is_err());
++    assert_eq!(
++        fs::read(outside.path().join("legacy-site/meta.json")).unwrap(),
++        sentinel
++    );
++    no_temporary(&root.path().join("legacy-site"));
++}
++
++#[test]
++fn observed_content_or_directory_mutation_refuses_commit_and_removes_owned_temporary() {
++    let root = fixture();
++    let path = root.path().join("legacy-site/meta.json");
++    assert!(linux::change(
++        root.path(),
++        "legacy-site",
++        Change::Rename("denied".into()),
++        || {
++            fs::write(&path, br#"{"name":"external change"}"#).unwrap();
++        }
++    )
++    .is_err());
++    assert_eq!(fs::read(&path).unwrap(), br#"{"name":"external change"}"#);
++    no_temporary(&root.path().join("legacy-site"));
++
++    let outside = fixture();
++    let sentinel = fs::read(outside.path().join("legacy-site/meta.json")).unwrap();
++    assert!(linux::change(
++        root.path(),
++        "legacy-site",
++        Change::Rename("denied".into()),
++        || {
++            fs::rename(root.path().join("legacy-site"), root.path().join("held")).unwrap();
++            symlink(
++                outside.path().join("legacy-site"),
++                root.path().join("legacy-site"),
++            )
++            .unwrap();
++        }
++    )
++    .is_err());
++    no_temporary(&root.path().join("held"));
++    assert_eq!(
++        fs::read(outside.path().join("legacy-site/meta.json")).unwrap(),
++        sentinel
++    );
++}
++
++#[test]
++fn changed_or_replaced_temporary_is_never_committed_or_mistaken_for_owned_cleanup() {
++    let root = fixture();
++    let directory = root.path().join("legacy-site");
++    let original = fs::read(directory.join("meta.json")).unwrap();
++    assert!(linux::change(
++        root.path(),
++        "legacy-site",
++        Change::Rename("denied".into()),
++        || {
++            let temporary = fs::read_dir(&directory)
++                .unwrap()
++                .map(|e| e.unwrap().path())
++                .find(|p| {
++                    p.file_name()
++                        .unwrap()
++                        .to_string_lossy()
++                        .starts_with(".meta-")
++                })
++                .unwrap();
++            fs::write(temporary, b"changed public fixture").unwrap();
++        }
++    )
++    .is_err());
++    assert_eq!(fs::read(directory.join("meta.json")).unwrap(), original);
++    no_temporary(&directory);
++
++    let outside = tempfile::tempdir().unwrap();
++    let sentinel = outside.path().join("public-sentinel");
++    fs::write(&sentinel, b"outside unchanged").unwrap();
++    let mut replacement = None;
++    // The hook mutates only public fixture paths. A substituted symlink is not
++    // the helper's inode and must remain untouched by owned-temp cleanup.
++    let result = linux::change(
++        root.path(),
++        "legacy-site",
++        Change::Rename("denied".into()),
++        || {
++            let temporary = fs::read_dir(&directory)
++                .unwrap()
++                .map(|e| e.unwrap().path())
++                .find(|p| {
++                    p.file_name()
++                        .unwrap()
++                        .to_string_lossy()
++                        .starts_with(".meta-")
++                })
++                .unwrap();
++            fs::remove_file(&temporary).unwrap();
++            symlink(&sentinel, &temporary).unwrap();
++            replacement = Some(temporary);
++        },
++    );
++    assert!(result.is_err());
++    assert_eq!(fs::read(directory.join("meta.json")).unwrap(), original);
++    assert_eq!(fs::read(&sentinel).unwrap(), b"outside unchanged");
++    let replacement = replacement.unwrap();
++    assert!(replacement.is_symlink());
++    fs::remove_file(replacement).unwrap();
++    no_temporary(&directory);
++}
++
++#[test]
++fn metadata_limits_duplicate_members_missing_targets_and_name_limits_fail_closed() {
++    let root = fixture();
++    let path = root.path().join("legacy-site/meta.json");
++    for bytes in [
++        vec![b' '; MAX_BYTES + 1],
++        br#"{"name":"a","name":"b"}"#.to_vec(),
++        br#"{"name":"a","future":{"key":1,"key":2}}"#.to_vec(),
++        b"[]".to_vec(),
++    ] {
++        fs::write(&path, bytes).unwrap();
++        assert!(linux::change(
++            root.path(),
++            "legacy-site",
++            Change::Rename("new".into()),
++            || {}
++        )
++        .is_err());
++        no_temporary(&root.path().join("legacy-site"));
++    }
++    for value in [
++        "".to_owned(),
++        " \t".to_owned(),
++        "a\nb".to_owned(),
++        "x".repeat(129),
++        "界".repeat(129),
++    ] {
++        assert!(name(&value).is_err());
++    }
++    assert!(name(&"🦊".repeat(128)).is_ok());
++    assert!(name(&"x".repeat(128)).is_ok());
++    fs::remove_file(&path).unwrap();
++    assert!(linux::change(
++        root.path(),
++        "legacy-site",
++        Change::Rename("missing".into()),
++        || {}
++    )
++    .is_err());
++    assert!(!path.exists());
++    no_temporary(&root.path().join("legacy-site"));
++}
++
++#[tokio::test]
++async fn cancelled_caller_keeps_the_single_metadata_permit_until_blocking_work_finishes() {
++    let lock = Arc::new(Mutex::new(()));
++    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
++    let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
++    let worker_lock = Arc::clone(&lock);
++    let caller = tokio::spawn(async move {
++        run(worker_lock, move || {
++            entered_tx.send(()).unwrap();
++            release_rx
++                .recv_timeout(std::time::Duration::from_secs(5))
++                .unwrap();
++            Ok(())
++        })
++        .await
++    });
++    entered_rx.await.unwrap();
++    caller.abort();
++    assert!(run(Arc::clone(&lock), || Ok(())).await.is_err());
++    release_tx.send(()).unwrap();
++    tokio::time::timeout(std::time::Duration::from_secs(2), async {
++        loop {
++            if let Ok(guard) = Arc::clone(&lock).try_lock_owned() {
++                drop(guard);
++                break;
++            }
++            tokio::task::yield_now().await;
++        }
++    })
++    .await
++    .unwrap();
++    run(lock, || Ok(())).await.unwrap();
++}
+diff --git a/server-rust/src/connectors/fs_storage/tests.rs b/server-rust/src/connectors/fs_storage/tests.rs
+new file mode 100644
+--- /dev/null
++++ b/server-rust/src/connectors/fs_storage/tests.rs
+@@ -0,0 +1,544 @@
++/*
++ * Copyright (c) 2026 VOLPAROSSA contributors
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ */
++use super::FsStorage;
++use crate::connectors::{ConnectorInfo, ConnectorRegistry, StorageConnector};
++use crate::error::ConnectorResult;
++use crate::models::*;
++use crate::routes::AppState;
++use crate::services::JobManager;
++use crate::Config;
++use async_trait::async_trait;
++use axum::body::{to_bytes, Body};
++use axum::http::{Request, StatusCode};
++use std::sync::Arc;
++use tower::ServiceExt;
++use tower_sessions::{MemoryStore, SessionManagerLayer};
++
++fn fixture() -> (tempfile::TempDir, Arc<FsStorage>) {
++    let root = tempfile::tempdir().unwrap();
++    let storage = Arc::new(FsStorage::new(
++        root.path().join("websites"),
++        "assets".into(),
++    ));
++    (root, storage)
++}
++fn meta(name: &str) -> WebsiteMetaFileContent {
++    serde_json::from_value(serde_json::json!({"name": name, "imageUrl":"keep-preview", "connectorUserSettings":{"fs":{"keep":true}}})).unwrap()
++}
++fn app(storage: Arc<dyn StorageConnector>, root: &std::path::Path) -> axum::Router {
++    let mut registry = ConnectorRegistry::new();
++    registry.register_storage(storage);
++    let state = AppState {
++        config: Arc::new(Config {
++            url: "http://localhost:6805".into(),
++            port: 6805,
++            data_path: root.to_owned(),
++            hosting_path: None,
++            assets_folder: "assets".into(),
++            default_website_id: "default".into(),
++            dashboard_path: None,
++            static_path: None,
++            static_routes: Vec::new(),
++        }),
++        registry: Arc::new(registry),
++        job_manager: JobManager::new(),
++    };
++    axum::Router::new()
++        .nest("/api", crate::routes::api_routes())
++        .with_state(state)
++        .layer(SessionManagerLayer::new(MemoryStore::default()).with_secure(false))
++}
++fn request(method: &str, uri: &str, value: serde_json::Value) -> Request<Body> {
++    Request::builder()
++        .method(method)
++        .uri(uri)
++        .header("Content-Type", "application/json")
++        .body(Body::from(serde_json::to_vec(&value).unwrap()))
++        .unwrap()
++}
++
++#[tokio::test]
++async fn direct_invalid_ids_are_refused_before_any_filesystem_effect_across_all_methods() {
++    let (root, storage) = fixture();
++    storage.init("default").await.unwrap();
++    let outside = root.path().join("outside");
++    std::fs::create_dir(&outside).unwrap();
++    std::fs::write(outside.join("meta.json"), br#"{"name":"outside"}"#).unwrap();
++    std::fs::write(
++        outside.join("sentinel"),
++        b"unchanged public outside fixture",
++    )
++    .unwrap();
++    let session = serde_json::json!({});
++    let long = "x".repeat(129);
++    for id in [
++        "",
++        ".",
++        "..",
++        "../outside",
++        "safe/../outside",
++        "/absolute",
++        outside.to_str().unwrap(),
++        "a\\outside",
++        "%2foutside",
++        "a%252foutside",
++        "white space",
++        ".hidden",
++        long.as_str(),
++    ] {
++        let id = id.to_owned();
++        assert!(storage.read_website(&session, &id).await.is_err());
++        assert!(storage
++            .update_website(&session, &id, &WebsiteData::default())
++            .await
++            .is_err());
++        assert!(storage.delete_website(&session, &id).await.is_err());
++        assert!(storage.duplicate_website(&session, &id).await.is_err());
++        assert!(storage.get_website_meta(&session, &id).await.is_err());
++        assert!(storage
++            .set_website_meta(&session, &id, &meta("denied"))
++            .await
++            .is_err());
++        assert!(storage
++            .rename_website(&session, &id, "denied")
++            .await
++            .is_err());
++        assert!(storage.read_asset(&session, &id, "sentinel").await.is_err());
++        assert!(storage
++            .write_assets(
++                &session,
++                &id,
++                vec![ConnectorFile {
++                    path: "new".into(),
++                    content: b"denied".to_vec()
++                }]
++            )
++            .await
++            .is_err());
++    }
++    assert_eq!(
++        std::fs::read(outside.join("sentinel")).unwrap(),
++        b"unchanged public outside fixture"
++    );
++    assert_eq!(
++        std::fs::read(outside.join("meta.json")).unwrap(),
++        br#"{"name":"outside"}"#
++    );
++    assert_eq!(
++        std::fs::read_dir(storage.data_path.as_path())
++            .unwrap()
++            .count(),
++        0
++    );
++    assert_eq!(std::fs::read_dir(outside).unwrap().count(), 2);
++}
++
++#[tokio::test]
++async fn http_query_ids_are_backend_checked_including_empty_absolute_and_encoded_traversal() {
++    let (root, storage) = fixture();
++    storage.init("default").await.unwrap();
++    let outside = root.path().join("outside");
++    std::fs::create_dir(&outside).unwrap();
++    std::fs::write(outside.join("meta.json"), br#"{"name":"outside"}"#).unwrap();
++    let router = app(storage.clone(), storage.data_path.as_path());
++    // Axum 0.8 nest("/website", route("/", ...)) registers the canonical
++    // /api/website endpoint, without a trailing slash. First establish that
++    // this route is reached and that an absent ID retains the list operation.
++    let listed = router
++        .clone()
++        .oneshot(request(
++            "GET",
++            "/api/website?connectorId=fs-storage",
++            serde_json::json!({}),
++        ))
++        .await
++        .unwrap();
++    assert_eq!(listed.status(), StatusCode::OK);
++    assert_eq!(
++        to_bytes(listed.into_body(), 1024).await.unwrap().as_ref(),
++        b"[]"
++    );
++    let absolute = outside.to_str().unwrap().replace('/', "%2F");
++    for id in [
++        "",
++        "..%2Foutside",
++        "%2Fabsolute",
++        absolute.as_str(),
++        "safe%2F..%2Foutside",
++        "a%252Foutside",
++        ".",
++        "..",
++    ] {
++        for (method, path, data) in [
++            ("GET", "/api/website/meta", serde_json::json!({})),
++            (
++                "POST",
++                "/api/website/meta",
++                serde_json::json!({"name":"denied"}),
++            ),
++            (
++                "POST",
++                "/api/website/rename",
++                serde_json::json!({"name":"denied"}),
++            ),
++            ("POST", "/api/website/duplicate", serde_json::json!({})),
++            ("DELETE", "/api/website", serde_json::json!({})),
++            ("POST", "/api/website", serde_json::json!({})),
++            ("GET", "/api/website", serde_json::json!({})),
++            ("GET", "/api/website/assets/sentinel", serde_json::json!({})),
++        ] {
++            let response = router
++                .clone()
++                .oneshot(request(
++                    method,
++                    &format!("{path}?websiteId={id}&connectorId=fs-storage"),
++                    data,
++                ))
++                .await
++                .unwrap();
++            assert_eq!(
++                response.status(),
++                StatusCode::BAD_REQUEST,
++                "{method} {path} {id}"
++            );
++        }
++    }
++    assert_eq!(
++        std::fs::read(outside.join("meta.json")).unwrap(),
++        br#"{"name":"outside"}"#
++    );
++    assert_eq!(
++        std::fs::read_dir(storage.data_path.as_path())
++            .unwrap()
++            .count(),
++        0
++    );
++}
++
++#[tokio::test]
++async fn valid_legacy_ids_and_generated_ids_retain_crud_assets_and_explicit_metadata_replacement() {
++    let (_root, storage) = fixture();
++    storage.init("default").await.unwrap();
++    let session = serde_json::json!({});
++    let id = "legacy-site_12".to_owned();
++    storage
++        .update_website(&session, &id, &WebsiteData::default())
++        .await
++        .unwrap();
++    storage
++        .set_website_meta(&session, &id, &meta("before"))
++        .await
++        .unwrap();
++    storage
++        .write_assets(
++            &session,
++            &id,
++            vec![ConnectorFile {
++                path: "image".into(),
++                content: b"public image".to_vec(),
++            }],
++        )
++        .await
++        .unwrap();
++    assert_eq!(
++        storage.read_asset(&session, &id, "image").await.unwrap(),
++        b"public image"
++    );
++    assert!(storage.read_website(&session, &id).await.is_ok());
++    storage
++        .rename_website(&session, &id, "renamed")
++        .await
++        .unwrap();
++    let current = storage.get_website_meta(&session, &id).await.unwrap();
++    assert_eq!(current.name, "renamed");
++    assert_eq!(current.image_url.as_deref(), Some("keep-preview"));
++    assert_eq!(current.connector_user_settings["fs"]["keep"], true);
++    let copy = storage.duplicate_website(&session, &id).await.unwrap();
++    assert_eq!(
++        storage
++            .get_website_meta(&session, &copy)
++            .await
++            .unwrap()
++            .name,
++        "renamed copy"
++    );
++    let empty: WebsiteMetaFileContent =
++        serde_json::from_value(serde_json::json!({"name":"full replacement"})).unwrap();
++    storage
++        .set_website_meta(&session, &id, &empty)
++        .await
++        .unwrap();
++    let replaced = storage.get_website_meta(&session, &id).await.unwrap();
++    assert!(replaced.image_url.is_none());
++    assert!(replaced.connector_user_settings.is_empty());
++    let created = storage
++        .create_website(&session, &meta("created"))
++        .await
++        .unwrap();
++    assert!(uuid::Uuid::parse_str(&created).is_ok());
++    storage.delete_website(&session, &copy).await.unwrap();
++    storage.delete_website(&session, &id).await.unwrap();
++    assert_eq!(storage.list_websites(&session).await.unwrap().len(), 1);
++}
++
++#[tokio::test]
++async fn http_typed_rename_preserves_metadata_rejects_extra_fields_and_advertises_real_capability()
++{
++    let (_root, storage) = fixture();
++    storage.init("default").await.unwrap();
++    let id = storage
++        .create_website(&serde_json::json!({}), &meta("before"))
++        .await
++        .unwrap();
++    let router = app(storage.clone(), storage.data_path.as_path());
++    let url = format!("/api/website/rename?websiteId={id}");
++    let response = router
++        .clone()
++        .oneshot(request("POST", &url, serde_json::json!({"name":"after"})))
++        .await
++        .unwrap();
++    assert_eq!(response.status(), StatusCode::OK);
++    let current = storage
++        .get_website_meta(&serde_json::json!({}), &id)
++        .await
++        .unwrap();
++    assert_eq!(current.name, "after");
++    assert_eq!(current.image_url.as_deref(), Some("keep-preview"));
++    let response = router
++        .clone()
++        .oneshot(request(
++            "POST",
++            &url,
++            serde_json::json!({"name":"denied", "imageUrl":"erase"}),
++        ))
++        .await
++        .unwrap();
++    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
++    let response = router
++        .oneshot(request(
++            "GET",
++            &format!("/api/website/meta?websiteId={id}"),
++            serde_json::json!({}),
++        ))
++        .await
++        .unwrap();
++    let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
++    let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
++    assert_eq!(value["name"], "after");
++    assert_eq!(value["connectorUserSettings"]["fs"]["keep"], true);
++    let data =
++        crate::connectors::traits::to_connector_data(&serde_json::json!({}), storage.as_ref())
++            .await
++            .unwrap();
++    assert!(data.supports_website_rename);
++}
++
++#[tokio::test]
++async fn shared_metadata_admission_refuses_concurrent_waiters_then_preserves_current_fields() {
++    let (_root, storage) = fixture();
++    storage.init("default").await.unwrap();
++    let session = serde_json::json!({});
++    let id = storage
++        .create_website(&session, &meta("before"))
++        .await
++        .unwrap();
++    let guard = Arc::clone(&storage.metadata_mutations)
++        .try_lock_owned()
++        .unwrap();
++    assert!(storage
++        .rename_website(&session, &id, "denied")
++        .await
++        .is_err());
++    assert!(storage
++        .set_website_meta(&session, &id, &meta("denied"))
++        .await
++        .is_err());
++    assert!(storage.get_website_meta(&session, &id).await.is_err());
++    drop(guard);
++    let mut latest = meta("parallel field edit");
++    latest.image_url = Some("latest preview".into());
++    latest
++        .connector_user_settings
++        .insert("added".into(), serde_json::json!({"value":42}));
++    storage
++        .set_website_meta(&session, &id, &latest)
++        .await
++        .unwrap();
++    storage
++        .rename_website(&session, &id, "new name")
++        .await
++        .unwrap();
++    let current = storage.get_website_meta(&session, &id).await.unwrap();
++    assert_eq!(current.name, "new name");
++    assert_eq!(current.image_url, latest.image_url);
++    assert_eq!(
++        current.connector_user_settings,
++        latest.connector_user_settings
++    );
++    for _ in 0..8 {
++        storage
++            .rename_website(&session, &id, "complete JSON")
++            .await
++            .unwrap();
++        assert_eq!(
++            storage.get_website_meta(&session, &id).await.unwrap().name,
++            "complete JSON"
++        );
++    }
++}
++
++/// An older connector forwards its original APIs unchanged and does not opt in
++/// to the new capability. No production fallback or advertised stub is added.
++struct Legacy(Arc<FsStorage>);
++impl ConnectorInfo for Legacy {
++    fn connector_id(&self) -> &str {
++        "legacy-fixture"
++    }
++    fn connector_type(&self) -> ConnectorType {
++        ConnectorType::Storage
++    }
++    fn display_name(&self) -> &str {
++        "Legacy fixture"
++    }
++    fn icon(&self) -> &str {
++        ""
++    }
++    fn color(&self) -> &str {
++        ""
++    }
++    fn background(&self) -> &str {
++        ""
++    }
++}
++#[async_trait]
++impl StorageConnector for Legacy {
++    async fn is_logged_in(&self, s: &serde_json::Value) -> ConnectorResult<bool> {
++        self.0.is_logged_in(s).await
++    }
++    async fn get_oauth_url(&self, s: &serde_json::Value) -> ConnectorResult<Option<String>> {
++        self.0.get_oauth_url(s).await
++    }
++    async fn set_token(
++        &self,
++        s: &mut serde_json::Value,
++        t: &serde_json::Value,
++    ) -> ConnectorResult<()> {
++        self.0.set_token(s, t).await
++    }
++    async fn logout(&self, s: &mut serde_json::Value) -> ConnectorResult<()> {
++        self.0.logout(s).await
++    }
++    async fn get_user(&self, s: &serde_json::Value) -> ConnectorResult<ConnectorUser> {
++        self.0.get_user(s).await
++    }
++    fn get_options(&self, v: &serde_json::Value) -> ConnectorOptions {
++        self.0.get_options(v)
++    }
++    async fn list_websites(&self, s: &serde_json::Value) -> ConnectorResult<Vec<WebsiteMeta>> {
++        self.0.list_websites(s).await
++    }
++    async fn read_website(
++        &self,
++        s: &serde_json::Value,
++        id: &WebsiteId,
++    ) -> ConnectorResult<WebsiteData> {
++        self.0.read_website(s, id).await
++    }
++    async fn create_website(
++        &self,
++        s: &serde_json::Value,
++        v: &WebsiteMetaFileContent,
++    ) -> ConnectorResult<WebsiteId> {
++        self.0.create_website(s, v).await
++    }
++    async fn update_website(
++        &self,
++        s: &serde_json::Value,
++        id: &WebsiteId,
++        v: &WebsiteData,
++    ) -> ConnectorResult<()> {
++        self.0.update_website(s, id, v).await
++    }
++    async fn delete_website(&self, s: &serde_json::Value, id: &WebsiteId) -> ConnectorResult<()> {
++        self.0.delete_website(s, id).await
++    }
++    async fn duplicate_website(
++        &self,
++        s: &serde_json::Value,
++        id: &WebsiteId,
++    ) -> ConnectorResult<WebsiteId> {
++        self.0.duplicate_website(s, id).await
++    }
++    async fn write_assets(
++        &self,
++        s: &serde_json::Value,
++        id: &WebsiteId,
++        f: Vec<ConnectorFile>,
++    ) -> ConnectorResult<Vec<String>> {
++        self.0.write_assets(s, id, f).await
++    }
++    async fn read_asset(
++        &self,
++        s: &serde_json::Value,
++        id: &WebsiteId,
++        f: &str,
++    ) -> ConnectorResult<Vec<u8>> {
++        self.0.read_asset(s, id, f).await
++    }
++    async fn get_website_meta(
++        &self,
++        s: &serde_json::Value,
++        id: &WebsiteId,
++    ) -> ConnectorResult<WebsiteMeta> {
++        self.0.get_website_meta(s, id).await
++    }
++    async fn set_website_meta(
++        &self,
++        s: &serde_json::Value,
++        id: &WebsiteId,
++        v: &WebsiteMetaFileContent,
++    ) -> ConnectorResult<()> {
++        self.0.set_website_meta(s, id, v).await
++    }
++}
++
++#[tokio::test]
++async fn old_connector_methods_remain_available_and_new_rename_fails_closed_without_fallback() {
++    let (_root, storage) = fixture();
++    storage.init("default").await.unwrap();
++    let session = serde_json::json!({});
++    let id = storage
++        .create_website(&session, &meta("unchanged"))
++        .await
++        .unwrap();
++    let legacy = Arc::new(Legacy(storage.clone()));
++    assert!(!legacy.supports_website_rename());
++    assert!(legacy
++        .rename_website(&session, &id, "denied")
++        .await
++        .is_err());
++    assert_eq!(
++        legacy.get_website_meta(&session, &id).await.unwrap().name,
++        "unchanged"
++    );
++    let router = app(legacy.clone(), storage.data_path.as_path());
++    let response = router
++        .oneshot(request(
++            "POST",
++            &format!("/api/website/rename?websiteId={id}"),
++            serde_json::json!({"name":"denied"}),
++        ))
++        .await
++        .unwrap();
++    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
++    assert_eq!(
++        storage.get_website_meta(&session, &id).await.unwrap().name,
++        "unchanged"
++    );
++    let data = crate::connectors::traits::to_connector_data(&session, legacy.as_ref())
++        .await
++        .unwrap();
++    assert!(!data.supports_website_rename);
++}
+diff --git a/server-rust/src/connectors/traits.rs b/server-rust/src/connectors/traits.rs
+--- a/server-rust/src/connectors/traits.rs
++++ b/server-rust/src/connectors/traits.rs
+@@ -183,6 +183,24 @@
+     // Metadata
+     // ==================
+ 
++    /// Whether this connector implements a name-only metadata mutation.
++    fn supports_website_rename(&self) -> bool {
++        false
++    }
++
++    /// No read/merge/full-replacement fallback: unsupported connectors fail
++    /// closed without changing the semantics of their existing metadata API.
++    async fn rename_website(
++        &self,
++        _session: &serde_json::Value,
++        _website_id: &WebsiteId,
++        _name: &str,
++    ) -> ConnectorResult<()> {
++        Err(crate::error::ConnectorError::InvalidInput(
++            "name-only website rename unsupported".to_owned(),
++        ))
++    }
++
+     /// Get website metadata
+     async fn get_website_meta(
+         &self,
+@@ -264,6 +282,7 @@
+     connector: &C,
+ ) -> ConnectorResult<ConnectorData> {
+     Ok(ConnectorData {
++        supports_website_rename: connector.supports_website_rename(),
+         connector_id: connector.connector_id().to_string(),
+         connector_type: connector.connector_type(),
+         display_name: connector.display_name().to_string(),
+@@ -282,6 +301,7 @@
+     connector: &C,
+ ) -> ConnectorResult<ConnectorData> {
+     Ok(ConnectorData {
++        supports_website_rename: false,
+         connector_id: connector.connector_id().to_string(),
+         connector_type: connector.connector_type(),
+         display_name: connector.display_name().to_string(),
+diff --git a/server-rust/src/models/connector.rs b/server-rust/src/models/connector.rs
+--- a/server-rust/src/models/connector.rs
++++ b/server-rust/src/models/connector.rs
+@@ -29,6 +29,9 @@
+ #[derive(Debug, Clone, Serialize, Deserialize)]
+ #[serde(rename_all = "camelCase")]
+ pub struct ConnectorData {
++    /// Explicit name-only mutation capability; absent older data defaults false.
++    #[serde(default)]
++    pub supports_website_rename: bool,
+     /// Unique identifier for this connector
+     pub connector_id: String,
+ 
+diff --git a/server-rust/src/models/website.rs b/server-rust/src/models/website.rs
+--- a/server-rust/src/models/website.rs
++++ b/server-rust/src/models/website.rs
+@@ -15,6 +15,13 @@
+ 
+ /// Unique identifier for a website
+ pub type WebsiteId = String;
++
++/// An explicit name-only operation, never a replacement metadata document.
++#[derive(Debug, Deserialize)]
++#[serde(deny_unknown_fields)]
++pub struct RenameWebsiteRequest {
++    pub name: String,
++}
+ 
+ /// Content stored in meta.json file
+ ///
+diff --git a/server-rust/src/routes/website.rs b/server-rust/src/routes/website.rs
+--- a/server-rust/src/routes/website.rs
++++ b/server-rust/src/routes/website.rs
+@@ -17,6 +17,7 @@
+ //! - PUT /api/website/ - Create new website
+ //! - DELETE /api/website/?websiteId=X - Delete website
+ //! - POST /api/website/duplicate?websiteId=X - Duplicate website
++//! - POST /api/website/rename?websiteId=X - Explicit name-only rename
+ //! - GET /api/website/meta?websiteId=X - Get metadata
+ //! - POST /api/website/meta?websiteId=X - Update metadata
+ //! - GET /api/website/assets/:path?websiteId=X - Read asset
+@@ -33,7 +34,10 @@
+ 
+ use crate::connectors::StorageConnector;
+ use crate::error::{ConnectorError, ConnectorResult};
+-use crate::models::{ConnectorFile, WebsiteData, WebsiteId, WebsiteMeta, WebsiteMetaFileContent};
++use crate::models::{
++    ConnectorFile, RenameWebsiteRequest, WebsiteData, WebsiteId, WebsiteMeta,
++    WebsiteMetaFileContent,
++};
+ use crate::routes::AppState;
+ 
+ /// Build website routes
+@@ -44,6 +48,7 @@
+         .route("/", put(create_website))
+         .route("/", delete(delete_website))
+         .route("/duplicate", post(duplicate_website))
++        .route("/rename", post(rename_website))
+         .route("/meta", get(get_meta))
+         .route("/meta", post(set_meta))
+         .route("/assets/{*path}", get(read_asset))
+@@ -249,6 +254,29 @@
+ 
+     Ok(Json(MessageResponse {
+         message: "Website meta saved".to_string(),
++    }))
++}
++
++/// Explicit name-only mutation; legacy POST /meta remains full replacement.
++async fn rename_website(
++    State(state): State<AppState>,
++    session: Session,
++    Query(query): Query<WebsiteWriteQuery>,
++    Json(request): Json<RenameWebsiteRequest>,
++) -> ConnectorResult<Json<MessageResponse>> {
++    let session_data = get_session_data(&session).await;
++    let connector =
++        get_storage_connector(&state, &session_data, query.connector_id.as_deref()).await?;
++    if !connector.supports_website_rename() {
++        return Err(ConnectorError::InvalidInput(
++            "name-only website rename unsupported".to_owned(),
++        ));
++    }
++    connector
++        .rename_website(&session_data, &query.website_id, &request.name)
++        .await?;
++    Ok(Json(MessageResponse {
++        message: "Website renamed".to_owned(),
+     }))
+ }
+ 

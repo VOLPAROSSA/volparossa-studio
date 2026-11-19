@@ -1,0 +1,57 @@
+{
+  "files": {
+    "dashboard.css": {
+      "bytes": 3187,
+      "sha256": "4f0df0073b0c24f9c1e78840536cdc7654d14f4c98953581a18872b528bc8890"
+    },
+    "dashboard.js": {
+      "bytes": 22208,
+      "sha256": "e1d0db1d7bb3139ef85cf15953db9f069076580861a7810e02f7f2983bedef30"
+    },
+    "index.html": {
+      "bytes": 3383,
+      "sha256": "b7c98dc9b78108140fd9ae942e1415307d288cf9d67865331e36fbee7c6e23f6"
+    },
+    "test_dashboard.mjs": {
+      "bytes": 27874,
+      "sha256": "8a63efd0d594085053b93f3e46b509531c1e908895ba2e508c35f53939e0e768"
+    }
+  },
+  "operation": "original_local_dashboard_units",
+  "schema": 1,
+  "scope": {
+    "native_gui": false,
+    "publication_authorized": false,
+    "real_server_crud": false,
+    "unit_fixture_only": true
+  },
+  "tests": [
+    "canonical local CRUD roots use the actual methods and never follow metadata URLs",
+    "rename discovers canonical connector capability and sends only the typed name payload",
+    "missing or false rename capability refuses mutation without a legacy fallback",
+    "untrusted project settings and precision tokens are never sent back during rename",
+    "malformed duplicate wrong-type or excessive connector capabilities cannot permit a rename request",
+    "current-map IDs and complete list validation reject traversal and ambiguous rows",
+    "project and name bounds fail before mutation and preserve names as entered",
+    "all JSON input is bounded and rejects duplicate keys malformed UTF-8 and deep geometry",
+    "streamed size denial cancels the body before oversize capability data can permit rename",
+    "HTTP failure and redirect or wrong MIME never expose backend error data",
+    "one original action deadline covers capability discovery mutation and reload without renewal",
+    "uncertain mutation is never retried and requires an explicit successful refresh",
+    "failed refresh after acknowledged mutation retains the uncertainty lock",
+    "only one action can be active and page disposal aborts stale completion",
+    "aborted capability reads fail before any rename POST and release the action timer",
+    "deadline settles a fetch that ignores abort and blocks all further requests",
+    "deadline settles an abort-ignoring read and cancel without accepting late bytes",
+    "late mutation response is cancelled without parsing refreshing or reopening capacity",
+    "unconfirmed error-body cleanup is bounded and preserves the original closed failure",
+    "duplicate message cannot redirect or supply an editor identity",
+    "actual UI treats names as text and opens only the selected local editor route",
+    "actual dialog handlers cancel safely restore focus and require explicit delete confirmation",
+    "actual new and rename forms preserve input and focus with no persistent browser storage",
+    "actual UI disables unsupported rename without disabling other actions and refresh rechecks capability",
+    "actual UI disables further actions after uncertainty until explicit refresh",
+    "actual UI requires page reload after a transport misses the deadline",
+    "HTML and CSS use only original local resources with a restrictive CSP and accessible controls"
+  ]
+}

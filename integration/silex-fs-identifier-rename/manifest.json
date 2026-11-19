@@ -1,0 +1,141 @@
+{
+  "base_native_manifest_sha256": "c68ffe977807e21b8f7070430f81d043bc47ea0aa148606e36e0908a5c8ab576",
+  "base_native_patch_sha256": "e927749533958b9ab3dda95b0378baa1649ec5e2b5409c7b73d5a729fbe67bd2",
+  "files": {
+    "desktop/src-tauri/src/mcp.rs": {
+      "after": {
+        "bytes": 39881,
+        "sha256": "56792b660815876df76b73b17ca121b30ea7fb51f414c54df929938d6670c685",
+        "mode": "100644"
+      },
+      "before": {
+        "bytes": 37455,
+        "mode": "100644",
+        "sha256": "ed00562b6ae94babafab6e1143b0dc90beeb797f70731f9e685e8be59c862b98"
+      }
+    },
+    "server-rust/src/connectors/fs_hosting.rs": {
+      "after": {
+        "bytes": 9215,
+        "sha256": "68b08c3b3c3c63def91227ac7bcd9a98f831c15ae40eb3e5cacdeba2563c3bdf",
+        "mode": "100644"
+      },
+      "before": {
+        "bytes": 9171,
+        "mode": "100644",
+        "sha256": "68aef4b2217f3478ef9eae261e89b93c1a7ce7f3f091654cb9685d723365dd43"
+      }
+    },
+    "server-rust/src/connectors/fs_storage.rs": {
+      "after": {
+        "bytes": 23752,
+        "sha256": "92e90dc2674192f01cf971610d4923f7be82b092239ebda45f95f044435bd938",
+        "mode": "100644"
+      },
+      "before": {
+        "bytes": 22949,
+        "mode": "100644",
+        "sha256": "f93e72a182d5e16797165d4b4f44e3d9b22cca571f060bd4d2c85fba8c6b4039"
+      }
+    },
+    "server-rust/src/connectors/fs_storage/identifier.rs": {
+      "after": {
+        "bytes": 843,
+        "sha256": "a0f742d1fb92b49c9e9e8132e4afc8b71c8b851c72422517f5d7a7bcc067ad9b",
+        "mode": "100644"
+      },
+      "before": null
+    },
+    "server-rust/src/connectors/fs_storage/metadata.rs": {
+      "after": {
+        "bytes": 17534,
+        "sha256": "2cbc347c41bd98020b5eb921ff6e01101da0610ca6f06fd41a379d4d9c1881d3",
+        "mode": "100644"
+      },
+      "before": null
+    },
+    "server-rust/src/connectors/fs_storage/metadata/tests.rs": {
+      "after": {
+        "bytes": 11966,
+        "sha256": "d93f9d1e94d380997a2d6218cc7e2d53e3bebea6b701638bde2538f727917409",
+        "mode": "100644"
+      },
+      "before": null
+    },
+    "server-rust/src/connectors/fs_storage/tests.rs": {
+      "after": {
+        "bytes": 17673,
+        "sha256": "e3d5ccbc41bdb8de661255c158fb644e2be4439f043700bde94e832eef749a43",
+        "mode": "100644"
+      },
+      "before": null
+    },
+    "server-rust/src/connectors/traits.rs": {
+      "after": {
+        "bytes": 10314,
+        "sha256": "df536d5586f3bbc5ab3ad2f3f129ab587bb6ccec0b48e42a6061381f8499a868",
+        "mode": "100644"
+      },
+      "before": {
+        "bytes": 9603,
+        "mode": "100644",
+        "sha256": "5918565ed0e3c7090c5a1ec61f6542420c7bcdeb29e55791cc0d70164b36eba4"
+      }
+    },
+    "server-rust/src/models/connector.rs": {
+      "after": {
+        "bytes": 3064,
+        "sha256": "b5a50f0d6f5ebb1017204a2f9c0ed43a54e499c50fb3143176d6897f0ac6f82a",
+        "mode": "100644"
+      },
+      "before": {
+        "bytes": 2921,
+        "mode": "100644",
+        "sha256": "49b964291c8bf0a5fd0e4f3c5bd16d979eef221d699c916f0defda2d177cc4a3"
+      }
+    },
+    "server-rust/src/models/website.rs": {
+      "after": {
+        "bytes": 5543,
+        "sha256": "c9197e15b4f6ba78b81cd5a57926f6afdbbba5b133a38b3bba8d0ce4cca7890a",
+        "mode": "100644"
+      },
+      "before": {
+        "bytes": 5348,
+        "mode": "100644",
+        "sha256": "df19b4022586e8dbed71b4a002bba1281bc567491c621a9979a6440bb34d1292"
+      }
+    },
+    "server-rust/src/routes/website.rs": {
+      "after": {
+        "bytes": 12447,
+        "sha256": "9de8af3de55e77b14e232fb7f6a32ecd2b2e8faa88f378963b88321626eaff09",
+        "mode": "100644"
+      },
+      "before": {
+        "bytes": 11462,
+        "mode": "100644",
+        "sha256": "8ec21516400677a1fb2496a27c2ddbeb8ad13dc4ea4239f74e162637dc530a2c"
+      }
+    }
+  },
+  "operation": "fs_identifier_name_rename",
+  "patch": {
+    "bytes": 69335,
+    "path": "patches/fs-identifier-rename.patch",
+    "sha256": "18553993c8334a3479f9d3acb7c8b8070433471d537e10601f6435d2260dd3d0"
+  },
+  "root_lock_sha256": "de04aaf5ff1acbdde421e3447ea67f3eb7a00a7d5ed118f4387a180e84590118",
+  "schema": 1,
+  "scope": {
+    "authorization_proven": false,
+    "cross_process_cas_proven": false,
+    "generic_asset_path_confinement_proven": false,
+    "hosted_tests_passed": false,
+    "http_runtime_proven": false,
+    "native_gui_proven": false,
+    "publication_authorized": false,
+    "source_candidate": true
+  },
+  "source_commit": "672efed69dda04c0a1e968859239e042f00d9538"
+}

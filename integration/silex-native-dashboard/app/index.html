@@ -1,0 +1,66 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+    <title>Local projects — VOLPAROSSA Studio</title>
+    <link rel="stylesheet" href="./dashboard.css">
+    <script type="module" src="./dashboard.js"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">VOLPAROSSA Studio</p>
+        <h1>Local projects</h1>
+        <p>Create and edit projects on this device. This dashboard does not publish websites.</p>
+      </header>
+      <section aria-labelledby="new-heading">
+        <h2 id="new-heading">New project</h2>
+        <form id="new-form">
+          <label for="new-name">Project name</label>
+          <div class="form-row">
+            <input id="new-name" name="name" type="text" maxlength="256" required autocomplete="off" spellcheck="false" dir="auto" aria-describedby="name-help">
+            <button id="create-button" type="submit" disabled>Create project</button>
+          </div>
+          <p id="name-help" class="hint">Use 1–128 characters. Names are kept as entered.</p>
+        </form>
+      </section>
+      <section aria-labelledby="projects-heading" aria-busy="false" id="projects-section">
+        <div class="section-heading">
+          <h2 id="projects-heading">Your projects</h2>
+          <button id="refresh-button" type="button">Refresh</button>
+        </div>
+        <p id="status" role="status" aria-live="polite">Loading projects…</p>
+        <p id="error" role="alert" hidden></p>
+        <p id="empty" hidden>No projects yet. Create your first project above.</p>
+        <ul id="projects" class="projects"></ul>
+      </section>
+      <noscript>This local dashboard needs JavaScript to manage projects.</noscript>
+    </main>
+    <dialog id="rename-dialog" aria-labelledby="rename-heading">
+      <form id="rename-form">
+        <h2 id="rename-heading">Rename project</h2>
+        <label for="rename-name">Project name</label>
+        <input id="rename-name" name="name" type="text" maxlength="256" required autocomplete="off" spellcheck="false" dir="auto" aria-describedby="rename-help">
+        <p id="rename-help" class="hint">Other project settings are preserved. Concurrent edits from another window cannot be protected by this API.</p>
+        <div class="dialog-actions">
+          <button id="rename-cancel" type="button">Cancel</button>
+          <button type="submit">Rename</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="delete-dialog" aria-labelledby="delete-heading" aria-describedby="delete-help">
+      <form id="delete-form">
+        <h2 id="delete-heading">Delete project?</h2>
+        <p id="delete-help">This removes <bdi id="delete-name"></bdi> and its local files. This cannot be undone here.</p>
+        <div class="dialog-actions">
+          <button id="delete-cancel" type="button" autofocus>Cancel</button>
+          <button class="danger" type="submit">Delete project</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>
