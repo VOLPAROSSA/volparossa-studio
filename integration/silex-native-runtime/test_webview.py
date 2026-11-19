@@ -96,19 +96,18 @@ class WebViewTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             gui.desktop_action(sdk, 'Refresh', process)
 
-    def test_dashboard_creation_requires_its_named_editable_input_and_exact_ready_text(self):
-        node = Mock()
+    def test_dashboard_typing_targets_the_visible_project_field_or_its_html_label(self):
+        node, sdk = Mock(), Mock()
         node.get_name.return_value = 'Project name'
-        self.assertIs(gui.project_name_input(node), node.get_editable_text_iface.return_value)
+        box = node.get_component_iface.return_value.get_extents.return_value
+        box.x, box.y, box.width, box.height = 12, 36, 180, 44
+        self.assertEqual(gui.project_name_point(node, sdk), (102, 58))
+        box.x = -1000
+        self.assertIsNone(gui.project_name_point(node, sdk))
+        box.x, box.height = 12, 0
+        self.assertIsNone(gui.project_name_point(node, sdk))
         node.get_name.return_value = 'Other input'
-        self.assertIsNone(gui.project_name_input(node))
-        text = node.get_text_iface.return_value
-        expected = '0 local projects.'
-        text.get_character_count.return_value = len(expected)
-        text.get_text.return_value = expected
-        self.assertTrue(gui.has_text(node, expected))
-        text.get_text.return_value = '1 local projects.'
-        self.assertFalse(gui.has_text(node, expected))
+        self.assertIsNone(gui.project_name_point(node, sdk))
 
     def test_quit_requires_the_original_desktop_pid_and_the_save_quit_sibling(self):
         node, save = Mock(), Mock()

@@ -720,7 +720,7 @@ add rule inet vpcal output meta skuid %d meta nfproto ipv6 counter name denied6 
 
 
 def checked_gui_detail(value):
-    labels = {'project_name', 'create', 'refresh', 'empty_status', 'empty_message', 'dashboard_heading',
+    labels = {'project_name', 'editable_name', 'visible_name', 'typed_name', 'create', 'refresh', 'empty_status', 'empty_message', 'dashboard_heading',
         'open', 'working', 'quit', 'save_quit', 'loading', 'tree_interrupted'}
     windows = {'project', 'changed_project', 'silex', 'other', 'probe_interrupted'}
     require(type(value) is dict and value.keys() == {'error', 'source_line', 'nodes', 'labels', 'windows'}

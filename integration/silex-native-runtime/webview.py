@@ -196,6 +196,13 @@ def interface_observation(atspi, pid, error):
         label = labels.get(node.get_name())
         if label:
             observed.add(label)
+        if label == 'project_name':
+            if node.get_editable_text_iface():
+                observed.add('editable_name')
+            if project_name_point(node, atspi):
+                observed.add('visible_name')
+            if has_text(node, NAME):
+                observed.add('typed_name')
         return False
     try:
         find_accessible(atspi, inspect)
@@ -217,10 +224,27 @@ def interface_observation(atspi, pid, error):
     return dict(error=kind, source_line=line, nodes=nodes, labels=sorted(observed), windows=sorted(windows))
 
 
-def project_name_input(node):
-    if node.get_name() == 'Project name':
-        return node.get_editable_text_iface()
-    return None
+def project_name_point(node, atspi):
+    if node.get_name() != 'Project name':
+        return None
+    component = node.get_component_iface()
+    if not component:
+        return None
+    box = component.get_extents(atspi.CoordType.SCREEN)
+    if box is None or not (0 < box.width <= 1280 and 0 < box.height <= 800):
+        return None
+    x, y = box.x + box.width // 2, box.y + box.height // 2
+    return (x, y) if 0 <= x < 1280 and 0 <= y < 800 else None
+
+
+def type_project_name(point):
+    # HTML associates the visible label with the input. Clicking either lets
+    # WebKit handle real typing and the ordinary Enter-to-submit interaction.
+    x, y = map(str, point)
+    for arguments in (['mousemove', x, y, 'click', '1'], ['type', '--clearmodifiers', '--delay', '3', NAME],
+                      ['key', '--clearmodifiers', 'Return']):
+        subprocess.run(['/usr/bin/xdotool', *arguments], stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4, check=True)
 
 
 def visible_canvas_heading(atspi, project_id):
@@ -419,12 +443,10 @@ def main():
                         stage = 'empty_dashboard'
                         require(remote('GET', '/api/website?connectorId=fs-storage') == [])
                         stage = 'project_name'
-                        def enter_name():
-                            field = find_accessible(Atspi, project_name_input)
-                            return field is not None and field.set_text_contents(NAME)
-                        await_value(enter_name, context=events)
+                        point = await_value(lambda: find_accessible(Atspi,
+                            lambda node: project_name_point(node, Atspi)), context=events)
                         stage = 'create_project'
-                        desktop_action(Atspi, 'Create project', app, events)
+                        type_project_name(point)
                         created = await_value(lambda: remote('GET', '/api/website?connectorId=fs-storage'))
                         require(type(created) is list and len(created) == 1 and created[0]['name'] == NAME)
                         project_id = created[0]['websiteId']
