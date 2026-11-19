@@ -155,11 +155,12 @@ def verify_root(value, revision, hashes):
     worker = value['worker']
     S.require(type(worker) is dict and worker.keys() == {'schema', 'operation', 'status', 'stage', 'admission',
         'calibration', 'namespace_groups_started', 'namespace_groups_joined', 'actors_started', 'actors_joined', 'owner_scope'}
-        | {'failure_kind', 'actor_failure_predicate'}
+        | {'failure_kind', 'actor_failure_predicate', 'actor_failure_site'}
         and type(worker['schema']) is int and worker['schema'] == 1
         and worker['operation'] == 'namespace_isolation_worker' and worker['status'] == 'passed'
         and worker['stage'] == 'complete' and worker['owner_scope'] == 'namespace_process_groups'
         and worker['failure_kind'] is None and worker['actor_failure_predicate'] is None
+        and worker['actor_failure_site'] == []
         and type(worker['namespace_groups_started']) is int and 0 < worker['namespace_groups_started'] <= 128
         and worker['namespace_groups_started'] == worker['namespace_groups_joined']
         and type(worker['actors_started']) is int and worker['actors_started'] == worker['actors_joined'] == 2, 'protocol')
@@ -216,19 +217,20 @@ def root_failure(raw, revision, hashes):
             if candidate.get('status') == 'failed':
                 keys = {'schema', 'operation', 'status', 'stage', 'failure_kind',
                     'namespace_groups_started', 'namespace_groups_joined', 'actors_started',
-                    'actors_joined', 'owner_scope', 'actor_failure_predicate'}
+                    'actors_joined', 'owner_scope', 'actor_failure_predicate', 'actor_failure_site'}
                 S.require(candidate.keys() == keys and type(candidate['schema']) is int and candidate['schema'] == 1
                     and candidate['operation'] == 'namespace_isolation_worker'
                     and candidate['stage'] in S.WORKER_STAGES and candidate['failure_kind'] in S.KINDS
                     and candidate['owner_scope'] == 'namespace_process_groups'
-                    and candidate['actor_failure_predicate'] in S.ACTOR_PREDICATES | {None}, 'protocol')
+                    and candidate['actor_failure_predicate'] in S.ACTOR_PREDICATES | {None}
+                    and S.actor_site(candidate['actor_failure_site']), 'protocol')
                 S.require(all(type(candidate[name]) is int and 0 <= candidate[name] <= 128 for name in
                     ('namespace_groups_started', 'namespace_groups_joined', 'actors_started', 'actors_joined')), 'protocol')
                 S.require(0 <= candidate['namespace_groups_joined'] <= candidate['namespace_groups_started'] <= 128
                     and 0 <= candidate['actors_joined'] <= candidate['actors_started'] <= 2, 'protocol')
                 worker = {name: candidate[name] for name in ('stage', 'failure_kind',
                     'namespace_groups_started', 'namespace_groups_joined', 'actors_started',
-                    'actors_joined', 'actor_failure_predicate')}
+                    'actors_joined', 'actor_failure_predicate', 'actor_failure_site')}
             else:
                 # No successful worker detail is copied into a failure receipt.
                 S.require(candidate.get('status') == 'passed', 'protocol')
@@ -248,7 +250,9 @@ def root_failure(raw, revision, hashes):
         source_groups_started=value['source_groups_started'], source_groups_joined=value['source_groups_joined'],
         owned_groups_started=value['owned_groups_started'], owned_groups_joined=value['owned_groups_joined'],
         root_carrier_removed=value['root_carrier_removed'], host_before_sha256=value['host_before_sha256'],
-        host_after_sha256=value['host_after_sha256'], worker_failure=worker)
+        host_after_sha256=value['host_after_sha256'], worker_failure=worker,
+        veth_initially_registered=value.get('veth_initially_registered'),
+        veth_temporarily_loaded=value.get('veth_temporarily_loaded'), veth_state_restored=value.get('veth_state_restored'))
 
 
 def retain_root_failure(primary, report, raw, revision, hashes):

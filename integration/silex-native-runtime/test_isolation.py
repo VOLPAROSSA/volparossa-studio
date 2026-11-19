@@ -43,7 +43,7 @@ def passed_root():
     worker = dict(schema=1, operation='namespace_isolation_worker', status='passed', stage='complete',
         admission=admission, calibration=calibration, namespace_groups_started=28,
         namespace_groups_joined=28, actors_started=2, actors_joined=2,
-        owner_scope='namespace_process_groups', failure_kind=None, actor_failure_predicate=None)
+        owner_scope='namespace_process_groups', failure_kind=None, actor_failure_predicate=None, actor_failure_site=[])
     host = dict.fromkeys(('routes_sha256', 'resolver_sha256', 'firewall_configuration_sha256'), 'a' * 64)
     return dict(schema=1, operation='root_isolation_supervisor', status='passed', stage='complete',
         studio_revision='b' * 40, source_sha256={'public': 'c' * 64}, worker=worker,
@@ -60,6 +60,16 @@ def verify(value):
 
 
 class IsolationTests(unittest.TestCase):
+    def test_actual_actor_file_error_retains_only_bounded_own_source_lines(self):
+        try:
+            A.bounded_read('/not-a-real-studio-private-path', 16)
+        except FileNotFoundError as error:
+            site = A.failure_site(error)
+        self.assertTrue(S.actor_site(site))
+        self.assertEqual(len(site), 1)
+        self.assertIn('open(path', Path(A.__file__).read_text().splitlines()[site[0] - 1])
+        self.assertFalse(S.actor_site(['/not-a-real-studio-private-path']))
+
     def test_host_resolver_binds_known_service_uid_path_and_mode(self):
         target = Path('/run/systemd/resolve/stub-resolv.conf')
         observed = SimpleNamespace(st_uid=991)
@@ -447,14 +457,15 @@ except S.Rejected:
         value['worker'] = dict(schema=1, operation='namespace_isolation_worker', status='failed',
             stage='admission_actor', failure_kind='child', namespace_groups_started=10,
             namespace_groups_joined=10, actors_started=1, actors_joined=1,
-            owner_scope='namespace_process_groups', actor_failure_predicate='private_mqueue')
+            owner_scope='namespace_process_groups', actor_failure_predicate='private_mqueue', actor_failure_site=[75])
         projected = C.root_failure(S.encoded(value), 'b' * 40, {'public': 'c' * 64})
         self.assertEqual(projected['worker_failure']['actor_failure_predicate'], 'private_mqueue')
         self.assertEqual(projected['host_before_sha256'], value['host_before_sha256'])
         self.assertIsNone(projected['host_after_sha256'])
         self.assertNotIn('namespace_parent_joined', projected)
         for key, bad in (('stage', 'PRIVATE/path'), ('actors_started', True),
-                         ('actor_failure_predicate', 'PRIVATE/path'),
+                         ('actor_failure_predicate', 'PRIVATE/path'), ('actor_failure_site', ['PRIVATE/path']),
+                         ('actor_failure_site', [1, 2, 3]), ('actor_failure_site', [True]),
                          ('namespace_groups_joined', 11), ('actors_started', 3), ('actors_joined', 2)):
             changed = copy.deepcopy(value); changed['worker'][key] = bad
             with self.assertRaises(S.Rejected):

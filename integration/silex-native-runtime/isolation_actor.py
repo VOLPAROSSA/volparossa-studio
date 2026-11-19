@@ -163,6 +163,20 @@ def calibration():
                 ipv6_attempts=1, dns_attempts=1, dns_response_verified=True)
 
 
+def failure_site(error):
+    # The actor file is authenticated by the supervisor. Publish only up to two
+    # public source lines, never exception text, process paths or frame values.
+    permitted = {fun.__code__ for fun in (admission, private_directory, private_ipc_views,
+        status, bounded_read, calibration, denied_datagram)}
+    lines = []
+    item = error.__traceback__
+    while item is not None:
+        if item.tb_frame.f_code in permitted and 0 < item.tb_lineno <= 256:
+            lines.append(item.tb_lineno)
+        item = item.tb_next
+    return lines[-2:]
+
+
 if __name__ == '__main__':
     try:
         require(len(sys.argv) == 2 and sys.argv[1] in ('admission', 'calibration'))
@@ -170,5 +184,6 @@ if __name__ == '__main__':
         print(json.dumps(result, sort_keys=True))
     except BaseException as error:
         print(json.dumps(dict(schema=1, operation='isolation_actor_failure', status='failed',
-                              predicate=error.predicate if isinstance(error, Rejected) else 'shape'), sort_keys=True))
+                              predicate=error.predicate if isinstance(error, Rejected) else 'shape',
+                              site=failure_site(error)), sort_keys=True))
         raise SystemExit(1) from None

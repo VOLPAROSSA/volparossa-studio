@@ -959,10 +959,10 @@ jobs:
           import hashlib, pathlib
           root = pathlib.Path('studio/integration')
           expected = {
-            'silex-native-runtime/isolation.py': '3f821002c77e5ad0f795a4a2e3ee0c91bc569785f3cd88ce8af849ac7352611d',
-            'silex-native-runtime/isolation_root.py': '6a36515a8994685bc70c1a86ee6c1e34ba7826944c27fd158ae8b43b20afddbd',
-            'silex-native-runtime/isolation_actor.py': 'e659a2eb6edfe6df7ca75523bb5ae2f8645667e0751f35ad3afa953308f5e9d2',
-            'silex-native-runtime/test_isolation.py': 'd03d0927204c75b7d3c6675f7050ffd80aa9e9dd1899479534ad804f269d3a2d',
+            'silex-native-runtime/isolation.py': '5ae53609532eba2b17b7cb9dfe8ea25f33db1632a29be455bb812d3e9af7b9fc',
+            'silex-native-runtime/isolation_root.py': '66fe6ce7505637795e7c4178cf27e526315b61c0096dc7b01b1ee78f418ade91',
+            'silex-native-runtime/isolation_actor.py': 'b2dd0793ae14775c51a1f72fb5b7bf5c58e482e50e9f7987f3731b18b94f8de6',
+            'silex-native-runtime/test_isolation.py': 'e441ac210957f7440498ca354dc62b21c19b08e3487ba8b77bf7911e189b22a8',
             'silex-export/lifecycle.py': 'a3fe1d2fe7ba51c7f63a73ad505161d73e0d8f5b112a9af575f62e70f467da9e',
           }
           for name, digest in expected.items():

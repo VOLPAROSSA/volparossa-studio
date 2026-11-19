@@ -79,6 +79,10 @@ class Rejected(RuntimeError):
         super().__init__('native isolation prerequisite rejected')
 
 
+def actor_site(value):
+    return type(value) is list and len(value) <= 2 and all(type(n) is int and 0 < n <= 256 for n in value)
+
+
 def require(value, kind='admission'):
     if not value:
         raise Rejected(kind)
@@ -628,7 +632,7 @@ def namespace_init():
                   stage='mounts', admission=None, calibration=None,
                   namespace_groups_started=0, namespace_groups_joined=0,
                   actors_started=0, actors_joined=0, owner_scope='namespace_process_groups',
-                  failure_kind=None, actor_failure_predicate=None)
+                  failure_kind=None, actor_failure_predicate=None, actor_failure_site=[])
     primary = None
     dns = None
     try:
@@ -730,11 +734,12 @@ def namespace_init():
         report['failure_kind'] = error.kind if isinstance(error, Rejected) else 'namespace'
         try:
             failed = parse(owner.last_output)
-            require(type(failed) is dict and failed.keys() == {'schema', 'operation', 'status', 'predicate'}
+            require(type(failed) is dict and failed.keys() == {'schema', 'operation', 'status', 'predicate', 'site'}
                 and type(failed['schema']) is int and failed['schema'] == 1
                 and failed['operation'] == 'isolation_actor_failure' and failed['status'] == 'failed'
-                and failed['predicate'] in ACTOR_PREDICATES)
+                and failed['predicate'] in ACTOR_PREDICATES and actor_site(failed['site']))
             report['actor_failure_predicate'] = failed['predicate']
+            report['actor_failure_site'] = failed['site']
         except BaseException:
             pass
     finally:
@@ -810,12 +815,13 @@ def staged_supervisor():
                     and failed.get('status') == 'failed' and failed.get('failure_kind') in KINDS
                     and failed.get('stage') in WORKER_STAGES
                     and failed.get('actor_failure_predicate') in ACTOR_PREDICATES | {None}
+                    and actor_site(failed.get('actor_failure_site'))
                     and failed.get('owner_scope') == 'namespace_process_groups'
                     and all(type(failed.get(key)) is int and 0 <= failed[key] <= 128 for key in
                         ('namespace_groups_started', 'namespace_groups_joined', 'actors_started', 'actors_joined')))
             report['worker'] = {key: failed[key] for key in
                 ('schema', 'operation', 'status', 'stage', 'failure_kind', 'namespace_groups_started',
-                 'namespace_groups_joined', 'actors_started', 'actors_joined', 'owner_scope', 'actor_failure_predicate')}
+                 'namespace_groups_joined', 'actors_started', 'actors_joined', 'owner_scope', 'actor_failure_predicate', 'actor_failure_site')}
         except BaseException:
             pass
     finally:
