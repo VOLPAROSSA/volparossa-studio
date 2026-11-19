@@ -175,6 +175,40 @@ def has_text(node, expected):
     return bool(text and text.get_character_count() == len(expected) and text.get_text(0, len(expected)) == expected)
 
 
+def interface_observation(atspi, pid, error):
+    labels = {'Project name': 'project_name', 'Create project': 'create', 'Refresh': 'refresh',
+        '0 local projects.': 'empty_status', 'No projects yet. Create your first project above.': 'empty_message',
+        'Local projects': 'dashboard_heading', 'Open project: ' + NAME: 'open', 'Working…': 'working',
+        'Quit': 'quit', 'Save & Quit': 'save_quit', 'Loading': 'loading'}
+    observed, windows = set(), set()
+    nodes = 0
+    def inspect(node):
+        nonlocal nodes
+        nodes += 1
+        label = labels.get(node.get_name())
+        if label:
+            observed.add(label)
+        return False
+    try:
+        find_accessible(atspi, inspect)
+    except Exception:
+        observed.add('tree_interrupted')
+    try:
+        for title in visible_titles(pid).values():
+            windows.add({NAME + ' — Silex': 'project', '• ' + NAME + ' — Silex': 'changed_project',
+                'Silex': 'silex'}.get(title, 'other'))
+    except Exception:
+        windows.add('probe_interrupted')
+    trace = error.__traceback__
+    line = 0
+    while trace:
+        if trace.tb_frame.f_code.co_filename == __file__:
+            line = trace.tb_lineno
+        trace = trace.tb_next
+    kind = 'timeout' if isinstance(error, TimeoutError) else 'predicate' if isinstance(error, RuntimeError) else 'other'
+    return dict(error=kind, source_line=line, nodes=nodes, labels=sorted(observed), windows=sorted(windows))
+
+
 def project_name_input(node):
     if node.get_name() == 'Project name':
         return node.get_editable_text_iface()
@@ -321,6 +355,14 @@ def main():
         state['process_groups_started'] += 1
         try:
             yield process
+        except BaseException as error:
+            if command[0] == '/run/fixture/silex-desktop':
+                try:
+                    detail = interface_observation(Atspi, process.pid, error)
+                    print('GUI detail ' + json.dumps(detail, sort_keys=True), flush=True)
+                except Exception:
+                    pass
+            raise
         finally:
             result = life.drain_group(process, identity)
             require(result['leader_joined'] and result['live_group_drained'])
@@ -366,11 +408,11 @@ def main():
                     if phase == 'first':
                         stage = 'empty_dashboard'
                         require(remote('GET', '/api/website?connectorId=fs-storage') == [])
-                        await_value(lambda: find_accessible(Atspi, lambda node: has_text(node, '0 local projects.')
-                                    or has_text(node, 'No projects yet. Create your first project above.')))
                         stage = 'project_name'
-                        field = await_value(lambda: find_accessible(Atspi, project_name_input))
-                        require(field.set_text_contents(NAME))
+                        def enter_name():
+                            field = find_accessible(Atspi, project_name_input)
+                            return field is not None and field.set_text_contents(NAME)
+                        await_value(enter_name)
                         stage = 'create_project'
                         desktop_action(Atspi, 'Create project', app)
                         created = await_value(lambda: remote('GET', '/api/website?connectorId=fs-storage'))

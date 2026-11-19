@@ -138,6 +138,19 @@ class WebViewTests(unittest.TestCase):
             with self.subTest(raw=raw), self.assertRaises((root.Rejected, ValueError)):
                 root.gui_output(raw)
 
+    def test_native_failure_detail_only_contains_fixed_interface_observations(self):
+        report = dict(error='timeout', source_line=420, nodes=17, labels=['create', 'project_name'],
+            windows=['silex'])
+        self.assertEqual(root.checked_gui_detail(report), report)
+        for bad in (dict(report, labels=['private name']), dict(report, windows=['raw title']),
+                    dict(report, source_line=True), dict(report, nodes=2501)):
+            with self.assertRaises(root.Rejected):
+                root.checked_gui_detail(bad)
+        detail = b'GUI detail {"error":"other","labels":[],"nodes":0,"source_line":1,"windows":[]}\n'
+        self.assertEqual(root.gui_output(detail + b'{"status":"failed"}'), {'status': 'failed'})
+        with self.assertRaises(root.Rejected):
+            root.gui_output(detail + b'{"status":"passed"}')
+
     def test_reopen_evidence_requires_both_normal_native_closes_and_owned_groups(self):
         value = dict(
             status='passed', stage='complete', process_groups_started=4, process_groups_joined=4,

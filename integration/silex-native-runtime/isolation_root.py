@@ -719,13 +719,37 @@ add rule inet vpcal output meta skuid %d meta nfproto ipv6 counter name denied6 
 """ % (uid, uid, uid)).encode()
 
 
+def checked_gui_detail(value):
+    labels = {'project_name', 'create', 'refresh', 'empty_status', 'empty_message', 'dashboard_heading',
+        'open', 'working', 'quit', 'save_quit', 'loading', 'tree_interrupted'}
+    windows = {'project', 'changed_project', 'silex', 'other', 'probe_interrupted'}
+    require(type(value) is dict and value.keys() == {'error', 'source_line', 'nodes', 'labels', 'windows'}
+        and value['error'] in ('timeout', 'predicate', 'other') and type(value['source_line']) is int
+        and 0 <= value['source_line'] <= 4096 and type(value['nodes']) is int and 0 <= value['nodes'] <= 2500, 'protocol')
+    for name, allowed in (('labels', labels), ('windows', windows)):
+        items = value[name]
+        require(type(items) is list and len(items) <= len(allowed)
+            and all(type(item) is str and item in allowed for item in items)
+            and items == sorted(set(items)), 'protocol')
+    return value
+
+
+def gui_detail(raw):
+    rows = [line[11:] for line in raw.splitlines() if line.startswith(b'GUI detail ')]
+    return checked_gui_detail(parse(rows[0])) if len(rows) == 1 else None
+
+
 def gui_output(raw):
     lines = raw.splitlines()
-    require(0 < len(lines) <= len(GUI_CHECKPOINTS) + 1, 'protocol')
+    require(0 < len(lines) <= len(GUI_CHECKPOINTS) + 2, 'protocol')
     allowed = {('GUI ' + label).encode() for label in GUI_CHECKPOINTS}
+    value = parse(lines[-1])
     marks = lines[:-1]
+    if any(line.startswith(b'GUI detail ') for line in marks):
+        require(value.get('status') == 'failed' and gui_detail(raw) is not None, 'protocol')
+        marks = [line for line in marks if not line.startswith(b'GUI detail ')]
     require(len(set(marks)) == len(marks) and all(line in allowed for line in marks), 'protocol')
-    return parse(lines[-1])
+    return value
 
 
 def last_gui_checkpoint(raw):
@@ -899,6 +923,8 @@ def namespace_init():
             if owner.gui_exit is not None:
                 report['gui_exit'] = owner.gui_exit
             try:
+                if detail := gui_detail(owner.last_output):
+                    report['gui_detail'] = detail
                 failed_gui = gui_output(owner.last_output)
                 require(failed_gui.get('status') == 'failed' and failed_gui.get('stage') in GUI_STAGES)
                 report['gui_failure_stage'] = failed_gui['stage']
@@ -1001,6 +1027,8 @@ def staged_supervisor():
                 report['worker']['gui_failure_stage'] = failed['gui_failure_stage']
             if GUI and type(failed.get('gui_exit')) is int and -64 <= failed['gui_exit'] <= 255:
                 report['worker']['gui_exit'] = failed['gui_exit']
+            if GUI and 'gui_detail' in failed:
+                report['worker']['gui_detail'] = checked_gui_detail(failed['gui_detail'])
         except BaseException:
             pass
     finally:
