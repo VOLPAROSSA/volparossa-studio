@@ -118,6 +118,22 @@ class SignedReceiptTests(unittest.TestCase):
             with self.subTest(key=key, bad=bad), self.assertRaises(ValueError):
                 receipt.validate_signed_proof(value)
 
+    def test_native_owner_review_needs_one_acknowledgement_and_the_same_signed_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'signed-site-core.log'
+            selected = 'a' * 64
+            other = 'b' * 64
+            ack = 'STUDIO_NATIVE_OWNER_REVIEW ' + selected + '\n'
+            body = log_text(proof())
+            private(path, (ack + body).encode())
+            self.assertEqual(receipt.read_signed_proof(path, 4, native_review_sha256=selected), proof())
+            for lines, review in ((body, selected), (ack + ack + body, selected),
+                                  (ack.replace(selected, other) + body, selected),
+                                  (ack.replace(selected, other) + body, other)):
+                private(path, lines.encode())
+                with self.subTest(review=review, ack=lines.count('OWNER_REVIEW')), self.assertRaises(ValueError):
+                    receipt.read_signed_proof(path, 4, native_review_sha256=review)
+
     def test_log_requires_one_actual_success_and_single_current_proof(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'signed-site-core.log'

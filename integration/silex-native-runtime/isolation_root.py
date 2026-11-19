@@ -40,7 +40,8 @@ HOST_KEYS = ('GITHUB_ACTIONS', 'RUNNER_ENVIRONMENT', 'RUNNER_OS', 'RUNNER_ARCH',
              'GITHUB_REPOSITORY', 'GITHUB_SHA', 'GITHUB_WORKFLOW_SHA', 'GITHUB_REF',
              'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_WORKSPACE', 'RUNNER_TEMP')
 SITE_EXPORT = os.environ.get('STUDIO_NATIVE_WEBVIEW') == 'export'
-GUI = SITE_EXPORT or os.environ.get('STUDIO_NATIVE_WEBVIEW') == '1'
+HOSTING = os.environ.get('STUDIO_NATIVE_WEBVIEW') == 'hosting'
+GUI = SITE_EXPORT or HOSTING or os.environ.get('STUDIO_NATIVE_WEBVIEW') == '1'
 if GUI:
     SOURCES['gui'] = 'integration/silex-native-runtime/webview.py'
     FILENAMES['gui'] = 'webview.py'
@@ -48,9 +49,13 @@ if GUI:
 if SITE_EXPORT:
     SOURCES['site_export'] = 'integration/silex-native-runtime/site_export.py'
     FILENAMES['site_export'] = 'site_export.py'
+if HOSTING:
+    SOURCES['hosting'] = 'integration/silex-native-runtime/hosting.py'
+    FILENAMES['hosting'] = 'hosting.py'
 GUI_STAGES = ('admission', 'display', 'bus', 'first_launch', 'seed_project', 'refresh_dashboard',
               'empty_dashboard', 'project_name', 'create_project', 'desktop_session', 'cookie_cleanup',
-              'native_publish_dialog', 'native_publish_submit', 'native_publish_files', 'native_site_pack',
+              'native_publish_dialog', 'native_publish_submit', 'native_publish_files', 'native_site_pack', 'native_project_import', 'native_page_select', 'native_five_assets',
+              'native_export_layout', 'native_chart', 'native_index_css', 'native_page_css', 'native_index_html', 'native_page_html',
               'first_open', 'first_editor', 'first_close', 'second_launch', 'second_open',
               'second_editor', 'second_close', 'cleanup', 'complete') + tuple(
     phase + '_' + observed for phase in ('first', 'second')
@@ -204,8 +209,8 @@ def read(path, maximum, *, owner, modes=(0o400, 0o600, 0o644)):
     return bytes(raw)
 
 
-def write_new(path, raw, *, mode=0o400):
-    require(len(raw) <= MAX_SOURCE, 'filesystem')
+def write_new(path, raw, *, mode=0o400, maximum=MAX_SOURCE):
+    require(len(raw) <= maximum, 'filesystem')
     with descriptor(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL) as fd:
         remaining = memoryview(raw)
         while remaining:
@@ -425,7 +430,8 @@ def admission_environment():
     for key, value in {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted',
         'RUNNER_OS': 'Linux', 'RUNNER_ARCH': 'X64', 'GITHUB_REPOSITORY': 'VOLPAROSSA/volparossa-studio'}.items():
         require(os.environ.get(key) == value)
-    require(os.environ.get('GITHUB_REF') == 'refs/heads/main')
+    require(os.environ.get('GITHUB_REF') == 'refs/heads/main' or (HOSTING and
+        os.environ.get('GITHUB_REF') == 'refs/heads/development/studio-native-hosting-20261119'))
     revision = os.environ.get('GITHUB_SHA', '')
     require(re.fullmatch('[0-9a-f]{40}', revision) and os.environ.get('GITHUB_WORKFLOW_SHA') == revision)
     require(not any(key.startswith('LD_') or key in ('PYTHONPATH', 'PYTHONHOME') for key in os.environ))
@@ -803,7 +809,7 @@ def verify_site_review(review):
 
 def verify_gui(value):
     require(type(value) is dict and value.keys() == {'status', 'stage', 'process_groups_started', 'process_groups_joined',
-        'desktop_launches', 'native_window_closes', 'editor_title_states', 'canvas_readbacks', 'close_actions', 'original_project_reopened', 'project_id_sha256'} | ({'site_pack_review'} if SITE_EXPORT else set()) and
+        'desktop_launches', 'native_window_closes', 'editor_title_states', 'canvas_readbacks', 'close_actions', 'original_project_reopened', 'project_id_sha256'} | ({'site_pack_review'} if SITE_EXPORT else {'native_export'} if HOSTING else set()) and
         value['status'] == 'passed' and value['stage'] == 'complete' and
         type(value['process_groups_started']) is int and value['process_groups_started'] == value['process_groups_joined'] == 4
         and type(value['desktop_launches']) is int and value['desktop_launches'] == value['native_window_closes'] == 2
@@ -816,6 +822,12 @@ def verify_gui(value):
         and value['original_project_reopened'] is True and re.fullmatch('[0-9a-f]{64}', value['project_id_sha256']), 'protocol')
     if SITE_EXPORT:
         verify_site_review(value['site_pack_review'])
+    if HOSTING:
+        native = value['native_export']
+        require(type(native) is dict and native.keys() == {'asset_count', 'archive_bytes', 'archive_sha256'}
+                and native['asset_count'] == 5 and type(native['archive_bytes']) is int
+                and 262144 < native['archive_bytes'] <= 3 * 1024**2
+                and re.fullmatch('[0-9a-f]{64}', native['archive_sha256']), 'protocol')
 
 
 def namespace_init():
@@ -843,7 +855,7 @@ def namespace_init():
                   failure_kind=None, actor_failure_predicate=None, actor_failure_site=[])
     primary = None
     dns = None
-    gui_source = core_source = None
+    gui_source = core_source = native_output = None
     try:
         # Cache every source byte before hiding the original workspace/home/run.
         actor = read(stage / 'isolation_actor.py', MAX_SOURCE, owner=0)
@@ -854,6 +866,19 @@ def namespace_init():
         if SITE_EXPORT:
             core_source, core_binary = core_input(uid, meta['revision'])
             site_helper = read(stage / 'site_export.py', MAX_SOURCE, owner=0)
+        if HOSTING:
+            portable = Path(os.environ['RUNNER_TEMP']) / 'silex-native-hosting-input'
+            directory(portable, uid, private=True)
+            native_inputs = {'hosting.py': read(stage / 'hosting.py', MAX_SOURCE, owner=0)}
+            for filename, maximum in (('native-project.json', 65536), ('native-inventory.json', 8192),
+                                      ('studio-topology.png', 3 * 1024**2)):
+                native_inputs[filename] = read(portable / filename, maximum, owner=uid, modes=(0o600,))
+            output = portable / 'native.zip'
+            require(output.resolve(strict=True) == output, 'filesystem')
+            native_output = os.fdopen(os.open(output, os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC), 'wb')
+            st = os.fstat(native_output.fileno())
+            require(stat.S_ISREG(st.st_mode) and st.st_uid == uid and st.st_nlink == 1 and st.st_size == 0
+                    and stat.S_IMODE(st.st_mode) == 0o600, 'filesystem')
         resolver = resolver_target()
         os.chdir('/')
         # unshare already cloned this private mount tree and its child mounts.
@@ -880,6 +905,10 @@ def namespace_init():
             write_new(Path('/run/fixture/site_export.py'), site_helper, mode=0o444)
             copy_release(core_source, core_binary, Path('/run/fixture/volparossa'), gid)
             core_source.close()
+        if HOSTING:
+            for filename, data in native_inputs.items():
+                write_new(Path('/run/fixture') / filename, data, mode=0o444,
+                          maximum=3 * 1024**2 if filename == 'studio-topology.png' else MAX_SOURCE)
         home = Path('/home/fixture')
         home.mkdir(mode=0o700)
         os.chown(home, uid, gid)
@@ -954,6 +983,8 @@ def namespace_init():
         if GUI:
             if SITE_EXPORT:
                 environment['STUDIO_NATIVE_WEBVIEW'] = 'export'
+            elif HOSTING:
+                environment['STUDIO_NATIVE_WEBVIEW'] = 'hosting'
             report['stage'] = 'gui_firewall'
             dns.close()
             dns = None
@@ -970,6 +1001,15 @@ def namespace_init():
             report['native_webview'] = dict(actor=gui, binary_sha256=binary['sha256'], counters_before=start, counters_after=stop)
             if SITE_EXPORT:
                 report['native_webview']['core_binary_sha256'] = core_binary['sha256']
+            if HOSTING:
+                # Only an existing runner-owned private file descriptor crosses the private mount.
+                # The app never inherits it. The consumer checks every original asset again.
+                result = gui['native_export']
+                data = read(runtime / 'native-export.zip', 3 * 1024**2, owner=uid, modes=(0o600,))
+                require(len(data) == result['archive_bytes'] and hashlib.sha256(data).hexdigest() == result['archive_sha256'], 'source')
+                native_output.write(data)
+                native_output.flush()
+                os.fsync(native_output.fileno())
         report.update(status='passed', stage='complete')
     except BaseException as error:
         primary = error
@@ -1003,6 +1043,8 @@ def namespace_init():
                 gui_source.close()
             if core_source is not None:
                 core_source.close()
+            if native_output is not None:
+                native_output.close()
             if dns is not None:
                 dns.close()
             # Namespace PID1 is also an orphan reaper. No arbitrary foreign PID.

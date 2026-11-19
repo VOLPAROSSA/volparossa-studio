@@ -75,11 +75,21 @@ class CoreContext:
     mode: str
     executable: Path
     core_root: Path | None = None
+    native_review_sha256: str | None = None
 
 
 def checked_signed_context(value):
-    if (type(value) is not dict or set(value) != {'schema', 'proof_mode', 'core_root', 'executable'}
-            or type(value['schema']) is not int or value['schema'] != 2
+    if type(value) is not dict or type(value.get('schema')) is not int or value['schema'] not in (2, 3):
+        raise ValueError('closed signed-site context required')
+    fields = {'schema', 'proof_mode', 'core_root', 'executable'}
+    review = None
+    if value['schema'] == 3:
+        fields.add('native_review_sha256')
+        review = value.get('native_review_sha256')
+        if (value.get('proof_mode') != TOPOLOGY_MODE or type(review) is not str
+                or not re.fullmatch('[0-9a-f]{64}', review)):
+            raise ValueError('native topology requires an exact reviewed bundle digest')
+    if (set(value) != fields
             or value['proof_mode'] not in SIGNED_MODES
             or any(type(value[key]) is not str for key in ('core_root', 'executable'))):
         raise ValueError('closed signed-site context required')
@@ -91,12 +101,14 @@ def checked_signed_context(value):
         raise ValueError('fixed signed-site compiler artifact required')
     for name in ('volparossa', 'volparossa-agent'):
         executable(root / 'target/debug' / name)
-    return CoreContext(value['proof_mode'], executable(binary), root)
+    return CoreContext(value['proof_mode'], executable(binary), root, review)
 
 
-def write_signed_context(path, core, binary, *, mode=MODE):
+def write_signed_context(path, core, binary, *, mode=MODE, native_review_sha256=None):
     value = {'schema': 2, 'proof_mode': mode, 'core_root': str(core.resolve()),
              'executable': str(binary)}
+    if native_review_sha256 is not None:
+        value.update(schema=3, native_review_sha256=native_review_sha256)
     checked_signed_context(value)
     data = (json.dumps(value, sort_keys=True) + '\n').encode()
     if len(data) > MAX_CONTEXT:
@@ -108,9 +120,9 @@ def write_signed_context(path, core, binary, *, mode=MODE):
 
 def read_core_context(path):
     # One descriptor supplies discriminator, metadata and bytes. No catch/fallback
-    # can reinterpret a rejected schema-2 invocation as the old viewer proof.
+    # can reinterpret a rejected signed-site invocation as the old viewer proof.
     value = strict_json(read_private(path, MAX_CONTEXT))
-    if type(value) is dict and type(value.get('schema')) is int and value['schema'] == 2:
+    if type(value) is dict and type(value.get('schema')) is int and value['schema'] in (2, 3):
         return checked_signed_context(value)
     if (type(value) is not dict or set(value) != {'schema', 'executable'}
             or type(value['schema']) is not int or value['schema'] != 1

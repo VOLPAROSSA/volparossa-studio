@@ -10,7 +10,7 @@ on:
       native_followup:
         description: 'Native build, SDK or WebView project trial'
         type: choice
-        options: [none, bridge, verify-lock, sdk-admission, sdk-baseline, sdk-fetch, sdk-install, native-build, dashboard-unit, fs-identifier-rename, local-native-build, dashboard-compose-unit, dashboard-crud, runtime-inventory, runtime-sdk-inventory, sdk-isolation, native-webview, native-site-export]
+        options: [none, bridge, verify-lock, sdk-admission, sdk-baseline, sdk-fetch, sdk-install, native-build, dashboard-unit, fs-identifier-rename, local-native-build, dashboard-compose-unit, dashboard-crud, runtime-inventory, runtime-sdk-inventory, sdk-isolation, native-webview, native-site-export, native-site-hosting]
         default: none
 
 permissions:
@@ -466,11 +466,14 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      github.ref == 'refs/heads/main' &&
-      (inputs.native_followup == 'local-native-build' || inputs.native_followup == 'native-webview' ||
-       inputs.native_followup == 'native-site-export')
+      ((github.ref == 'refs/heads/main' && (inputs.native_followup == 'local-native-build' ||
+        inputs.native_followup == 'native-webview' || inputs.native_followup == 'native-site-export')) ||
+       (inputs.native_followup == 'native-site-hosting' && (github.ref == 'refs/heads/main' ||
+        github.ref == 'refs/heads/development/studio-native-hosting-20261119')))
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: ${{ inputs.native_followup == 'native-site-hosting' && 120 || 45 }}
+    env:
+      STUDIO_CORE_REVISION: ${{ inputs.native_followup == 'native-site-hosting' && '6924fe8b051ad84e09b8f21ca032a1db4c796693' || 'c8689558544eb56f28c4de5df805e4d9bbd5d358' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -508,7 +511,7 @@ jobs:
               assert name not in os.environ
           PYTHON
       - name: Check the runner kernel before compiling the native WebView
-        if: inputs.native_followup == 'native-webview' || inputs.native_followup == 'native-site-export'
+        if: inputs.native_followup == 'native-webview' || inputs.native_followup == 'native-site-export' || inputs.native_followup == 'native-site-hosting'
         run: |
           set -euo pipefail
           python3 -I -B - <<'PYTHON'
@@ -595,28 +598,31 @@ jobs:
       - name: Install only the reviewed SDK closure offline on this disposable runner
         run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/install_sdk.py"
       - name: Compile the FS plus original local dashboard release without starting or distributing it
+        env:
+          STUDIO_NATIVE_HOSTING_BUILD: ${{ inputs.native_followup == 'native-site-hosting' && '1' || '0' }}
         run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-dashboard/local_build.py"
       - name: Check out the reviewed Core site packer
-        if: inputs.native_followup == 'native-site-export'
+        if: inputs.native_followup == 'native-site-export' || inputs.native_followup == 'native-site-hosting'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: VOLPAROSSA/volparossa
-          ref: c8689558544eb56f28c4de5df805e4d9bbd5d358
+          ref: ${{ env.STUDIO_CORE_REVISION }}
           path: core
           persist-credentials: false
       - name: Prepare signed Ubuntu mirrors for Core's Protobuf compiler
         id: core_archive
-        if: inputs.native_followup == 'native-site-export'
+        if: inputs.native_followup == 'native-site-export' || inputs.native_followup == 'native-site-hosting'
         uses: VOLPAROSSA/.github/actions/ubuntu-archive@e3f98bbc538f5df580b78c8a0d8bd932dfe3e381
       - name: Build the locked production CLI for private site preparation
-        if: inputs.native_followup == 'native-site-export'
+        if: inputs.native_followup == 'native-site-export' || inputs.native_followup == 'native-site-hosting'
         timeout-minutes: 20
         working-directory: core
         env:
           CORE_APT_CONFIG: ${{ steps.core_archive.outputs.config }}
+          NATIVE_HOSTING: ${{ inputs.native_followup == 'native-site-hosting' && '1' || '0' }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = c8689558544eb56f28c4de5df805e4d9bbd5d358
+          test "$(git rev-parse HEAD)" = "$STUDIO_CORE_REVISION"
           test "$(sha256sum Cargo.lock | cut -d' ' -f1)" = ef5df0f0a6a1db08908d368e085d43b93ce29db5812b283475497a1658110b00
           test -z "$(git status --porcelain)"
           sudo apt-get -c "$CORE_APT_CONFIG" update
@@ -628,7 +634,9 @@ jobs:
           python3 -B scripts/provision-rust189.py runner
           export PATH="$RUNNER_TEMP/volparossa-rust-1.89.0/bin:$PATH"
           export CARGO_HOME="$RUNNER_TEMP/volparossa-cargo-public-v1"
-          export CARGO_TARGET_DIR="$RUNNER_TEMP/studio-native-site-core-target"
+          if [ "$NATIVE_HOSTING" = 0 ]; then
+            export CARGO_TARGET_DIR="$RUNNER_TEMP/studio-native-site-core-target"
+          fi
           # GitHub applies the compiler's exported Git environment to later steps.
           # This step also fetches, so activate and check Core's same public policy here.
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_GLOBAL=/dev/null
@@ -637,9 +645,11 @@ jobs:
           cargo fetch --locked
           cargo build --locked --offline -p volparossa --bin volparossa
           test -z "$(git status --porcelain)"
-          python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-runtime/site_export.py" build-receipt
+          if [ "$NATIVE_HOSTING" = 0 ]; then
+            python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-runtime/site_export.py" build-receipt
+          fi
       - name: Check native controls, inventory tools and reopen the project in the actual private WebView
-        if: inputs.native_followup == 'native-webview' || inputs.native_followup == 'native-site-export'
+        if: inputs.native_followup == 'native-webview' || inputs.native_followup == 'native-site-export' || inputs.native_followup == 'native-site-hosting'
         run: |
           set -euo pipefail
           python3 -I -B studio/integration/silex-native-runtime/test_isolation.py -v
@@ -647,9 +657,50 @@ jobs:
           python3 -I -B studio/integration/silex-native-runtime/test_webview.py -v
           python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-runtime/inventory.py"
           python3 -I -B studio/integration/silex-native-runtime/test_site_export.py
-          STUDIO_NATIVE_WEBVIEW="$SITE_PROFILE" python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-runtime/isolation.py"
+          if [ "$SITE_PROFILE" != hosting ]; then
+            STUDIO_NATIVE_WEBVIEW="$SITE_PROFILE" python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-runtime/isolation.py"
+          fi
         env:
-          SITE_PROFILE: ${{ inputs.native_followup == 'native-site-export' && 'export' || '1' }}
+          SITE_PROFILE: ${{ inputs.native_followup == 'native-site-hosting' && 'hosting' || inputs.native_followup == 'native-site-export' && 'export' || '1' }}
+      - name: Check out the original editor for the independent browser and saved project
+        if: inputs.native_followup == 'native-site-hosting'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: silexlabs/Silex
+          ref: 672efed69dda04c0a1e968859239e042f00d9538
+          path: silex-browser
+          persist-credentials: false
+      - name: Reopen the authored site in native WebKit and sign its five exported files
+        if: inputs.native_followup == 'native-site-hosting'
+        env:
+          STUDIO_NATIVE_SITE_TOPOLOGY: '1'
+          STUDIO_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          unset CARGO_REGISTRIES_CRATES_IO_PROTOCOL
+          python3 -B studio/integration/silex-export/run.py "$GITHUB_WORKSPACE/core" "$GITHUB_WORKSPACE/silex-browser" \
+            "$RUNNER_TEMP/studio-export-receipt.json" --proof-mode signed-site-topology
+      - name: Prepare the existing Core offline hosting VM
+        if: inputs.native_followup == 'native-site-hosting' && github.ref == 'refs/heads/main'
+        working-directory: core
+        env:
+          STUDIO_PROOF_MODE: signed-site-topology
+          STUDIO_REVISION: ${{ github.sha }}
+        run: bash tests/integration/studio-topology-host.sh prepare
+      - name: Retrieve this native site from the independent holder while its origin is offline
+        if: inputs.native_followup == 'native-site-hosting' && github.ref == 'refs/heads/main'
+        working-directory: core
+        env:
+          STUDIO_PROOF_MODE: signed-site-topology
+          STUDIO_REVISION: ${{ github.sha }}
+        run: bash tests/integration/studio-topology-host.sh consume
+      - name: Remove private signed transport after the publisher-offline trial
+        if: always() && inputs.native_followup == 'native-site-hosting' && github.ref == 'refs/heads/main'
+        working-directory: core
+        env:
+          STUDIO_PROOF_MODE: signed-site-topology
+          STUDIO_REVISION: ${{ github.sha }}
+        run: bash tests/integration/studio-topology-host.sh cleanup
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -663,6 +714,9 @@ jobs:
             ${{ runner.temp }}/silex-native-runtime-inventory.json
             ${{ runner.temp }}/silex-native-webview.json
             ${{ runner.temp }}/silex-native-site-core-build.json
+            ${{ runner.temp }}/studio-export-receipt.json
+            ${{ runner.temp }}/studio-topology-result/content-repair-smoke.json
+            ${{ runner.temp }}/studio-topology-result/studio-vm-cleanup.json
           retention-days: 14
           if-no-files-found: warn
 

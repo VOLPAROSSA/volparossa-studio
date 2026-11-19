@@ -31,7 +31,7 @@ def compiler_artifact(log, core):
     return artifacts[0]
 
 
-def execute(core, temporary, runtime_fixture, env, receipt, run, *, mode=MODE):
+def execute(core, temporary, runtime_fixture, env, receipt, run, *, mode=MODE, native_review_sha256=None):
     # The agent integration target supplies CARGO_BIN_EXE_volparossa-agent; the
     # CLI is a separate package and must be built explicitly at its fixed path.
     receipt['stage'] = 'build_actual_signed_site_fixture'
@@ -41,7 +41,8 @@ def execute(core, temporary, runtime_fixture, env, receipt, run, *, mode=MODE):
                TARGET, '--no-run', '--message-format=json'],
               temporary, env, 'core-build', timeout=900, cwd=core)
     binary = compiler_artifact(log, core)
-    write_signed_context(temporary / 'viewer-context.json', core, binary, mode=mode)
+    write_signed_context(temporary / 'viewer-context.json', core, binary, mode=mode,
+                         native_review_sha256=native_review_sha256)
     receipt['stage'] = 'actual_signed_site_recovery_preview_and_independent_browser'
     run([core / 'scripts/run-isolated-test.sh', '--studio-nonroot-command', '/usr/bin/python3',
          'studio_export', 'VOLPAROSSA_HANDOFF_TEST_PARENT_NETNS', 'loopback', '-B', runtime_fixture / 'viewer_runtime.py'],
@@ -51,5 +52,8 @@ def execute(core, temporary, runtime_fixture, env, receipt, run, *, mode=MODE):
             or type(inventory['schema']) is not int or inventory['schema'] != 1
             or type(inventory['assets']) is not list):
         raise ValueError('fresh actual ZIP inventory required')
-    receipt['signed_site_recovery'] = read_signed_proof(temporary / 'signed-site-core.log', len(inventory['assets']))
+    receipt['signed_site_recovery'] = read_signed_proof(temporary / 'signed-site-core.log',
+        len(inventory['assets']), native_review_sha256=native_review_sha256)
+    if native_review_sha256 is not None:
+        receipt['native_export']['owner_review_bound_before_signing'] = True
     receipt['viewer_cleanup'] = read_viewer_cleanup(temporary / 'viewer-cleanup.json')
