@@ -1,7 +1,7 @@
 # Studio implementation status
 
 Updated 2026-11-19. Requirements are the complete permanent
-[Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/STUDIO_HOSTING_REQUIREMENTS.md),
+[Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md#studio),
 incorporated by the full Core goal. This file records Studio evidence and next
 work, without replacing that scope or the shared Core execution ledger.
 
@@ -24,6 +24,17 @@ GUI process groups exited and the runner restored its initial network state.
 The manual `native-site-export` workflow runs on protected `main`.
 [Original reports](evidence/native-webview/44553636524/)
 · [Owner workflow](../integration/silex-native-runtime/README.md#prepare-the-native-editors-local-output-for-core)
+
+Protected `main` at `175360cd` repeated the entire native export with a new
+project ID. Its page and stylesheet had the same lengths and new content hashes.
+Core created a 701-byte bundle with SHA-256
+`94f024685abeafd7d44788a385b6a5494e1bc49df77ccb905d5b76689a301149` and required
+owner review. Both native windows displayed the saved heading and quit normally.
+The runner saw 278 loopback request packets and 258 response packets and restored
+its original network state. The eight-report archive was 41,865 bytes with
+SHA-256 `f88420d4ae6ff0117ff6547af7aa1311bb1d242057cda9885892be15d40706b5`.
+[Protected native export](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44558150491)
+· [Original protected reports](evidence/native-webview/44558150491/)
 
 The independent Firefox hosting trial below used a separate five-asset site.
 Owner authorization, signing and independent retrieval during a publisher

@@ -178,5 +178,42 @@ The receipt identifies the bundle, lists each public asset and reports that
 owner review is required. The manual `native-site-export` trial exercises the
 same native dialog and production CLI on a synthetic saved site. It compares
 the exported heading to the project ID and checks both assets against the actual
-bundle receipt. Signing, distribution and opening this native export from an
-offline publisher are subsequent operations.
+bundle receipt.
+
+After reviewing the asset list, an owner who chooses to sign a first release
+can use the receipt's `bundle_sha256`, their existing encrypted identity,
+independently selected publisher key and chosen public site name. Choose a new
+private cache and manifest path. This example gives the signed release a
+one-hour lifetime and prompts for the identity passphrase.
+
+```sh
+volparossa content publish --input ./site.bundle --expected-input-sha256 "$REVIEWED_BUNDLE_SHA256" \
+  --expected-publisher-key "$PUBLISHER_KEY" --identity "$IDENTITY" --name "$SITE_NAME" \
+  --revision 1 --content-type application/vnd.volparossa.site.v1 --lifetime-seconds 3600 \
+  --cache ./site-signing-cache --manifest ./site.manifest
+```
+
+To authorize a public contribution to the local agent's configured service,
+use the `manifest_id` returned by the signing command. Keep the identity and
+its passphrase with the owner.
+
+```sh
+volparossa content contribute --manifest ./site.manifest --publisher-key "$PUBLISHER_KEY" \
+  --expected-manifest-id "$REVIEWED_MANIFEST_ID" --input ./site.bundle
+```
+
+Once an independent holder retains the valid release and all its chunks, a
+reader can open it while the publisher is offline. The reader uses their own
+agent and cache, a trusted publisher key, the public site name and the reviewed
+manifest ID. Open the local viewer URL printed by Core.
+
+```sh
+volparossa content site open --publisher-key "$PUBLISHER_KEY" --name "$SITE_NAME" \
+  --expected-manifest-id "$REVIEWED_MANIFEST_ID" --cache ./reader-site-cache
+```
+
+The native export trial ends at the bundle review. A separate five-asset trial
+demonstrated signing, retention by another peer and a fresh reader fetching
+the site after the original provider went offline.
+[Core hosting commands](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/services/STUDIO_HOSTING.md)
+· [Publisher-offline trial](https://github.com/VOLPAROSSA/volparossa/actions/runs/44384131952)
