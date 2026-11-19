@@ -82,6 +82,18 @@ One original 30-second preparation deadline covers validation, session/auth and
 all materialized assets; a later asset receives the same deadline. Preparation
 failure or cancellation cannot reach the later hosting/job step.
 
+## Native verification
+
+On the pinned Silex source, the publication patch compiled and all 18 server
+library tests passed. The preparation driver passed six tests and the compiler
+provisioner passed 17. Formatting passed for the changed Rust files. The strict
+Clippy command exited unsuccessfully with 27 findings. The unmodified baseline
+reported the same messages, files and counts. Of the 27, 22 point to the
+`async_trait` expansion on `StorageConnector` and `HostingConnector`. The other
+five concern the existing hosting path parameter, two storage closures and two
+static-file option unwraps. Both original results remain available.
+[Patched native run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/40742579573) · [Upstream baseline](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/40740703370)
+
 ## Filesystem capability and lifecycle limits
 
 `StorageConnector::read_asset_bounded` defaults to an explicit unsupported error;
