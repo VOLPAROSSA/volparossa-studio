@@ -16,10 +16,10 @@ BOOTSTRAP = HERE.parent / 'silex-native-bootstrap'
 FS = HERE.parent / 'silex-fs-identifier-rename'
 COMPOSE_SHA256 = 'fa8bda1a443eba9e975d180b299cd38949bc2c87ef48228b35881f521f4bd8b4'
 PINS = {
-    BOOTSTRAP / 'native_build.py': '943716c8cb7d32b71cec929cba10bc8102a07cf454332509a0dcb58db317b300',
+    BOOTSTRAP / 'native_build.py': '68cf00741ff3ff0047bc013b73c88e845e6a15c8ea85677558097c004204dfe4',
     BOOTSTRAP / 'prepare.py': 'b805e7ddfedba9bbd6f677b992765f681c05e22f174de2603c3ca817034567f6',
-    HERE / 'check.py': '3ae8b97d887e9ab6bf251e91eb9348931c6703af64cfc1bc0242f181836f98a4',
-    FS / 'proof.py': 'a9a6eb24d8e7f863284d32a82ad2bc0ecbba5729124c7f755fddaf451cf40357',
+    HERE / 'check.py': '17659daef9eedba2ff8440e40eaccaa71b520ffeae953a4fc2882e3739356ae7',
+    FS / 'proof.py': '7bbfcd6b64c750dafb4c304f996edfb2e4f6be29eff9659292e48f0b3cc4d56e',
     FS / 'prepare.py': 'd2f1cd0d964f4d89d932ab4d26201cc9d8eae0a97408087d1f102b9331bb4f3e',
     FS / 'manifest.json': 'ca7f1b9b04fb7e5be36c4ed44511ae5950185df4e4572918c7a0530302e96edc',
 }

@@ -16,7 +16,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 BOOTSTRAP = HERE.parent / 'silex-native-bootstrap'
 PINS = {
-    BOOTSTRAP / 'native_build.py': '943716c8cb7d32b71cec929cba10bc8102a07cf454332509a0dcb58db317b300',
+    BOOTSTRAP / 'native_build.py': '68cf00741ff3ff0047bc013b73c88e845e6a15c8ea85677558097c004204dfe4',
     HERE.parent / 'silex-native-dashboard/check.py': '3ae8b97d887e9ab6bf251e91eb9348931c6703af64cfc1bc0242f181836f98a4',
     HERE / 'prepare.py': 'd2f1cd0d964f4d89d932ab4d26201cc9d8eae0a97408087d1f102b9331bb4f3e',
     HERE / 'manifest.json': 'ca7f1b9b04fb7e5be36c4ed44511ae5950185df4e4572918c7a0530302e96edc',
