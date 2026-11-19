@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "scope": "real-editor-local-download-then-offline-core-site-pack",
+  "scope": "real-editor-export-core-pack-signed-local-viewer-independent-browser",
   "silex": {
     "commit": "672efed69dda04c0a1e968859239e042f00d9538",
     "source": "https://github.com/silexlabs/Silex",

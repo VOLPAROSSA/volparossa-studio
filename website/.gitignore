@@ -1,0 +1,6 @@
+/node_modules
+/qa/
+/dist/
+/preview/
+__pycache__/
+/masters/*.png

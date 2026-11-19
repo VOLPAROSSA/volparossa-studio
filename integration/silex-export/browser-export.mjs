@@ -4,6 +4,8 @@
 import { chromium } from 'playwright-core';
 import { writeFile, stat, link as hardLink } from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { attachChart, verifyChart, imagePath } from './topology-image.mjs';
+import { editorUrl, containsSavedPage, projectResponse } from './project-storage.mjs';
 
 const marker = 'VOLPAROSSA Studio manual export 20261022';
 let stage = 'browser_start';
@@ -44,13 +46,7 @@ const startup = { schema: 1, page_errors: 0, console_errors: 0,
 const bump = key => { startup[key] = Math.min(32, startup[key] + 1); };
 const receipt = { schema: 1, status: 'failed', stage, synthetic_only: true,
   network_published: false, public_hosting_accepted: false, shared_ai_accepted: false };
-try {
-  browser = await chromium.launch({ executablePath: process.env.STUDIO_CHROME,
-    headless: true, chromiumSandbox: true, timeout: 15000,
-    args: ['--disable-background-networking', '--disable-component-update',
-      '--disable-sync', '--no-first-run', '--disable-default-apps',
-      '--no-proxy-server', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1'] });
-  receipt.browser_version = browser.version();
+async function openEditorPage() {
   const context = await browser.newContext({ acceptDownloads: true,
     serviceWorkers: 'block', viewport: { width: 1440, height: 1000 } });
   await context.route('**/*', async route => {
@@ -63,7 +59,7 @@ try {
       await route.abort('blockedbyclient');
     }
   });
-  page = await context.newPage();
+  const page = await context.newPage();
   page.on('pageerror', error => {
     bump('page_errors');
     if (startup.first_page_error === 'none') {
@@ -79,8 +75,19 @@ try {
   page.on('requestfailed', () => bump('failed_requests'));
   page.on('response', response => { if (response.status() >= 400) bump('bad_responses'); });
   page.setDefaultTimeout(12000);
+  return page;
+}
+
+try {
+  browser = await chromium.launch({ executablePath: process.env.STUDIO_CHROME,
+    headless: true, chromiumSandbox: true, timeout: 15000,
+    args: ['--disable-background-networking', '--disable-component-update',
+      '--disable-sync', '--no-first-run', '--disable-default-apps',
+      '--no-proxy-server', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1'] });
+  receipt.browser_version = browser.version();
+  page = await openEditorPage();
   stage = 'editor_navigation';
-  await page.goto('http://127.0.0.1:6805/?id=default&connectorId=fs-storage&lang=en');
+  await page.goto(editorUrl);
   startup.navigation_completed = true;
   stage = 'editor_ready';
   // Pinned editor/index.ts loaded() hides the loader and reveals #gjs. The
@@ -260,19 +267,63 @@ try {
   const typography = page.locator('.gjs-sm-sector').filter({ hasText: 'Typography' });
   const fontSize = typography.locator('.gjs-sm-property__font-size input').first();
   if (!await fontSize.isVisible()) await typography.locator('.gjs-sm-sector-title').click();
-  await fontSize.fill('37');
-  await fontSize.press('Enter');
-  await fontSize.press('Tab');
+  // Autosave coalesces edits. Observe the successful write containing the
+  // final edit before retiring this context. Earlier autosaves are insufficient.
+  await Promise.all([
+    page.waitForResponse(response => projectResponse(response, 'POST', marker)),
+    (async () => {
+      await fontSize.fill('37');
+      await fontSize.press('Enter');
+      await fontSize.press('Tab');
+    })(),
+  ]);
   stage = 'manual_style_text_verify';
   assert.equal(await text.innerText(), marker);
   stage = 'manual_style_font_verify';
   assert.equal(await text.evaluate(el => getComputedStyle(el).fontSize), '37px');
+  const chart = process.env.STUDIO_FIXTURE_IMAGE;
+  if (chart) await attachChart(page, frame, marker, chart, value => { stage = value; });
   stage = 'preview';
   // Use the ordinary preview toolbar. Reading computed CSS never changes models.
   await page.locator('.gjs-pn-btn.fa-eye').click();
   assert.equal(await text.innerText(), marker);
   assert.equal(await text.evaluate(el => getComputedStyle(el).fontSize), '37px');
   await page.locator('.gjs-off-prv').click();
+  stage = 'saved_project_reopen';
+  if (dragObserver) {
+    await dragObserver.dispose();
+    dragObserver = null;
+  }
+  await page.context().close();
+  page = await openEditorPage();
+  stage = 'saved_project_read';
+  const [read] = await Promise.all([
+    page.waitForResponse(response => projectResponse(response, 'GET')),
+    page.goto(editorUrl),
+  ]);
+  assert.ok(await containsSavedPage(read, marker, ...(chart ? [imagePath] : [])));
+  stage = 'saved_editor_ready';
+  await page.locator('.silex-loader').waitFor({ state: 'hidden' });
+  await page.locator('#gjs:not(.silex-dialog-hide)').waitFor({ state: 'visible' });
+  // Silex reopens on the first page. Use its ordinary next-page command and
+  // confirm the active page in its toolbar before looking inside the canvas.
+  stage = 'saved_page_select';
+  const currentPage = page.locator('#gjs-website-meta .gjs-website-meta-name')
+    .filter({ hasText: /\| Studio export$/ });
+  if (!await currentPage.isVisible()) await page.keyboard.press('Control+Alt+j');
+  await currentPage.waitFor({ state: 'visible' });
+  stage = 'saved_canvas_verify';
+  const restoredText = page.frameLocator('.gjs-frame').first()
+    .locator('[data-gjs-type="text"].silex-default-text').filter({ hasText: marker });
+  await restoredText.waitFor({ state: 'visible' });
+  assert.equal(await restoredText.innerText(), marker);
+  assert.equal(await restoredText.evaluate(el => getComputedStyle(el).fontSize), '37px');
+  receipt.saved_project_reopened = true;
+  if (chart) {
+    stage = 'saved_image_decode';
+    await verifyChart(page.frameLocator('.gjs-frame').first());
+    receipt.topology_image_reopened = true;
+  }
   stage = 'download_connector';
   await page.locator('[title^="Publish ("]').click();
   await page.getByText('Connected to', { exact: false }).waitFor();
@@ -295,7 +346,7 @@ try {
   await hardLink(path, process.env.STUDIO_ZIP_OUTPUT);
   // Server unlinks after transfer; require the real one-time endpoint to expire.
   for (let attempt = 0; attempt < 20; attempt++) {
-    const retry = await context.request.get(url.href, { timeout: 3000 });
+    const retry = await page.context().request.get(url.href, { timeout: 3000 });
     if (retry.status() !== 200) { receipt.download_consumed = true; break; }
     await new Promise(resolve => setTimeout(resolve, 50));
   }
