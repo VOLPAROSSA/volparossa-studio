@@ -230,6 +230,22 @@ def webkit_process():
     return None
 
 
+def quit_dialog_action(node, pid):
+    if node.get_name() != 'Quit' or node.get_process_id() != pid:
+        return None
+    buttons = node.get_parent()
+    if buttons is None:
+        return None
+    count = buttons.get_child_count()
+    if not 2 <= count <= 8:
+        return None
+    siblings = [buttons.get_child_at_index(index) for index in range(count)]
+    if not any(sibling and sibling.get_name() == 'Save & Quit' for sibling in siblings):
+        return None
+    action = node.get_action_iface()
+    return action if action and action.get_n_actions() else None
+
+
 def request_close(window):
     # Send the window manager's normal WM_DELETE_WINDOW client message.
     x = ctypes.CDLL('libX11.so.6')
@@ -261,7 +277,7 @@ def request_close(window):
 def main():
     stage = 'admission'
     state = dict(process_groups_started=0, process_groups_joined=0, desktop_launches=0,
-        native_window_closes=0, canvas_readbacks=[], original_project_reopened=False)
+        native_window_closes=0, canvas_readbacks=[], close_actions=[], original_project_reopened=False)
     actor = load('isolation_actor')
     life = load('lifecycle')
     # The admission actor uses the same original identity and view assertions.
@@ -374,16 +390,32 @@ def main():
                     except TimeoutError:
                         stage = phase + '_canvas_' + editor_observation(Atspi, app.pid, project_id)
                         raise
-                    stage = phase + '_close'
+                    stage = phase + '_close_request'
                     request_close(window)
-                    # waitid with WNOWAIT preserves ownership until the final drain.
+                    choice = 'window_close'
+                    # Silex may mark the restored project changed while mounting the canvas.
+                    # The saved fixture is already verified. Use the app's own Quit choice.
                     def normal_exit():
+                        nonlocal choice, stage
                         observed = os.waitid(os.P_PID, app.pid, os.WEXITED | os.WNOWAIT | os.WNOHANG)
                         if observed:
+                            stage = phase + '_exit_status'
                             require(observed.si_code == os.CLD_EXITED and observed.si_status == 0)
-                        return observed
-                    await_value(normal_exit, 9)
+                            return True
+                        if choice == 'window_close':
+                            stage = phase + '_quit_dialog'
+                            action = find_accessible(Atspi, lambda node: quit_dialog_action(node, app.pid))
+                            if action:
+                                stage = phase + '_quit_action'
+                                require(action.do_action(0))
+                                choice = 'quit_dialog'
+                        else:
+                            stage = phase + '_exit'
+                        return False
+                    await_value(normal_exit, 12)
                     state['native_window_closes'] += 1
+                    state['close_actions'].append(choice)
+                stage = phase + '_server_stop'
                 await_value(lambda: not available(), 5)
             state['original_project_reopened'] = True
             state['project_id_sha256'] = hashlib.sha256(project_id.encode()).hexdigest()

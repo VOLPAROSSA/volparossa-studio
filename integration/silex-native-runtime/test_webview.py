@@ -75,6 +75,20 @@ class WebViewTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             gui.desktop_action(sdk, 'Refresh', process)
 
+    def test_quit_requires_the_original_desktop_pid_and_the_save_quit_sibling(self):
+        node, save = Mock(), Mock()
+        node.get_name.return_value = 'Quit'
+        node.get_process_id.return_value = 1001
+        save.get_name.return_value = 'Save & Quit'
+        box = node.get_parent.return_value
+        box.get_child_count.return_value = 2
+        box.get_child_at_index.side_effect = lambda index: (node, save)[index]
+        node.get_action_iface.return_value.get_n_actions.return_value = 1
+        self.assertIs(gui.quit_dialog_action(node, 1001), node.get_action_iface.return_value)
+        self.assertIsNone(gui.quit_dialog_action(node, 1002))
+        save.get_name.return_value = 'Other'
+        self.assertIsNone(gui.quit_dialog_action(node, 1001))
+
     def test_visible_heading_must_match_the_content_saved_for_this_project(self):
         sdk = Mock()
         project_id = 'c3218641-230e-414f-8a6a-367733abeb23'
@@ -102,9 +116,9 @@ class WebViewTests(unittest.TestCase):
 
     def test_reopen_evidence_requires_both_normal_native_closes_and_owned_groups(self):
         value = dict(status='passed', stage='complete', process_groups_started=4, process_groups_joined=4,
-            desktop_launches=2, native_window_closes=2, canvas_readbacks=['visible_pixels', 'accessible_text'], original_project_reopened=True, project_id_sha256='0' * 64)
+            desktop_launches=2, native_window_closes=2, canvas_readbacks=['visible_pixels', 'accessible_text'], close_actions=['window_close', 'quit_dialog'], original_project_reopened=True, project_id_sha256='0' * 64)
         root.verify_gui(value)
-        for key, bad in (('native_window_closes', 1), ('canvas_readbacks', ['visible_pixels']), ('canvas_readbacks', ['unknown', 'accessible_text']), ('process_groups_joined', 3), ('original_project_reopened', False),
+        for key, bad in (('native_window_closes', 1), ('close_actions', ['quit_dialog', 'forced']), ('canvas_readbacks', ['visible_pixels']), ('canvas_readbacks', ['unknown', 'accessible_text']), ('process_groups_joined', 3), ('original_project_reopened', False),
                          ('project_id_sha256', 'invalid'), ('stage', 'first_editor')):
             with self.subTest(key=key), self.assertRaises(root.Rejected):
                 root.verify_gui(dict(value, **{key: bad}))

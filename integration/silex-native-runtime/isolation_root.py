@@ -49,7 +49,8 @@ GUI_STAGES = ('admission', 'display', 'bus', 'first_launch', 'seed_project', 're
               'first_open', 'first_editor', 'first_close', 'second_launch', 'second_open',
               'second_editor', 'second_close', 'cleanup', 'complete') + tuple(
     phase + '_' + observed for phase in ('first', 'second')
-    for observed in ('list', 'metadata', 'saved_page', 'window_size', 'canvas_pixels', 'canvas_accessibility',
+    for observed in ('close_request', 'quit_dialog', 'quit_action', 'exit_status', 'exit', 'server_stop',
+                     'list', 'metadata', 'saved_page', 'window_size', 'canvas_pixels', 'canvas_accessibility',
                      'dirty_title', 'id_title', 'dashboard', 'loading', 'editor_url', 'unknown_page', 'webkit_process', 'canvas', 'canvas_dirty_title', 'canvas_id_title',
                      'canvas_dashboard', 'canvas_loading', 'canvas_editor_url', 'canvas_unknown_page'))
 
@@ -710,12 +711,14 @@ add rule inet vpcal output meta skuid %d meta nfproto ipv6 counter name denied6 
 
 def verify_gui(value):
     require(type(value) is dict and value.keys() == {'status', 'stage', 'process_groups_started', 'process_groups_joined',
-        'desktop_launches', 'native_window_closes', 'canvas_readbacks', 'original_project_reopened', 'project_id_sha256'} and
+        'desktop_launches', 'native_window_closes', 'canvas_readbacks', 'close_actions', 'original_project_reopened', 'project_id_sha256'} and
         value['status'] == 'passed' and value['stage'] == 'complete' and
         type(value['process_groups_started']) is int and value['process_groups_started'] == value['process_groups_joined'] == 4
         and type(value['desktop_launches']) is int and value['desktop_launches'] == value['native_window_closes'] == 2
         and type(value['canvas_readbacks']) is list and len(value['canvas_readbacks']) == 2
         and all(item in ('visible_pixels', 'accessible_text') for item in value['canvas_readbacks'])
+        and type(value['close_actions']) is list and len(value['close_actions']) == 2
+        and all(item in ('window_close', 'quit_dialog') for item in value['close_actions'])
         and value['original_project_reopened'] is True and re.fullmatch('[0-9a-f]{64}', value['project_id_sha256']), 'protocol')
 
 
