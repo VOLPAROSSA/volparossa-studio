@@ -99,7 +99,9 @@ def visible_titles(pid):
 
 
 def editor_window(pid):
-    matches = [window for window, title in visible_titles(pid).items() if title == NAME + ' — Silex']
+    title = NAME + ' — Silex'
+    states = {title: 'clean', '• ' + title: 'changed'}
+    matches = [(window, states[name]) for window, name in visible_titles(pid).items() if name in states]
     require(len(matches) <= 1)
     return matches[0] if matches else None
 
@@ -277,7 +279,7 @@ def request_close(window):
 def main():
     stage = 'admission'
     state = dict(process_groups_started=0, process_groups_joined=0, desktop_launches=0,
-        native_window_closes=0, canvas_readbacks=[], close_actions=[], original_project_reopened=False)
+        native_window_closes=0, editor_title_states=[], canvas_readbacks=[], close_actions=[], original_project_reopened=False)
     actor = load('isolation_actor')
     life = load('lifecycle')
     # The admission actor uses the same original identity and view assertions.
@@ -364,7 +366,8 @@ def main():
                     desktop_action(Atspi, 'Open project: ' + NAME, app)
                     stage = phase + '_editor'
                     try:
-                        window = await_value(lambda: editor_window(app.pid))
+                        window, title_state = await_value(lambda: editor_window(app.pid))
+                        state['editor_title_states'].append(title_state)
                     except TimeoutError:
                         stage = phase + '_' + editor_observation(Atspi, app.pid, project_id)
                         raise

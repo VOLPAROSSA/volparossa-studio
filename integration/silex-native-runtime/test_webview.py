@@ -22,14 +22,15 @@ gui_spec.loader.exec_module(gui)
 class WebViewTests(unittest.TestCase):
     def test_editor_requires_unique_exact_title_and_separates_a_dirty_project(self):
         title = gui.NAME + ' — Silex'
-        for name in ('Silex', '• ' + title, 'other — Silex'):
+        for name in ('Silex', '• other — Silex', '• • ' + title, 'other — Silex'):
             with patch.object(gui, 'visible_titles', return_value={51: name}):
                 self.assertIsNone(gui.editor_window(15))
         with patch.object(gui, 'visible_titles', return_value={51: '• ' + title}):
+            self.assertEqual(gui.editor_window(15), (51, 'changed'))
             self.assertEqual(gui.editor_observation(None, 15, 'project'), 'dirty_title')
         with patch.object(gui, 'visible_titles', return_value={51: title, 52: 'Silex'}):
-            self.assertEqual(gui.editor_window(15), 51)
-        with patch.object(gui, 'visible_titles', return_value={51: title, 52: title}):
+            self.assertEqual(gui.editor_window(15), (51, 'clean'))
+        with patch.object(gui, 'visible_titles', return_value={51: title, 52: '• ' + title}):
             with self.assertRaises(RuntimeError):
                 gui.editor_window(15)
 
@@ -116,9 +117,9 @@ class WebViewTests(unittest.TestCase):
 
     def test_reopen_evidence_requires_both_normal_native_closes_and_owned_groups(self):
         value = dict(status='passed', stage='complete', process_groups_started=4, process_groups_joined=4,
-            desktop_launches=2, native_window_closes=2, canvas_readbacks=['visible_pixels', 'accessible_text'], close_actions=['window_close', 'quit_dialog'], original_project_reopened=True, project_id_sha256='0' * 64)
+            desktop_launches=2, native_window_closes=2, editor_title_states=['changed', 'clean'], canvas_readbacks=['visible_pixels', 'accessible_text'], close_actions=['window_close', 'quit_dialog'], original_project_reopened=True, project_id_sha256='0' * 64)
         root.verify_gui(value)
-        for key, bad in (('native_window_closes', 1), ('close_actions', ['quit_dialog', 'forced']), ('canvas_readbacks', ['visible_pixels']), ('canvas_readbacks', ['unknown', 'accessible_text']), ('process_groups_joined', 3), ('original_project_reopened', False),
+        for key, bad in (('native_window_closes', 1), ('editor_title_states', ['clean', 'other']), ('close_actions', ['quit_dialog', 'forced']), ('canvas_readbacks', ['visible_pixels']), ('canvas_readbacks', ['unknown', 'accessible_text']), ('process_groups_joined', 3), ('original_project_reopened', False),
                          ('project_id_sha256', 'invalid'), ('stage', 'first_editor')):
             with self.subTest(key=key), self.assertRaises(root.Rejected):
                 root.verify_gui(dict(value, **{key: bad}))

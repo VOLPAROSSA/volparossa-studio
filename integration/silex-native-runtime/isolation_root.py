@@ -711,10 +711,12 @@ add rule inet vpcal output meta skuid %d meta nfproto ipv6 counter name denied6 
 
 def verify_gui(value):
     require(type(value) is dict and value.keys() == {'status', 'stage', 'process_groups_started', 'process_groups_joined',
-        'desktop_launches', 'native_window_closes', 'canvas_readbacks', 'close_actions', 'original_project_reopened', 'project_id_sha256'} and
+        'desktop_launches', 'native_window_closes', 'editor_title_states', 'canvas_readbacks', 'close_actions', 'original_project_reopened', 'project_id_sha256'} and
         value['status'] == 'passed' and value['stage'] == 'complete' and
         type(value['process_groups_started']) is int and value['process_groups_started'] == value['process_groups_joined'] == 4
         and type(value['desktop_launches']) is int and value['desktop_launches'] == value['native_window_closes'] == 2
+        and type(value['editor_title_states']) is list and len(value['editor_title_states']) == 2
+        and all(item in ('clean', 'changed') for item in value['editor_title_states'])
         and type(value['canvas_readbacks']) is list and len(value['canvas_readbacks']) == 2
         and all(item in ('visible_pixels', 'accessible_text') for item in value['canvas_readbacks'])
         and type(value['close_actions']) is list and len(value['close_actions']) == 2
