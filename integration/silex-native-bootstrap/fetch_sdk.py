@@ -42,14 +42,14 @@ APT_OPTIONS = [
     '-o', 'Acquire::http::Timeout=20', '-o', 'Acquire::https::Timeout=20',
     '-o', 'Acquire::Retries=0',
 ]
-# The inventory binds direct archive URIs. The later SDK trial 40809752563
-# retained the exact 144-byte root-owned mirror descriptor: HTTP Azure priority 1,
-# HTTPS archive priority 2 and HTTPS security priority 3, each at /ubuntu/.
-# Only those observed bytes admit mirror+file; other public text is diagnostic only.
+# The two complete root-owned mirror descriptors observed by native trials
+# 40809752563 (Azure) and 44439231433 (Canonical EC2 in us-east-2).
 ARCHIVE_ORIGIN = 'http://azure.archive.ubuntu.com'
 MIRRORS = Path('/etc/apt/apt-mirrors.txt')
-MIRROR_LIST_BYTES = 144
-MIRROR_LIST_SHA256 = 'e0d6b0af979e4662d16357a27ae456cc6f21e26da031540f4df8706ebed1d583'
+MIRROR_LISTS = {
+    (144, 'e0d6b0af979e4662d16357a27ae456cc6f21e26da031540f4df8706ebed1d583'),
+    (152, 'af9816b59bc904eaf28838ae673ac2b625b6628bebfc67a7cbeae78ba06e226a'),
+}
 
 
 def require(condition):
@@ -159,7 +159,7 @@ def public_mirror_list(raw):
                 and uri.username is None and uri.password is None and uri.port is None
                 and not uri.query and not uri.fragment and uri.path.rstrip('/') == '/ubuntu'
                 and all(re.fullmatch(r'priority:[0-9]{1,3}', token) for token in tokens[1:]))
-    return text, len(raw) == MIRROR_LIST_BYTES and hashlib.sha256(raw).hexdigest() == MIRROR_LIST_SHA256
+    return text, (len(raw), hashlib.sha256(raw).hexdigest()) in MIRROR_LISTS
 
 
 def verify_uris(raw, records, mirror_raw=None):

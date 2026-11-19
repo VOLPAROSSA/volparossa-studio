@@ -158,6 +158,18 @@ class SdkFetchTests(unittest.TestCase):
             self.assertEqual(archives.stat().st_mode & 0o777, 0o700)
             verify.assert_called_once_with(archives, records)
 
+    def test_observed_ec2_descriptor_admits_only_its_exact_region_and_fallbacks(self):
+        mirror = OBSERVED_MIRRORS.replace(b'azure.archive.', b'us-east-2.ec2.archive.')
+        self.assertEqual(len(mirror), 152)
+        self.assertEqual(hashlib.sha256(mirror).hexdigest(),
+                         'af9816b59bc904eaf28838ae673ac2b625b6628bebfc67a7cbeae78ba06e226a')
+        records = {'aa': record()}
+        sdk.verify_uris(uris(records, mirror=True), records, mirror)
+        for candidate in (mirror.replace(b'us-east-2', b'us-east-1'),
+                          mirror.replace(b'priority:1', b'priority:2'), mirror.rstrip()):
+            with self.subTest(candidate=candidate), self.assertRaises(sdk.support.Rejected):
+                sdk.verify_uris(uris(records, mirror=True), records, candidate)
+
     def test_unobserved_public_mirror_is_diagnostic_only_and_denies_before_effects(self):
         records = {'aa': record()}
         fallback = b'http://archive.ubuntu.com/ubuntu priority:2\n'
