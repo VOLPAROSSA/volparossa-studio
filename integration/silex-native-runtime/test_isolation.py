@@ -300,6 +300,9 @@ class IsolationTests(unittest.TestCase):
                 A.private_ipc_views(parent, mounts, marker)
 
     def test_observer_requires_exact_named_counters_not_route_failure_or_fabricated_attempts(self):
+        declarations = [row.strip() for row in S.rules(1001).splitlines() if row.strip().startswith(b'counter ')]
+        self.assertEqual(declarations, [b'counter ' + name + b' {}' for name in
+                                        (b'denied4', b'denied6', b'dns', b'dns_reply')])
         rows = [dict(counter=dict(family='inet', table='vpcal', name=name, packets=1, bytes=42))
                 for name in ('denied4', 'denied6', 'dns', 'dns_reply')]
         self.assertEqual(len(S.counters(json.dumps({'nftables': rows}).encode())), 4)

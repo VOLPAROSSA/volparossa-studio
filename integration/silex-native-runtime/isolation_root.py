@@ -596,7 +596,10 @@ def actor_command(uid, gid, mode):
 def rules(uid):
     require(type(uid) is int and 1000 <= uid < 2**31, 'identity')
     return ('''table inet vpcal {
- counter denied4 {} counter denied6 {} counter dns {} counter dns_reply {}
+ counter denied4 {}
+ counter denied6 {}
+ counter dns {}
+ counter dns_reply {}
  chain output { type filter hook output priority 0; policy drop;
   meta skuid %d ip daddr 127.0.0.53 udp dport 53 counter name dns accept
   meta skuid 0 ip saddr 127.0.0.53 udp sport 53 counter name dns_reply accept
