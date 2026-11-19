@@ -84,7 +84,7 @@ def build_receipt():
     with binary.open('rb') as stream:
         info = os.fstat(stream.fileno())
         require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_nlink in (1, 2)
-            and info.st_mode & 0o100 and not info.st_mode & 0o022 and 2**20 <= info.st_size <= 128 * 2**20
+            and info.st_mode & 0o100 and not info.st_mode & 0o022 and 2**20 <= info.st_size <= 256 * 2**20
             and stream.read(6) == b'\x7fELF\x02\x01')
         stream.seek(0)
         digest = hashlib.file_digest(stream, 'sha256').hexdigest()

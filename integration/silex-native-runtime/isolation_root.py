@@ -703,7 +703,7 @@ def core_input(uid, revision):
             and receipt['core_lock_sha256'] == 'ef5df0f0a6a1db08908d368e085d43b93ce29db5812b283475497a1658110b00', 'source')
     binary = receipt['binary']
     require(binary.keys() == {'bytes', 'sha256', 'mode', 'links'} and type(binary['bytes']) is int
-            and 1024**2 <= binary['bytes'] <= 128 * 1024**2 and re.fullmatch('[0-9a-f]{64}', binary['sha256']), 'source')
+            and 1024**2 <= binary['bytes'] <= 256 * 1024**2 and re.fullmatch('[0-9a-f]{64}', binary['sha256']), 'source')
     path = temporary / 'studio-native-site-core-target/debug/volparossa'
     return checked_binary(path, uid, binary)
 

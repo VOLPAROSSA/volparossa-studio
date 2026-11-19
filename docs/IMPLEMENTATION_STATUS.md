@@ -37,6 +37,15 @@ the first double reopen observed before the test helper's shutdown was corrected
 [Receipt index and file hashes](evidence/native-webview/runs.json)
 · [Ubuntu kernel module provenance](evidence/native-webview/ubuntu-veth.json)
 
+A fresh run on protected `main` at `7e09c9ba` repeated the complete native
+workflow with another project ID. Both native canvases exposed their saved heading
+and both processes exited normally via Quit. The original seven reports record
+250 loopback request packets and 237 response packets, unchanged external counters
+and complete host cleanup. The 40,936-byte archive has SHA-256
+`57a72de3465e7c470e4161d08691b991507d3300ea8bd5c0df507345bb7a4fbb`.
+[Protected run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44547586924)
+· [Original protected reports](evidence/native-webview/44547586924/)
+
 ## A fresh browser opens a Studio site after its publisher goes offline — 2026-11-18
 
 A single hosted trial followed a synthetic public site from its saved Silex

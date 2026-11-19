@@ -626,11 +626,12 @@ jobs:
           sudo apt-get -c "$CORE_APT_CONFIG" install --yes --no-install-recommends \
             protobuf-compiler=3.21.12-8.2ubuntu0.4 libprotoc32t64=3.21.12-8.2ubuntu0.4 libprotobuf32t64=3.21.12-8.2ubuntu0.4
           test "$(protoc --version)" = 'libprotoc 3.21.12'
+          # Core's authenticated Cargo home supplies its own registry configuration.
+          unset CARGO_REGISTRIES_CRATES_IO_PROTOCOL
           python3 -B scripts/provision-rust189.py runner
           export PATH="$RUNNER_TEMP/volparossa-rust-1.89.0/bin:$PATH"
           export CARGO_HOME="$RUNNER_TEMP/volparossa-cargo-public-v1"
           export CARGO_TARGET_DIR="$RUNNER_TEMP/studio-native-site-core-target"
-          export CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0
           cargo fetch --locked
           cargo build --locked --offline -p volparossa --bin volparossa
           test -z "$(git status --porcelain)"
