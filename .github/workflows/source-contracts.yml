@@ -28,6 +28,11 @@ jobs:
         # The viewer writer cross-check and test_wrapper_guard require Core and
         # stay in the separate Core trial; remaining viewer contracts run here.
         run: python3 -B -m unittest -v test_contract test_lifecycle test_runtime_context test_viewer_receipt test_signed_site_profile test_signed_site_receipt
+      - name: Check native trial source bindings and admission
+        run: |
+          python3 -I -B integration/silex-fs-identifier-rename/test_proof.py
+          python3 -I -B integration/silex-native-dashboard/test_local_build.py
+          python3 -I -B integration/silex-native-dashboard/test_crud.py CrudTests.test_checked_in_helpers_match_the_crud_pins
       - name: Check viewer units with the existing authenticated Node
         working-directory: integration/silex-export
         run: |
