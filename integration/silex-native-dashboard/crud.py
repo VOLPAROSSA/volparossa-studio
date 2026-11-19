@@ -23,10 +23,10 @@ DRIVER_SUBSTAGES = frozenset(('not_started', 'carrier_authentication', 'fixture_
     'chrome_binary_open', 'chrome_binary_metadata', 'chrome_binary_read', 'chrome_binary_identity',
     'context_files', 'context_validate', 'context_write', 'complete', 'unavailable'))
 PINS = {
-    BOOTSTRAP / 'native_build.py': '9d8d45fe88922ced9ee43a0465177343f7b3757f6e9a28dc30884b0e3a03f51c',
-    HERE / 'local_build.py': '45e7ae0a59f6f3102931faef8b560ed86c62231bb880eed994c56413e1e4589c',
-    HERE / 'check.py': '42fbd5e85d74681634c7316197202dbe71372bc6b862dca38f604c6a487f1c26',
-    FS / 'proof.py': '142facde5d2d30a62db546b2ea9078f97c5dae20b4857ca31263b21ee317eed7',
+    BOOTSTRAP / 'native_build.py': '943716c8cb7d32b71cec929cba10bc8102a07cf454332509a0dcb58db317b300',
+    HERE / 'local_build.py': '8f74655b8d0ce92e9ee6e0378fcff9c8de3d1f367adfda361b67486738e8dff8',
+    HERE / 'check.py': '3ae8b97d887e9ab6bf251e91eb9348931c6703af64cfc1bc0242f181836f98a4',
+    FS / 'proof.py': 'a9a6eb24d8e7f863284d32a82ad2bc0ecbba5729124c7f755fddaf451cf40357',
     FS / 'manifest.json': 'ca7f1b9b04fb7e5be36c4ed44511ae5950185df4e4572918c7a0530302e96edc',
     FS / 'prepare.py': 'd2f1cd0d964f4d89d932ab4d26201cc9d8eae0a97408087d1f102b9331bb4f3e',
 }

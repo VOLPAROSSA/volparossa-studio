@@ -16,7 +16,7 @@ import time
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 BOOTSTRAP = HERE.parent / 'silex-native-bootstrap'
-NATIVE_HELPER = '9d8d45fe88922ced9ee43a0465177343f7b3757f6e9a28dc30884b0e3a03f51c'
+NATIVE_HELPER = '943716c8cb7d32b71cec929cba10bc8102a07cf454332509a0dcb58db317b300'
 FILES = {'index.html', 'dashboard.css', 'dashboard.js', 'test_dashboard.mjs'}
 
 
