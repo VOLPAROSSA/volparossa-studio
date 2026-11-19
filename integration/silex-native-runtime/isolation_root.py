@@ -577,6 +577,14 @@ def actor_environment(uid, gid, parent, canary, ipc_views, ipc_canary):
         VP_PARENT_IPC_VIEWS=json.dumps(ipc_views, sort_keys=True), VP_HOST_IPC_CANARY=str(ipc_canary))
 
 
+def actor_parent(path, gid):
+    # Only the root owner may list or change entries. The actor's primary
+    # group can traverse the known path even when the supervisor's umask is 077.
+    path.mkdir(mode=0o700)
+    os.chown(path, 0, gid)
+    path.chmod(0o710)
+
+
 def actor_command(uid, gid, mode):
     require(mode in ('admission', 'calibration'), 'protocol')
     return ['/usr/bin/setpriv', '--reuid=' + str(uid), '--regid=' + str(gid),
@@ -662,8 +670,7 @@ def namespace_init():
                    'mode=1777,nosuid,nodev,noexec', 'tmpfs', '/dev/shm'])
         owner.run(['/usr/bin/mount', '--no-mtab', '-t', 'mqueue', '-o',
                    'nosuid,nodev,noexec', 'mqueue', '/dev/mqueue'])
-        Path('/run/fixture').mkdir(mode=0o755)
-        os.chmod('/run/fixture', 0o755)  # Original UID must traverse even with umask 077.
+        actor_parent(Path('/run/fixture'), gid)
         write_new(Path('/run/fixture/isolation_actor.py'), actor, mode=0o444)
         home = Path('/home/fixture')
         home.mkdir(mode=0o700)
@@ -671,8 +678,7 @@ def namespace_init():
         for name in ('config', 'data', 'cache'):
             path = home / name; path.mkdir(mode=0o700); os.chown(path, uid, gid)
         Path('/tmp/fixture').mkdir(mode=0o700); os.chown('/tmp/fixture', uid, gid)
-        Path('/run/user').mkdir(mode=0o755)
-        os.chmod('/run/user', 0o755)
+        actor_parent(Path('/run/user'), gid)
         runtime = Path('/run/user') / str(uid)
         runtime.mkdir(mode=0o700); os.chown(runtime, uid, gid)
         # The fixture resolver is private. No host resolver bytes are edited.
@@ -680,8 +686,7 @@ def namespace_init():
             # The original systemd resolver directory was hidden by our private /run.
             # Recreate only the known target so the existing system symlink remains valid.
             for parent in (Path('/run/systemd'), Path('/run/systemd/resolve')):
-                parent.mkdir(mode=0o755)
-                parent.chmod(0o755)
+                actor_parent(parent, gid)
             write_new(resolver, b'', mode=0o444)
         require(resolver_target() == resolver, 'filesystem')
         write_new(Path('/run/fixture/resolv.conf'), RESOLVER, mode=0o444)

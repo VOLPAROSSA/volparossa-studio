@@ -960,9 +960,9 @@ jobs:
           root = pathlib.Path('studio/integration')
           expected = {
             'silex-native-runtime/isolation.py': '5ae53609532eba2b17b7cb9dfe8ea25f33db1632a29be455bb812d3e9af7b9fc',
-            'silex-native-runtime/isolation_root.py': '9058ae50146b80fb81c8eee2a6569b63e29ed88ecec91f18ca247b65e4211cfa',
+            'silex-native-runtime/isolation_root.py': 'f1930947a4bdc6eaf97fd9d0ae5d527a8f5359a7c42b104285a0a46060e45378',
             'silex-native-runtime/isolation_actor.py': 'b2dd0793ae14775c51a1f72fb5b7bf5c58e482e50e9f7987f3731b18b94f8de6',
-            'silex-native-runtime/test_isolation.py': '01e3e4a8afb5f27d40b9c9ed00995c8b0dfd7c276978cab2fa57ddebb83474a7',
+            'silex-native-runtime/test_isolation.py': '53026a7643113fb0a3166ef974d44a557969b2f07710bf114d5a5ad2ca9b8912',
             'silex-export/lifecycle.py': 'a3fe1d2fe7ba51c7f63a73ad505161d73e0d8f5b112a9af575f62e70f467da9e',
           }
           for name, digest in expected.items():

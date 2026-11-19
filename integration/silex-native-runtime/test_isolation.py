@@ -70,6 +70,15 @@ class IsolationTests(unittest.TestCase):
         self.assertIn('open(path', Path(A.__file__).read_text().splitlines()[site[0] - 1])
         self.assertFalse(S.actor_site(['/not-a-real-studio-private-path']))
 
+    def test_fixed_actor_parent_grants_only_primary_group_traversal(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(S.os, 'chown') as chown:
+            parent = Path(temporary) / 'actor-parent'
+            S.actor_parent(parent, os.getgid())
+            self.assertEqual(parent.stat().st_mode & 0o777, 0o710)
+            chown.assert_called_once_with(parent, 0, os.getgid())
+            with self.assertRaises(FileExistsError):
+                S.actor_parent(parent, os.getgid())
+
     def test_resolver_mount_requires_same_inode_readonly_and_exact_private_bytes(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
