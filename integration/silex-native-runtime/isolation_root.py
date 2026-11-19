@@ -39,13 +39,18 @@ FILENAMES = {'controller': 'isolation.py', 'root': 'isolation_root.py',
 HOST_KEYS = ('GITHUB_ACTIONS', 'RUNNER_ENVIRONMENT', 'RUNNER_OS', 'RUNNER_ARCH',
              'GITHUB_REPOSITORY', 'GITHUB_SHA', 'GITHUB_WORKFLOW_SHA', 'GITHUB_REF',
              'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_WORKSPACE', 'RUNNER_TEMP')
-GUI = os.environ.get('STUDIO_NATIVE_WEBVIEW') == '1'
+SITE_EXPORT = os.environ.get('STUDIO_NATIVE_WEBVIEW') == 'export'
+GUI = SITE_EXPORT or os.environ.get('STUDIO_NATIVE_WEBVIEW') == '1'
 if GUI:
     SOURCES['gui'] = 'integration/silex-native-runtime/webview.py'
     FILENAMES['gui'] = 'webview.py'
     HOST_KEYS += ('STUDIO_NATIVE_WEBVIEW',)
+if SITE_EXPORT:
+    SOURCES['site_export'] = 'integration/silex-native-runtime/site_export.py'
+    FILENAMES['site_export'] = 'site_export.py'
 GUI_STAGES = ('admission', 'display', 'bus', 'first_launch', 'seed_project', 'refresh_dashboard',
               'empty_dashboard', 'project_name', 'create_project', 'desktop_session', 'cookie_cleanup',
+              'native_publish_dialog', 'native_publish_submit', 'native_publish_files', 'native_site_pack',
               'first_open', 'first_editor', 'first_close', 'second_launch', 'second_open',
               'second_editor', 'second_close', 'cleanup', 'complete') + tuple(
     phase + '_' + observed for phase in ('first', 'second')
@@ -420,7 +425,8 @@ def admission_environment():
     for key, value in {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted',
         'RUNNER_OS': 'Linux', 'RUNNER_ARCH': 'X64', 'GITHUB_REPOSITORY': 'VOLPAROSSA/volparossa-studio'}.items():
         require(os.environ.get(key) == value)
-    require(os.environ.get('GITHUB_REF') == 'refs/heads/main')
+    require(os.environ.get('GITHUB_REF') == 'refs/heads/main' or
+        (SITE_EXPORT and os.environ.get('GITHUB_REF') == 'refs/heads/development/studio-native-site-export-20261119'))
     revision = os.environ.get('GITHUB_SHA', '')
     require(re.fullmatch('[0-9a-f]{40}', revision) and os.environ.get('GITHUB_WORKFLOW_SHA') == revision)
     require(not any(key.startswith('LD_') or key in ('PYTHONPATH', 'PYTHONHOME') for key in os.environ))
@@ -672,6 +678,10 @@ def release_input(uid, revision):
         and type(binary['bytes']) is int and 1024**2 <= binary['bytes'] <= 128 * 1024**2
         and re.fullmatch('[0-9a-f]{64}', binary['sha256']), 'source')
     path = temporary / 'silex-original-dashboard-build-target/release/silex-desktop'
+    return checked_binary(path, uid, binary)
+
+
+def checked_binary(path, uid, binary):
     require(path.resolve(strict=True) == path, 'filesystem')
     source = path.open('rb')
     try:
@@ -683,6 +693,19 @@ def release_input(uid, revision):
         source.close()
         raise
     return source, binary
+
+
+def core_input(uid, revision):
+    temporary = Path(os.environ['RUNNER_TEMP'])
+    receipt = parse(read(temporary / 'silex-native-site-core-build.json', 4096, owner=uid))
+    require(receipt['status'] == 'passed' and receipt['operation'] == 'native_site_core_build'
+            and receipt['studio_revision'] == revision and receipt['core_revision'] == 'c8689558544eb56f28c4de5df805e4d9bbd5d358'
+            and receipt['core_lock_sha256'] == 'ef5df0f0a6a1db08908d368e085d43b93ce29db5812b283475497a1658110b00', 'source')
+    binary = receipt['binary']
+    require(binary.keys() == {'bytes', 'sha256', 'mode', 'links'} and type(binary['bytes']) is int
+            and 1024**2 <= binary['bytes'] <= 128 * 1024**2 and re.fullmatch('[0-9a-f]{64}', binary['sha256']), 'source')
+    path = temporary / 'studio-native-site-core-target/debug/volparossa'
+    return checked_binary(path, uid, binary)
 
 
 def copy_release(source, binary, destination, gid):
@@ -719,7 +742,7 @@ add rule inet vpcal output meta skuid %d meta nfproto ipv6 counter name denied6 
 
 def checked_gui_detail(value):
     labels = {'project_name', 'editable_name', 'visible_name', 'typed_name', 'create', 'refresh', 'empty_status', 'empty_message', 'dashboard_heading',
-        'open', 'working', 'quit', 'save_quit', 'loading', 'tree_interrupted'}
+        'open', 'working', 'quit', 'save_quit', 'loading', 'tree_interrupted', 'file_hosting', 'publish', 'published_folder', 'publish_again'}
     windows = {'project', 'changed_project', 'silex', 'other', 'probe_interrupted'}
     require(type(value) is dict and value.keys() == {'error', 'source_line', 'nodes', 'labels', 'windows'}
         and value['error'] in ('timeout', 'predicate', 'other') and type(value['source_line']) is int
@@ -755,9 +778,33 @@ def last_gui_checkpoint(raw):
     return next((allowed[line] for line in reversed(raw.splitlines()) if line in allowed), None)
 
 
+def verify_site_review(review):
+    def valid(test):
+        require(test, 'protocol')
+
+    false_flags = ('symlinks_followed', 'native_consent_granted', 'publication_signed', 'network_published',
+                   'publisher_authority_granted', 'permission_authority_granted', 'input_files_modified')
+    true_flags = ('hidden_entries_excluded', 'bundle_output_created', 'review_required')
+    css = re.compile(r'index-(?:[0-9a-f]{64}|local)\.css')
+    valid(type(review) is dict and set(review) == {'schema_version', 'operation', 'source', 'content_type',
+        'bundle_sha256', 'bundle_bytes', 'asset_count', 'assets', *false_flags, *true_flags})
+    valid(type(review['schema_version']) is int and review['schema_version'] == 1 and review['operation'] == 'site_pack_preparation'
+        and review['source'] == 'explicit_local_directory' and review['content_type'] == 'application/vnd.volparossa.site.v1'
+        and type(review['bundle_bytes']) is int and 0 < review['bundle_bytes'] <= 131072
+        and re.fullmatch('[0-9a-f]{64}', review['bundle_sha256']) and type(review['asset_count']) is int and review['asset_count'] == 2)
+    valid(all(review[key] is False for key in false_flags) and all(review[key] is True for key in true_flags))
+    rows = review['assets']
+    valid(type(rows) is list and len(rows) == 2)
+    for row in rows:
+        valid(type(row) is dict and set(row) == {'path', 'content_type', 'bytes', 'sha256'}
+            and type(row['bytes']) is int and 0 < row['bytes'] <= 32768 and re.fullmatch('[0-9a-f]{64}', row['sha256']))
+    valid(rows[0]['path'].startswith('/css/') and css.fullmatch(rows[0]['path'][5:]) and rows[0]['content_type'] == 'text/css'
+        and rows[1]['path'] == '/index.html' and rows[1]['content_type'] == 'text/html')
+
+
 def verify_gui(value):
     require(type(value) is dict and value.keys() == {'status', 'stage', 'process_groups_started', 'process_groups_joined',
-        'desktop_launches', 'native_window_closes', 'editor_title_states', 'canvas_readbacks', 'close_actions', 'original_project_reopened', 'project_id_sha256'} and
+        'desktop_launches', 'native_window_closes', 'editor_title_states', 'canvas_readbacks', 'close_actions', 'original_project_reopened', 'project_id_sha256'} | ({'site_pack_review'} if SITE_EXPORT else set()) and
         value['status'] == 'passed' and value['stage'] == 'complete' and
         type(value['process_groups_started']) is int and value['process_groups_started'] == value['process_groups_joined'] == 4
         and type(value['desktop_launches']) is int and value['desktop_launches'] == value['native_window_closes'] == 2
@@ -768,6 +815,8 @@ def verify_gui(value):
         and type(value['close_actions']) is list and len(value['close_actions']) == 2
         and all(item in ('window_close', 'quit_dialog') for item in value['close_actions'])
         and value['original_project_reopened'] is True and re.fullmatch('[0-9a-f]{64}', value['project_id_sha256']), 'protocol')
+    if SITE_EXPORT:
+        verify_site_review(value['site_pack_review'])
 
 
 def namespace_init():
@@ -795,7 +844,7 @@ def namespace_init():
                   failure_kind=None, actor_failure_predicate=None, actor_failure_site=[])
     primary = None
     dns = None
-    gui_source = None
+    gui_source = core_source = None
     try:
         # Cache every source byte before hiding the original workspace/home/run.
         actor = read(stage / 'isolation_actor.py', MAX_SOURCE, owner=0)
@@ -803,6 +852,9 @@ def namespace_init():
             gui_source, binary = release_input(uid, meta['revision'])
             gui_actor = read(stage / 'webview.py', MAX_SOURCE, owner=0)
             frozen = read(stage / 'lifecycle.py', MAX_SOURCE, owner=0)
+        if SITE_EXPORT:
+            core_source, core_binary = core_input(uid, meta['revision'])
+            site_helper = read(stage / 'site_export.py', MAX_SOURCE, owner=0)
         resolver = resolver_target()
         os.chdir('/')
         # unshare already cloned this private mount tree and its child mounts.
@@ -825,6 +877,10 @@ def namespace_init():
                 write_new(Path('/run/fixture') / name, data, mode=0o444)
             copy_release(gui_source, binary, Path('/run/fixture/silex-desktop'), gid)
             gui_source.close()
+        if SITE_EXPORT:
+            write_new(Path('/run/fixture/site_export.py'), site_helper, mode=0o444)
+            copy_release(core_source, core_binary, Path('/run/fixture/volparossa'), gid)
+            core_source.close()
         home = Path('/home/fixture')
         home.mkdir(mode=0o700)
         os.chown(home, uid, gid)
@@ -897,6 +953,8 @@ def namespace_init():
             dns_queries=queries, dns_replies=replies,
             dns_output_packets=after['dns']['packets'], dns_reply_packets=after['dns_reply']['packets'])
         if GUI:
+            if SITE_EXPORT:
+                environment['STUDIO_NATIVE_WEBVIEW'] = 'export'
             report['stage'] = 'gui_firewall'
             dns.close()
             dns = None
@@ -911,6 +969,8 @@ def namespace_init():
             require(all(stop[k] == start[k] for k in ('dns', 'dns_reply', 'denied4', 'denied6'))
                     and all(start[k]['packets'] == 0 < stop[k]['packets'] for k in ('gui_request', 'gui_response')), 'observer')
             report['native_webview'] = dict(actor=gui, binary_sha256=binary['sha256'], counters_before=start, counters_after=stop)
+            if SITE_EXPORT:
+                report['native_webview']['core_binary_sha256'] = core_binary['sha256']
         report.update(status='passed', stage='complete')
     except BaseException as error:
         primary = error
@@ -942,6 +1002,8 @@ def namespace_init():
         def finish():
             if gui_source is not None:
                 gui_source.close()
+            if core_source is not None:
+                core_source.close()
             if dns is not None:
                 dns.close()
             # Namespace PID1 is also an orphan reaper. No arbitrary foreign PID.

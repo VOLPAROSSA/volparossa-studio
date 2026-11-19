@@ -79,7 +79,7 @@ def canvas_colors(project_id):
 
 def saved_page(project_id):
     border, fill = canvas_colors(project_id)
-    return {'id': 'native-home', 'name': 'Home', 'frames': [{'component': {
+    return {'id': 'native-home', 'name': 'Index' if os.environ.get('STUDIO_NATIVE_WEBVIEW') == 'export' else 'Home', 'frames': [{'component': {
         'type': 'wrapper', 'components': [{'type': 'text', 'tagName': 'h1',
             'style': {'display': 'block', 'width': '230px', 'padding-bottom': '16px',
                       'border-left': '16px solid #' + border.hex(), 'background-color': '#' + fill.hex()},
@@ -188,7 +188,8 @@ def interface_observation(atspi, pid, error):
     labels = {'Project name': 'project_name', 'Create project': 'create', 'Refresh': 'refresh',
         '0 local projects.': 'empty_status', 'No projects yet. Create your first project above.': 'empty_message',
         'Local projects': 'dashboard_heading', 'Open project: ' + NAME: 'open', 'Working…': 'working',
-        'Quit': 'quit', 'Save & Quit': 'save_quit', 'Loading': 'loading'}
+        'Quit': 'quit', 'Save & Quit': 'save_quit', 'Loading': 'loading', 'File system hosting': 'file_hosting',
+        'Publish': 'publish', 'Open published folder': 'published_folder', 'Publish again': 'publish_again'}
     observed, windows = set(), set()
     nodes = 0
     def inspect(node):
@@ -474,6 +475,29 @@ def desktop_session(result):
                 except TimeoutError:
                     stage = phase + '_canvas_' + editor_observation(Atspi, app.pid, project_id)
                     raise
+                if phase == 'second' and os.environ.get('STUDIO_NATIVE_WEBVIEW') == 'export':
+                    site = load('site_export')
+                    stage = 'native_publish_dialog'
+                    connectors = remote('GET', '/api/connector?type=HOSTING')
+                    require(len(connectors) == 1 and connectors[0]['connectorId'] == 'fs-hosting'
+                            and connectors[0]['displayName'] == 'File system hosting' and connectors[0]['isLoggedIn'] is True)
+                    directory = Path(os.environ['XDG_DATA_HOME']) / 'org.silex.desktop' / 'websites' / project_id / 'public'
+                    require(not directory.exists())
+                    subprocess.run(['/usr/bin/xdotool', 'windowfocus', '--sync', str(window), 'key', '--clearmodifiers', 'alt+p'],
+                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4, check=True)
+                    def publish_control(node):
+                        return has_text(node, 'File system hosting') or (node.get_name() == 'Publish'
+                            and node.get_state_set().contains(Atspi.StateType.FOCUSED))
+                    await_value(lambda: find_accessible(Atspi, publish_control), context=events)
+                    stage = 'native_publish_submit'
+                    # The original Silex dialog focuses the publication button after loading its connector.
+                    subprocess.run(['/usr/bin/xdotool', 'key', '--clearmodifiers', 'Return'], stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4, check=True)
+                    stage = 'native_publish_files'
+                    await_value(lambda: (directory / 'index.html').is_file() and (directory / 'css').is_dir()
+                        and any((directory / 'css').iterdir()), context=events)
+                    stage = 'native_site_pack'
+                    state['site_pack_review'] = site.pack(directory, project_id)
                 stage = phase + '_close_request'
                 checkpoint(phase + '_canvas_read')
                 request_close(window)

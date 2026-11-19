@@ -176,8 +176,10 @@ def verify_root(value, revision, hashes):
         and all(type(v) is int and v == 1 for k, v in calibration.items() if k != 'synthetic_actor'), 'observer')
     if S.GUI:
         gui = worker['native_webview']
-        S.require(type(gui) is dict and gui.keys() == {'actor', 'binary_sha256', 'counters_before', 'counters_after'}
+        S.require(type(gui) is dict and gui.keys() == {'actor', 'binary_sha256', 'counters_before', 'counters_after'} | ({'core_binary_sha256'} if S.SITE_EXPORT else set())
             and re.fullmatch('[0-9a-f]{64}', gui['binary_sha256']), 'protocol')
+        if S.SITE_EXPORT:
+            S.require(re.fullmatch('[0-9a-f]{64}', gui['core_binary_sha256']), 'source')
         S.verify_gui(gui['actor'])
         before, after = gui['counters_before'], gui['counters_after']
         S.require(before.keys() == after.keys() == {'dns', 'dns_reply', 'denied4', 'denied6', 'gui_request', 'gui_response'}

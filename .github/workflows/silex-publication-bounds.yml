@@ -10,7 +10,7 @@ on:
       native_followup:
         description: 'Native build, SDK or WebView project trial'
         type: choice
-        options: [none, bridge, verify-lock, sdk-admission, sdk-baseline, sdk-fetch, sdk-install, native-build, dashboard-unit, fs-identifier-rename, local-native-build, dashboard-compose-unit, dashboard-crud, runtime-inventory, runtime-sdk-inventory, sdk-isolation, native-webview]
+        options: [none, bridge, verify-lock, sdk-admission, sdk-baseline, sdk-fetch, sdk-install, native-build, dashboard-unit, fs-identifier-rename, local-native-build, dashboard-compose-unit, dashboard-crud, runtime-inventory, runtime-sdk-inventory, sdk-isolation, native-webview, native-site-export]
         default: none
 
 permissions:
@@ -466,8 +466,10 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      github.ref == 'refs/heads/main' &&
-      (inputs.native_followup == 'local-native-build' || inputs.native_followup == 'native-webview')
+      ((github.ref == 'refs/heads/main' &&
+        (inputs.native_followup == 'local-native-build' || inputs.native_followup == 'native-webview')) ||
+       (inputs.native_followup == 'native-site-export' &&
+        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development/studio-native-site-export-20261119')))
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -507,7 +509,7 @@ jobs:
               assert name not in os.environ
           PYTHON
       - name: Check the runner kernel before compiling the native WebView
-        if: inputs.native_followup == 'native-webview'
+        if: inputs.native_followup == 'native-webview' || inputs.native_followup == 'native-site-export'
         run: |
           set -euo pipefail
           python3 -I -B - <<'PYTHON'
@@ -594,16 +596,57 @@ jobs:
       - name: Install only the reviewed SDK closure offline on this disposable runner
         run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/install_sdk.py"
       - name: Compile the FS plus original local dashboard release without starting or distributing it
+        env:
+          STUDIO_NATIVE_EXPORT_BUILD: ${{ inputs.native_followup == 'native-site-export' && '1' || '0' }}
         run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-dashboard/local_build.py"
+      - name: Check out the reviewed Core site packer
+        if: inputs.native_followup == 'native-site-export'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: VOLPAROSSA/volparossa
+          ref: c8689558544eb56f28c4de5df805e4d9bbd5d358
+          path: core
+          persist-credentials: false
+      - name: Prepare signed Ubuntu mirrors for Core's Protobuf compiler
+        id: core_archive
+        if: inputs.native_followup == 'native-site-export'
+        uses: VOLPAROSSA/.github/actions/ubuntu-archive@e3f98bbc538f5df580b78c8a0d8bd932dfe3e381
+      - name: Build the locked production CLI for private site preparation
+        if: inputs.native_followup == 'native-site-export'
+        timeout-minutes: 20
+        working-directory: core
+        env:
+          CORE_APT_CONFIG: ${{ steps.core_archive.outputs.config }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = c8689558544eb56f28c4de5df805e4d9bbd5d358
+          test "$(sha256sum Cargo.lock | cut -d' ' -f1)" = ef5df0f0a6a1db08908d368e085d43b93ce29db5812b283475497a1658110b00
+          test -z "$(git status --porcelain)"
+          sudo apt-get -c "$CORE_APT_CONFIG" update
+          sudo apt-get -c "$CORE_APT_CONFIG" install --yes --no-install-recommends \
+            protobuf-compiler=3.21.12-8.2ubuntu0.4 libprotoc32t64=3.21.12-8.2ubuntu0.4 libprotobuf32t64=3.21.12-8.2ubuntu0.4
+          test "$(protoc --version)" = 'libprotoc 3.21.12'
+          python3 -B scripts/provision-rust189.py runner
+          export PATH="$RUNNER_TEMP/volparossa-rust-1.89.0/bin:$PATH"
+          export CARGO_HOME="$RUNNER_TEMP/volparossa-cargo-public-v1"
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/studio-native-site-core-target"
+          export CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0
+          cargo fetch --locked
+          cargo build --locked --offline -p volparossa --bin volparossa
+          test -z "$(git status --porcelain)"
+          python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-runtime/site_export.py" build-receipt
       - name: Check native controls, inventory tools and reopen the project in the actual private WebView
-        if: inputs.native_followup == 'native-webview'
+        if: inputs.native_followup == 'native-webview' || inputs.native_followup == 'native-site-export'
         run: |
           set -euo pipefail
           python3 -I -B studio/integration/silex-native-runtime/test_isolation.py -v
           python3 -I -B studio/integration/silex-native-runtime/test_inventory.py -v
           python3 -I -B studio/integration/silex-native-runtime/test_webview.py -v
           python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-runtime/inventory.py"
-          STUDIO_NATIVE_WEBVIEW=1 python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-runtime/isolation.py"
+          python3 -I -B studio/integration/silex-native-runtime/test_site_export.py
+          STUDIO_NATIVE_WEBVIEW="$SITE_PROFILE" python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-runtime/isolation.py"
+        env:
+          SITE_PROFILE: ${{ inputs.native_followup == 'native-site-export' && 'export' || '1' }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -616,6 +659,7 @@ jobs:
             ${{ runner.temp }}/silex-original-dashboard-build.json
             ${{ runner.temp }}/silex-native-runtime-inventory.json
             ${{ runner.temp }}/silex-native-webview.json
+            ${{ runner.temp }}/silex-native-site-core-build.json
           retention-days: 14
           if-no-files-found: warn
 
