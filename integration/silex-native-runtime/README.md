@@ -128,15 +128,20 @@ declared no kernel dependencies and matched their own kernel version.
 · [Ubuntu package, signed index and module digests](../../docs/evidence/native-webview/ubuntu-veth.json)
 
 Ubuntu's `python3-gi` 3.48.2-1 opens GDK's default display during import.
-The unprivileged supervisor keeps Xvfb and the session bus running until the
-GTK client exits. The 232,016-byte
-amd64 package matched its signed Noble index SHA-256,
+Its 232,016-byte amd64 package matched its signed Noble index SHA-256,
 `2a69ad9d8ab3b5801725480986b9abbf83bd4a06c38450fe143f6689d19d4bd8`.
 The worker can retain the last fixed GUI checkpoint and process exit status if
 a native library exits before the Python actor returns its report.
 AT-SPI 2.52 applies deferred accessibility changes on a GLib idle source.
 UI waits dispatch that context before reading the desktop's cached children.
 [AT-SPI event handling](https://github.com/GNOME/at-spi2-core/blob/AT_SPI2_CORE_2_52_0/atspi/atspi-misc.c#L997)
+
+AT-SPI obtains the session connection with `dbus_bus_get`. D-Bus 1.14.10 enables
+exit on disconnect for these connections and can terminate the client with code one
+when the bus stops. The supervisor waits for the GTK process's actual exit before
+stopping the bus and display.
+[AT-SPI session connection](https://github.com/GNOME/at-spi2-core/blob/AT_SPI2_CORE_2_52_0/atspi/atspi-misc.c#L1778)
+· [D-Bus disconnect handling](https://gitlab.freedesktop.org/dbus/dbus/-/blob/dbus-1.14.10/dbus/dbus-connection.c#L4339)
 
 The manual `native-webview` choice uses the original Silex release composed with the
 local dashboard. The build and both native launches share a disposable runner.

@@ -40,7 +40,6 @@ HOST_KEYS = ('GITHUB_ACTIONS', 'RUNNER_ENVIRONMENT', 'RUNNER_OS', 'RUNNER_ARCH',
              'GITHUB_REPOSITORY', 'GITHUB_SHA', 'GITHUB_WORKFLOW_SHA', 'GITHUB_REF',
              'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_WORKSPACE', 'RUNNER_TEMP')
 GUI = os.environ.get('STUDIO_NATIVE_WEBVIEW') == '1'
-GUI_BRANCH = 'refs/heads/development/studio-native-webview-20261119'
 if GUI:
     SOURCES['gui'] = 'integration/silex-native-runtime/webview.py'
     FILENAMES['gui'] = 'webview.py'
@@ -421,8 +420,7 @@ def admission_environment():
     for key, value in {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted',
         'RUNNER_OS': 'Linux', 'RUNNER_ARCH': 'X64', 'GITHUB_REPOSITORY': 'VOLPAROSSA/volparossa-studio'}.items():
         require(os.environ.get(key) == value)
-    require(os.environ.get('GITHUB_REF') in (
-        'refs/heads/main', GUI_BRANCH))
+    require(os.environ.get('GITHUB_REF') == 'refs/heads/main')
     revision = os.environ.get('GITHUB_SHA', '')
     require(re.fullmatch('[0-9a-f]{40}', revision) and os.environ.get('GITHUB_WORKFLOW_SHA') == revision)
     require(not any(key.startswith('LD_') or key in ('PYTHONPATH', 'PYTHONHOME') for key in os.environ))

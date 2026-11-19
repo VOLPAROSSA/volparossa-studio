@@ -8,17 +8,22 @@ A Silex-based visual website editor with shared VOLPAROSSA publishing, hosting
 and AI assistance. The target is to create, preview, explicitly publish, update
 and maintain portable websites using the cooperative DICN infrastructure.
 
-**Development status:** the pinned Silex editor has passed a bounded hosted
-edit/preview/export-to-Core acceptance: a real page and text were edited at
-37px, previewed and reopened from filesystem storage in a fresh browser
-context. The restored editor exported a ZIP that the production Core
-`SiteBundle` path decoded, checking all four assets and rejecting overwrites.
-A later trial signed a five-asset site, recovered it after a daemon crash
-and transferred it to a second peer. With the original provider offline,
-a fresh Firefox client fetched all 2,358,929 bytes from that peer and rendered
-the edited text and chart. Native publication consent, long-term hosting,
-shared AI and dynamic execution remain open.
-[Hosted trial](https://github.com/VOLPAROSSA/volparossa/actions/runs/44384131952)
+The original Silex desktop created a local project in its native dashboard on
+Ubuntu. Two fresh desktop processes opened its saved canvas, displayed the exact
+restored heading and exited through Silex’s Quit dialog. The hosted trial also
+verified loopback traffic and host cleanup.
+[Native desktop run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44542272228)
+
+The pinned editor also edited text at 37 px, previewed a page and reopened it
+from filesystem storage in a fresh browser context. The production Core
+`SiteBundle` path decoded the exported ZIP, verified all four assets and
+rejected overwrites. A later trial signed
+a five-asset site, recovered it after a daemon crash and transferred it to a
+second peer. With the original provider offline, a fresh Firefox client fetched
+all 2,358,929 bytes from that peer and rendered the edited text and chart.
+Native publication consent, long-term hosting, shared AI and dynamic execution
+remain open.
+[Publisher-offline trial](https://github.com/VOLPAROSSA/volparossa/actions/runs/44384131952)
 · [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 
 The complete [permanent Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/STUDIO_HOSTING_REQUIREMENTS.md)

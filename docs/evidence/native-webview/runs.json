@@ -233,5 +233,49 @@
         "sha256": "25e266c745e0329c48c2e1c50f743f6e7124a191c34dfa63f3cc8f7e2d45c26b"
       }
     ]
+  },
+  {
+    "run": 44542272228,
+    "revision": "44edad8fe36e85d4d190722ec642cec80a2ab3ed",
+    "conclusion": "success",
+    "artifact_id": 14539861821,
+    "artifact_bytes": 40934,
+    "artifact_sha256": "1a09fa8bc81fd173473cfa3fff150a2858f2fb574be1e86d1b574383de3ec1fa",
+    "executable": {
+      "bytes": 34339248,
+      "links": 2,
+      "mode": 493,
+      "sha256": "c0e61387d81728b79f13dd05266893d9d601f98b6338e484d7a13a0277c060b9"
+    },
+    "files": [
+      {
+        "path": "44542272228/silex-native-base-fetch.json",
+        "sha256": "3976aad26ed58d13294e25317e0fd804c0db1156ac9288c17633ded1c5d5456f"
+      },
+      {
+        "path": "44542272228/silex-native-runtime-inventory.json",
+        "sha256": "02c90f7f92a221f76dd61dae2db0c0926b97039c10bf734c4957a4323c3cc7a7"
+      },
+      {
+        "path": "44542272228/silex-native-sdk-fetch.json",
+        "sha256": "b2af1ad2b3ca9f68621feba72c74cb1ebf71650ca63aa9469594efc4f4120d86"
+      },
+      {
+        "path": "44542272228/silex-native-sdk-install-root.json",
+        "sha256": "96ec93547a256d4b2a45100776338b10611b8bb68280394fb72fe89330a9aa1c"
+      },
+      {
+        "path": "44542272228/silex-native-sdk-install.json",
+        "sha256": "453ae062beed9f2d65034451c5e92a27517183e3943b23e0e3ec1d032bbc324e"
+      },
+      {
+        "path": "44542272228/silex-native-webview.json",
+        "sha256": "11008f925222cd0d7d568fa1151e91a2063a2d8a638968f13facb495ce9ea769"
+      },
+      {
+        "path": "44542272228/silex-original-dashboard-build.json",
+        "sha256": "9250eaaf19ff07df8f0b9a8eb9a3aae2a129003b7fb4973a2314f5bf2ab54982"
+      }
+    ]
   }
 ]

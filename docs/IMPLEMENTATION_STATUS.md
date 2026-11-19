@@ -5,55 +5,37 @@ Updated 2026-11-19. Requirements are the complete permanent
 incorporated by the full Core goal. This file records Studio evidence and next
 work, without replacing that scope or the shared Core execution ledger.
 
-## Native Silex desktop on Ubuntu — 2026-11-19
+## Native Silex desktop reopens a saved canvas — 2026-11-19
 
-The pinned Silex v3.9.0 desktop release at `672efed69dda04c0a1e968859239e042f00d9538`
-compiled from source with Rust 1.99.1, the local dashboard and the reviewed
-Ubuntu SDK. The original build produced a 34,339,216-byte ELF. In a disposable
-network namespace, an unprivileged user opened the desktop, created a
-filesystem-backed project through its local API and activated its dashboard
-Open button. The first trial stopped while identifying the native editor.
-[First native desktop run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44456339192)
+The original Silex v3.9.0 desktop at `672efed69dda04c0a1e968859239e042f00d9538`
+ran from an offline Rust 1.99.1 build with the local Studio dashboard. The
+Azure runner used Ubuntu kernel `7.0.0-1017-azure`. Its 184 pinned SDK packages
+accounted for 74,345,024 bytes. The frontend contained 54 assets. The resulting
+34,339,248-byte ELF had SHA-256 `c0e61387d81728b79f13dd05266893d9d601f98b6338e484d7a13a0277c060b9`.
+[Hosted run at Studio source 44edad8](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44542272228)
+· [Original build receipt](evidence/native-webview/44542272228/silex-original-dashboard-build.json)
 
-A subsequent Azure run verified the saved page through the local API, the
-exact project title in the GTK window and the running WebKit web process. It
-then stopped while reading the saved heading in the editor canvas. An
-intermediate AWS run stopped before the GUI because its Ubuntu kernel module
-differed from the Azure one. The receipts record each trial's source revision,
-binary digest and reached stage.
-[Native editor run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44516940103)
-· [AWS run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44515212276)
-· [Archive and receipt digests](evidence/native-webview/runs.json)
+The unprivileged desktop opened to an empty project list. The native pointer
+and keyboard submitted the dashboard form. Silex created a filesystem-backed
+project and assigned its ID. The fixture saved a heading containing that ID
+through the local API. In each of two fresh desktop processes, the dashboard's
+Open action reached the named editor, a real WebKit web process ran, and the
+visible canvas exposed the exact heading through accessibility. Both windows
+showed the clean project title. Both quit through Silex's own Quit dialog, exited
+with code zero and stopped their local servers.
+[Original native receipt](evidence/native-webview/44542272228/silex-native-webview.json)
 
-A later Azure worker verified its kernel module, built the desktop and reached
-the dashboard refresh stage. Its receipt does not identify which check
-within that stage stopped. The follow-up uses the named native action that opened
-the first editor and records separate stages for the project list, metadata,
-saved page and visible canvas. A fresh process must display that same saved
-content before this trial can establish native reopening.
-[Dashboard refresh run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44519409673)
-
-On source `93835407`, an AWS worker verified kernel `7.0.0-1014-aws` and
-displayed the saved project in the original desktop's WebKit canvas. The trial reached the first normal close request and
-stopped before confirming process exit. Silex can ask whether to save changes
-when quitting. The follow-up recognizes its two explicit choices in the owned
-GTK dialog and records how each desktop process closed.
-[First confirmed native canvas](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44524950940)
-
-A native creation-form trial identified the dashboard heading, Create,
-Refresh and the project-name label among 27 accessible objects. It timed out
-while waiting for programmatic text entry. The next trial pumps the GLib event
-queue and uses the pointer and keyboard to submit the original form. Creation
-must yield one named filesystem project with an ID assigned by Silex.
-[Native form receipt](evidence/native-webview/44537129267/silex-native-webview.json)
-
-The native pointer and keyboard then created a real project in the dashboard.
-Two fresh Silex processes each opened it, displayed the saved canvas and closed
-with exit code zero. The GUI observer reached `services_drained` after both
-local servers stopped, then exited with code one. The final network counters
-and host cleanup were not verified in this run. The next source waits for the
-GTK interpreter to exit before it stops the private display and session bus.
-[Native reopen observation](evidence/native-webview/44539015216/silex-native-webview.json)
+The two launches added 261 loopback request packets and 242 response packets.
+DNS and blocked IPv4/IPv6 counts stayed at their pre-launch calibration values.
+All four GUI process groups joined, the namespace exited and the kernel module
+returned to its initial state. Host routes, resolver and firewall matched their
+initial snapshots. The original seven-file archive was 40,934 bytes with SHA-256
+`1a09fa8bc81fd173473cfa3fff150a2858f2fb574be1e86d1b574383de3ec1fa`.
+The manual `native-webview` profile runs on protected `main`. The archive index
+also retains the preceding observations, including the first visible canvas and
+the first double reopen observed before the test helper's shutdown was corrected.
+[Receipt index and file hashes](evidence/native-webview/runs.json)
+· [Ubuntu kernel module provenance](evidence/native-webview/ubuntu-veth.json)
 
 ## A fresh browser opens a Studio site after its publisher goes offline — 2026-11-18
 

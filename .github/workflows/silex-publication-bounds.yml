@@ -466,10 +466,8 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      ((inputs.native_followup == 'local-native-build' &&
-        github.ref == 'refs/heads/main') ||
-       (inputs.native_followup == 'native-webview' &&
-        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development/studio-native-webview-20261119')))
+      github.ref == 'refs/heads/main' &&
+      (inputs.native_followup == 'local-native-build' || inputs.native_followup == 'native-webview')
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:

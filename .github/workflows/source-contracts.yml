@@ -32,6 +32,7 @@ jobs:
         run: |
           python3 -I -B integration/silex-fs-identifier-rename/test_proof.py
           python3 -I -B integration/silex-native-dashboard/test_local_build.py
+          python3 -I -B integration/silex-native-runtime/test_webview.py
           python3 -I -B integration/silex-native-dashboard/test_crud.py CrudTests.test_checked_in_helpers_match_the_crud_pins
       - name: Check viewer units with the existing authenticated Node
         working-directory: integration/silex-export
