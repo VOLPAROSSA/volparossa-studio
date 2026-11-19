@@ -110,7 +110,51 @@ When the host resolver is managed by systemd-resolved, the supervisor reads the
 root-selected target as the recorded service UID. The worker recreates the
 mount target inside its fresh private `/run`. The host resolver is sampled again
 after the worker has exited. If the fixture needs to register veth, it uses the
-Ubuntu 7.0.0-1017-azure package's installed 20,571-byte module. The supervisor
-checks the exact SHA-256 and root-owned path, then unloads its own registration
-after the namespace exits. An existing registration is preserved. Successful
-cleanup requires the observed original registration state.
+module from the running kernel’s reviewed Ubuntu package. The supervisor
+checks the exact size, SHA-256 and root-owned path, then unloads its own
+registration after the namespace exits. An existing registration is preserved.
+Successful cleanup requires the observed original registration state.
+
+| Ubuntu kernel | Module bytes | Ubuntu package SHA-256 |
+| --- | ---: | --- |
+| `7.0.0-1017-azure` | 20,571 | `19ad1d32c0138b6ef90257f211e80490d3aaf322ba5c3c2910fdfbfb1f20da6d` |
+| `7.0.0-1014-aws` | 20,629 | `918e98bed5dae1ab40bfb3bc91e9456c1321435533165a9d7023ac60301c1e88` |
+
+The AWS preflight observed Ubuntu build `7.0.0-1014.14~24.04.1`. Its installed
+module matched the file from the independently verified 148,428,992-byte
+archive under the Ubuntu-signed Noble Updates index. Both inspected modules
+declared no kernel dependencies and matched their own kernel version.
+[Hosted AWS observation](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44519106391)
+· [Ubuntu package, signed index and module digests](../../docs/evidence/native-webview/ubuntu-veth.json)
+
+Ubuntu's `python3-gi` 3.48.2-1 opens GDK's default display during import.
+Its 232,016-byte amd64 package matched its signed Noble index SHA-256,
+`2a69ad9d8ab3b5801725480986b9abbf83bd4a06c38450fe143f6689d19d4bd8`.
+The worker can retain the last fixed GUI checkpoint and process exit status if
+a native library exits before the Python actor returns its report.
+AT-SPI 2.52 applies deferred accessibility changes on a GLib idle source.
+UI waits dispatch that context before reading the desktop's cached children.
+[AT-SPI event handling](https://github.com/GNOME/at-spi2-core/blob/AT_SPI2_CORE_2_52_0/atspi/atspi-misc.c#L997)
+
+AT-SPI obtains the session connection with `dbus_bus_get`. D-Bus 1.14.10 enables
+exit on disconnect for these connections and can terminate the client with code one
+when the bus stops. The supervisor waits for the GTK process's actual exit before
+stopping the bus and display.
+[AT-SPI session connection](https://github.com/GNOME/at-spi2-core/blob/AT_SPI2_CORE_2_52_0/atspi/atspi-misc.c#L1778)
+· [D-Bus disconnect handling](https://gitlab.freedesktop.org/dbus/dbus/-/blob/dbus-1.14.10/dbus/dbus-connection.c#L4339)
+
+The manual `native-webview` choice uses the original Silex release composed with the
+local dashboard. The build and both native launches share a disposable runner.
+Only bounded JSON receipts leave the job. The namespace verifies the private
+executable against the same-revision build receipt before exposing it to the
+original unprivileged UID. Following the IPv4, IPv6 and DNS calibration, the
+application can use the local Silex TCP port on loopback. The fixture checks that
+the original project list is empty, clicks the rendered form, types the name and
+presses Enter. After Silex creates the project, it saves a unique page through the
+local API. It then selects the dashboard’s Open action through accessibility, reads
+the native editor title and checks the saved content in the visible canvas. The readback
+uses its exact accessible text or the adjacent border and fill colors derived from
+the project ID. Pixel samples stay inside the disposable display. It closes the
+window and repeats these checks in a fresh process. Its success requires both normal exits,
+the live WebKit processes, the network counter checks and cleanup. Project
+publishing, editing, updates and distribution have separate acceptance gates.

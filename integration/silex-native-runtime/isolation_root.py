@@ -39,6 +39,27 @@ FILENAMES = {'controller': 'isolation.py', 'root': 'isolation_root.py',
 HOST_KEYS = ('GITHUB_ACTIONS', 'RUNNER_ENVIRONMENT', 'RUNNER_OS', 'RUNNER_ARCH',
              'GITHUB_REPOSITORY', 'GITHUB_SHA', 'GITHUB_WORKFLOW_SHA', 'GITHUB_REF',
              'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_WORKSPACE', 'RUNNER_TEMP')
+GUI = os.environ.get('STUDIO_NATIVE_WEBVIEW') == '1'
+if GUI:
+    SOURCES['gui'] = 'integration/silex-native-runtime/webview.py'
+    FILENAMES['gui'] = 'webview.py'
+    HOST_KEYS += ('STUDIO_NATIVE_WEBVIEW',)
+GUI_STAGES = ('admission', 'display', 'bus', 'first_launch', 'seed_project', 'refresh_dashboard',
+              'empty_dashboard', 'project_name', 'create_project', 'desktop_session', 'cookie_cleanup',
+              'first_open', 'first_editor', 'first_close', 'second_launch', 'second_open',
+              'second_editor', 'second_close', 'cleanup', 'complete') + tuple(
+    phase + '_' + observed for phase in ('first', 'second')
+    for observed in ('close_request', 'quit_dialog', 'quit_action', 'exit_status', 'exit', 'server_stop',
+                     'list', 'metadata', 'saved_page', 'window_size', 'canvas_pixels', 'canvas_accessibility',
+                     'dirty_title', 'id_title', 'dashboard', 'loading', 'editor_url', 'unknown_page', 'webkit_process', 'canvas', 'canvas_dirty_title', 'canvas_id_title',
+                     'canvas_dashboard', 'canvas_loading', 'canvas_editor_url', 'canvas_unknown_page'))
+
+GUI_CHECKPOINTS = frozenset(('bus_ready', 'dashboard_created', 'accessibility_closing', 'accessibility_closed',
+    'desktop_session_joined', 'services_drained')) | {
+    phase + '_' + action for phase in ('first', 'second') for action in
+    ('launch', 'saved_page', 'webkit_process', 'canvas_read', 'close_request', 'quit_action', 'closed', 'server_stopped')}
+GUI_STAGES += tuple(GUI_CHECKPOINTS - set(GUI_STAGES))
+
 ENV = dict(PATH='/usr/sbin:/usr/bin:/sbin:/bin', LANG='C', LC_ALL='C', PYTHONDONTWRITEBYTECODE='1')
 KINDS = frozenset(('admission', 'source', 'protocol', 'deadline', 'cancelled',
                    'child', 'output_limit', 'cleanup', 'namespace', 'identity',
@@ -53,7 +74,7 @@ ADMISSION = frozenset(('uid_original', 'gid_original', 'groups_cleared', 'capabi
     'private_tmp', 'host_workspace_hidden', 'host_bus_absent', 'host_xauthority_absent',
     'display_environment_absent', 'sandbox_disable_flags_absent', 'inherited_fds_closed',
     'root_mount_readonly', 'private_resolver_profile', 'private_shared_memory', 'private_mqueue'))
-WORKER_STAGES = frozenset(('mounts', 'admission_actor', 'network_setup', 'synthetic_calibration', 'complete'))
+WORKER_STAGES = frozenset(('mounts', 'admission_actor', 'network_setup', 'synthetic_calibration', 'gui_firewall', 'gui_actor', 'complete'))
 ACTOR_PREDICATES = ADMISSION | {'shape', 'protocol', 'dns', 'ipv4_datagram', 'ipv6_datagram'}
 RESOLVER = b'nameserver 127.0.0.53\noptions attempts:1 timeout:1\n'
 # Nested cleanup reserves under the ORIGINAL 120s end: namespace owner gets 6s
@@ -279,7 +300,8 @@ class Owner:
         self.lifecycle, self.work, self.end, self.control = lifecycle, work, end, control
         self.started = self.joined = 0
         self.last_output = b''
-        self.roles_started = dict.fromkeys(('tool', 'admission', 'calibration', 'namespace', 'root'), 0)
+        self.gui_exit = None
+        self.roles_started = dict.fromkeys(('tool', 'admission', 'calibration', 'namespace', 'root', 'gui'), 0)
         self.roles_joined = dict(self.roles_started)
 
     def run(self, argv, *, environment=None, payload=None, keep_stdin=False,
@@ -339,6 +361,8 @@ class Owner:
                                 require(len(output) + len(chunk) <= maximum, 'output_limit')
                                 output.extend(chunk)
                     observed = os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+            if role == 'gui':
+                self.gui_exit = observed.si_status if observed.si_code == os.CLD_EXITED else -observed.si_status
             require(observed.si_code == os.CLD_EXITED and observed.si_status == 0, 'child')
         except BaseException as error:
             primary = error
@@ -493,11 +517,12 @@ def host_resolver(target):
     return read(target, 65536, owner=service, modes=(0o644,))
 
 
-# Canonical Ubuntu linux-modules-7.0.0-1017-azure, archive SHA-256
-# 19ad1d32c0138b6ef90257f211e80490d3aaf322ba5c3c2910fdfbfb1f20da6d.
-VETH_RELEASE = '7.0.0-1017-azure'
-VETH_MODULE = Path('/usr/lib/modules') / VETH_RELEASE / 'kernel/drivers/net/veth.ko.zst'
-VETH_SHA256 = 'c3b882d30b01b331da0554b4bf838f87bb6be6b5c8b96ef3e98052abd5d6b32d'
+# Ubuntu Noble signed archive records and both observed module identities are
+# documented with the native runtime proof. A different kernel needs a new pin.
+VETH_MODULES = {
+    '7.0.0-1017-azure': (20571, 'c3b882d30b01b331da0554b4bf838f87bb6be6b5c8b96ef3e98052abd5d6b32d'),
+    '7.0.0-1014-aws': (20629, '62eb4b196a13d815c1dc0f7ea216da9e3ed676dba543bb19cbb74214770fa4ab'),
+}
 VETH_REGISTERED = Path('/sys/module/veth')
 
 
@@ -511,18 +536,21 @@ class VethRegistration:
     def prepare(self, owner):
         self.before = VETH_REGISTERED.is_dir()
         if not self.before:
-            require(os.uname().release == VETH_RELEASE, 'source')
-            for parent in VETH_MODULE.parents:
+            release = os.uname().release
+            require(release in VETH_MODULES, 'source')
+            size, digest = VETH_MODULES[release]
+            module = Path('/usr/lib/modules') / release / 'kernel/drivers/net/veth.ko.zst'
+            for parent in module.parents:
                 directory(parent, 0)
-            raw = read(VETH_MODULE, 20571, owner=0, modes=(0o644,))
-            require(len(raw) == 20571 and hashlib.sha256(raw).hexdigest() == VETH_SHA256, 'source')
+            raw = read(module, size, owner=0, modes=(0o644,))
+            require(len(raw) == size and hashlib.sha256(raw).hexdigest() == digest, 'source')
             # Only the vendor's fixed, dependency-free module can be admitted.
             # The bracket owns the successful load before delivering cancellation.
             previous = signal.pthread_sigmask(signal.SIG_BLOCK, SIGNALS)
             original_control = owner.control
             try:
                 owner.control = False
-                owner.run(['/usr/sbin/insmod', str(VETH_MODULE)])
+                owner.run(['/usr/sbin/insmod', str(module)])
                 self.inserted = True
             finally:
                 owner.control = original_control
@@ -609,7 +637,8 @@ def rules(uid):
 ''' % (uid, uid, uid)).encode()
 
 
-def counters(raw):
+def counters(raw, *, gui=False):
+    names = {'denied4', 'denied6', 'dns', 'dns_reply'} | ({'gui_request', 'gui_response'} if gui else set())
     value = parse(raw)
     require(type(value) is dict and value.keys() == {'nftables'} and type(value['nftables']) is list, 'observer')
     result = {}
@@ -621,12 +650,124 @@ def counters(raw):
         counter = row['counter']
         require(type(counter) is dict and counter.keys() <= {'family', 'table', 'name', 'handle', 'packets', 'bytes'}
                 and counter.get('family') == 'inet' and counter.get('table') == 'vpcal'
-                and counter.get('name') in ('denied4', 'denied6', 'dns', 'dns_reply')
+                and counter.get('name') in names
                 and counter['name'] not in result, 'observer')
-        require(all(type(counter.get(key)) is int and 0 <= counter[key] <= 4096 for key in ('packets', 'bytes')), 'observer')
+        require(all(type(counter.get(key)) is int and 0 <= counter[key] <= (128 * 1024**2 if gui else 4096) for key in ('packets', 'bytes')), 'observer')
         result[counter['name']] = dict(packets=counter['packets'], bytes=counter['bytes'])
-    require(set(result) == {'denied4', 'denied6', 'dns', 'dns_reply'}, 'observer')
+    require(set(result) == names, 'observer')
     return result
+
+
+def release_input(uid, revision):
+    temporary = Path(os.environ['RUNNER_TEMP'])
+    directory(temporary, uid)
+    receipt = parse(read(temporary / 'silex-original-dashboard-build.json', MAX_JSON, owner=uid))
+    require(receipt['operation'] == 'private_original_dashboard_native_release' and
+        receipt['studio_revision'] == revision and receipt['source_commit'] == '672efed69dda04c0a1e968859239e042f00d9538' and
+        receipt['status'] == 'passed' and all(receipt[k] is True for k in ('release_compilation_passed',
+        'immutable_source_inputs_preserved', 'private_tool_tree_removed', 'compiled_target_retained',
+        'owned_groups_joined', 'desktop_url_tests_passed', 'native_build', 'sdk_gate_verified')), 'source')
+    binary = receipt['binary']
+    require(type(binary) is dict and binary.keys() == {'bytes', 'sha256', 'mode', 'links'}
+        and type(binary['bytes']) is int and 1024**2 <= binary['bytes'] <= 128 * 1024**2
+        and re.fullmatch('[0-9a-f]{64}', binary['sha256']), 'source')
+    path = temporary / 'silex-original-dashboard-build-target/release/silex-desktop'
+    require(path.resolve(strict=True) == path, 'filesystem')
+    source = path.open('rb')
+    try:
+        info = os.fstat(source.fileno())
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == uid and stat.S_IMODE(info.st_mode) == binary['mode']
+            and info.st_mode & 0o100 and not info.st_mode & 0o022 and info.st_nlink == binary['links']
+            and info.st_size == binary['bytes'], 'source')
+    except BaseException:
+        source.close()
+        raise
+    return source, binary
+
+
+def copy_release(source, binary, destination, gid):
+    before = stable(os.fstat(source.fileno()))
+    digest = hashlib.sha256()
+    total = 0
+    with destination.open('xb') as target:
+        while block := source.read(1024 * 1024):
+            if total == 0:
+                require(block[:6] == b'\x7fELF\x02\x01', 'source')
+            total += len(block)
+            require(total <= binary['bytes'], 'source')
+            digest.update(block)
+            target.write(block)
+        require(total == binary['bytes'] and digest.hexdigest() == binary['sha256'] and
+            before == stable(os.fstat(source.fileno())), 'source')
+        os.fchown(target.fileno(), 0, gid)
+        os.fchmod(target.fileno(), 0o550)
+
+
+def gui_policy(uid):
+    require(type(uid) is int and uid >= 1000, 'identity')
+    # Only the application server's loopback TCP stream may pass. External
+    # datagrams and DNS still encounter the same calibrated drop counters.
+    return ("""flush chain inet vpcal output
+add counter inet vpcal gui_request
+add counter inet vpcal gui_response
+add rule inet vpcal output oifname "lo" meta skuid %d tcp dport 6805 counter name gui_request accept
+add rule inet vpcal output oifname "lo" tcp sport 6805 counter name gui_response accept
+add rule inet vpcal output meta skuid %d meta nfproto ipv4 counter name denied4 drop
+add rule inet vpcal output meta skuid %d meta nfproto ipv6 counter name denied6 drop
+""" % (uid, uid, uid)).encode()
+
+
+def checked_gui_detail(value):
+    labels = {'project_name', 'editable_name', 'visible_name', 'typed_name', 'create', 'refresh', 'empty_status', 'empty_message', 'dashboard_heading',
+        'open', 'working', 'quit', 'save_quit', 'loading', 'tree_interrupted'}
+    windows = {'project', 'changed_project', 'silex', 'other', 'probe_interrupted'}
+    require(type(value) is dict and value.keys() == {'error', 'source_line', 'nodes', 'labels', 'windows'}
+        and value['error'] in ('timeout', 'predicate', 'other') and type(value['source_line']) is int
+        and 0 <= value['source_line'] <= 4096 and type(value['nodes']) is int and 0 <= value['nodes'] <= 2500, 'protocol')
+    for name, allowed in (('labels', labels), ('windows', windows)):
+        items = value[name]
+        require(type(items) is list and len(items) <= len(allowed)
+            and all(type(item) is str and item in allowed for item in items)
+            and items == sorted(set(items)), 'protocol')
+    return value
+
+
+def gui_detail(raw):
+    rows = [line[11:] for line in raw.splitlines() if line.startswith(b'GUI detail ')]
+    return checked_gui_detail(parse(rows[0])) if len(rows) == 1 else None
+
+
+def gui_output(raw):
+    lines = raw.splitlines()
+    require(0 < len(lines) <= len(GUI_CHECKPOINTS) + 2, 'protocol')
+    allowed = {('GUI ' + label).encode() for label in GUI_CHECKPOINTS}
+    value = parse(lines[-1])
+    marks = lines[:-1]
+    if any(line.startswith(b'GUI detail ') for line in marks):
+        require(value.get('status') == 'failed' and gui_detail(raw) is not None, 'protocol')
+        marks = [line for line in marks if not line.startswith(b'GUI detail ')]
+    require(len(set(marks)) == len(marks) and all(line in allowed for line in marks), 'protocol')
+    return value
+
+
+def last_gui_checkpoint(raw):
+    allowed = {('GUI ' + label).encode(): label for label in GUI_CHECKPOINTS}
+    return next((allowed[line] for line in reversed(raw.splitlines()) if line in allowed), None)
+
+
+def verify_gui(value):
+    require(type(value) is dict and value.keys() == {'status', 'stage', 'process_groups_started', 'process_groups_joined',
+        'desktop_launches', 'native_window_closes', 'editor_title_states', 'canvas_readbacks', 'close_actions', 'original_project_reopened', 'project_id_sha256'} and
+        value['status'] == 'passed' and value['stage'] == 'complete' and
+        type(value['process_groups_started']) is int and value['process_groups_started'] == value['process_groups_joined'] == 4
+        and type(value['desktop_launches']) is int and value['desktop_launches'] == value['native_window_closes'] == 2
+        and type(value['editor_title_states']) is list and len(value['editor_title_states']) == 2
+        and all(item in ('clean', 'changed') for item in value['editor_title_states'])
+        and type(value['canvas_readbacks']) is list and len(value['canvas_readbacks']) == 2
+        and all(item in ('visible_pixels', 'accessible_text') for item in value['canvas_readbacks'])
+        and type(value['close_actions']) is list and len(value['close_actions']) == 2
+        and all(item in ('window_close', 'quit_dialog') for item in value['close_actions'])
+        and value['original_project_reopened'] is True and re.fullmatch('[0-9a-f]{64}', value['project_id_sha256']), 'protocol')
 
 
 def namespace_init():
@@ -654,9 +795,14 @@ def namespace_init():
                   failure_kind=None, actor_failure_predicate=None, actor_failure_site=[])
     primary = None
     dns = None
+    gui_source = None
     try:
         # Cache every source byte before hiding the original workspace/home/run.
         actor = read(stage / 'isolation_actor.py', MAX_SOURCE, owner=0)
+        if GUI:
+            gui_source, binary = release_input(uid, meta['revision'])
+            gui_actor = read(stage / 'webview.py', MAX_SOURCE, owner=0)
+            frozen = read(stage / 'lifecycle.py', MAX_SOURCE, owner=0)
         resolver = resolver_target()
         os.chdir('/')
         # unshare already cloned this private mount tree and its child mounts.
@@ -674,6 +820,11 @@ def namespace_init():
                    'nosuid,nodev,noexec', 'mqueue', '/dev/mqueue'])
         actor_parent(Path('/run/fixture'), gid)
         write_new(Path('/run/fixture/isolation_actor.py'), actor, mode=0o444)
+        if GUI:
+            for name, data in (('webview.py', gui_actor), ('lifecycle.py', frozen)):
+                write_new(Path('/run/fixture') / name, data, mode=0o444)
+            copy_release(gui_source, binary, Path('/run/fixture/silex-desktop'), gid)
+            gui_source.close()
         home = Path('/home/fixture')
         home.mkdir(mode=0o700)
         os.chown(home, uid, gid)
@@ -745,10 +896,38 @@ def namespace_init():
             ipv4_drop_packets=after['denied4']['packets'], ipv6_drop_packets=after['denied6']['packets'],
             dns_queries=queries, dns_replies=replies,
             dns_output_packets=after['dns']['packets'], dns_reply_packets=after['dns_reply']['packets'])
+        if GUI:
+            report['stage'] = 'gui_firewall'
+            dns.close()
+            dns = None
+            owner.run(['/usr/sbin/nft', '-f', '-'], payload=gui_policy(uid))
+            start = counters(owner.run(['/usr/sbin/nft', '--json', 'list', 'table', 'inet', 'vpcal']), gui=True)
+            require(all(start[k] == after[k] for k in after), 'observer')
+            report['stage'] = 'gui_actor'
+            command = actor_command(uid, gid, 'admission')[:-2] + ['/run/fixture/webview.py']
+            gui = gui_output(owner.run(command, environment=environment, seconds=72, role='gui'))
+            verify_gui(gui)
+            stop = counters(owner.run(['/usr/sbin/nft', '--json', 'list', 'table', 'inet', 'vpcal']), gui=True)
+            require(all(stop[k] == start[k] for k in ('dns', 'dns_reply', 'denied4', 'denied6'))
+                    and all(start[k]['packets'] == 0 < stop[k]['packets'] for k in ('gui_request', 'gui_response')), 'observer')
+            report['native_webview'] = dict(actor=gui, binary_sha256=binary['sha256'], counters_before=start, counters_after=stop)
         report.update(status='passed', stage='complete')
     except BaseException as error:
         primary = error
         report['failure_kind'] = error.kind if isinstance(error, Rejected) else 'namespace'
+        if GUI and report['stage'] == 'gui_actor':
+            if mark := last_gui_checkpoint(owner.last_output):
+                report['gui_failure_stage'] = mark
+            if owner.gui_exit is not None:
+                report['gui_exit'] = owner.gui_exit
+            try:
+                if detail := gui_detail(owner.last_output):
+                    report['gui_detail'] = detail
+                failed_gui = gui_output(owner.last_output)
+                require(failed_gui.get('status') == 'failed' and failed_gui.get('stage') in GUI_STAGES)
+                report['gui_failure_stage'] = failed_gui['stage']
+            except BaseException:
+                pass
         try:
             failed = parse(owner.last_output)
             require(type(failed) is dict and failed.keys() == {'schema', 'operation', 'status', 'predicate', 'site'}
@@ -761,6 +940,8 @@ def namespace_init():
             pass
     finally:
         def finish():
+            if gui_source is not None:
+                gui_source.close()
             if dns is not None:
                 dns.close()
             # Namespace PID1 is also an orphan reaper. No arbitrary foreign PID.
@@ -840,6 +1021,12 @@ def staged_supervisor():
             report['worker'] = {key: failed[key] for key in
                 ('schema', 'operation', 'status', 'stage', 'failure_kind', 'namespace_groups_started',
                  'namespace_groups_joined', 'actors_started', 'actors_joined', 'owner_scope', 'actor_failure_predicate', 'actor_failure_site')}
+            if GUI and failed.get('gui_failure_stage') in GUI_STAGES:
+                report['worker']['gui_failure_stage'] = failed['gui_failure_stage']
+            if GUI and type(failed.get('gui_exit')) is int and -64 <= failed['gui_exit'] <= 255:
+                report['worker']['gui_exit'] = failed['gui_exit']
+            if GUI and 'gui_detail' in failed:
+                report['worker']['gui_detail'] = checked_gui_detail(failed['gui_detail'])
         except BaseException:
             pass
     finally:

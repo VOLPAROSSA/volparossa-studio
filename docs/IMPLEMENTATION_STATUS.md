@@ -1,9 +1,41 @@
 # Studio implementation status
 
-Updated 2026-11-18. Requirements are the complete permanent
+Updated 2026-11-19. Requirements are the complete permanent
 [Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/STUDIO_HOSTING_REQUIREMENTS.md),
 incorporated by the full Core goal. This file records Studio evidence and next
 work, without replacing that scope or the shared Core execution ledger.
+
+## Native Silex desktop reopens a saved canvas — 2026-11-19
+
+The original Silex v3.9.0 desktop at `672efed69dda04c0a1e968859239e042f00d9538`
+ran from an offline Rust 1.99.1 build with the local Studio dashboard. The
+Azure runner used Ubuntu kernel `7.0.0-1017-azure`. Its 184 pinned SDK packages
+accounted for 74,345,024 bytes. The frontend contained 54 assets. The resulting
+34,339,248-byte ELF had SHA-256 `c0e61387d81728b79f13dd05266893d9d601f98b6338e484d7a13a0277c060b9`.
+[Hosted run at Studio source 44edad8](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44542272228)
+· [Original build receipt](evidence/native-webview/44542272228/silex-original-dashboard-build.json)
+
+The unprivileged desktop opened to an empty project list. The native pointer
+and keyboard submitted the dashboard form. Silex created a filesystem-backed
+project and assigned its ID. The fixture saved a heading containing that ID
+through the local API. In each of two fresh desktop processes, the dashboard's
+Open action reached the named editor, a real WebKit web process ran, and the
+visible canvas exposed the exact heading through accessibility. Both windows
+showed the clean project title. Both quit through Silex's own Quit dialog, exited
+with code zero and stopped their local servers.
+[Original native receipt](evidence/native-webview/44542272228/silex-native-webview.json)
+
+The two launches added 261 loopback request packets and 242 response packets.
+DNS and blocked IPv4/IPv6 counts stayed at their pre-launch calibration values.
+All four GUI process groups joined, the namespace exited and the kernel module
+returned to its initial state. Host routes, resolver and firewall matched their
+initial snapshots. The original seven-file archive was 40,934 bytes with SHA-256
+`1a09fa8bc81fd173473cfa3fff150a2858f2fb574be1e86d1b574383de3ec1fa`.
+The manual `native-webview` profile runs on protected `main`. The archive index
+also retains the preceding observations, including the first visible canvas and
+the first double reopen observed before the test helper's shutdown was corrected.
+[Receipt index and file hashes](evidence/native-webview/runs.json)
+· [Ubuntu kernel module provenance](evidence/native-webview/ubuntu-veth.json)
 
 ## A fresh browser opens a Studio site after its publisher goes offline — 2026-11-18
 

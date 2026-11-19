@@ -1,5 +1,14 @@
 # Hosted FS identifier and rename proof
 
+On 2026-11-19 the protected main revision `6a619d75a09cbf51e1a5e96223de7349f44b17fb`
+passed all 32 original Silex server library tests on its pinned upstream revision.
+These included all 14 filesystem identifier and rename controls. The proof verified
+the 563-package offline lock and joined all 20 owned process groups. The original
+2,650-byte GitHub artifact has SHA-256
+`ad736cf9dba37291c47c58933df14e3b2720a685db38ca05168cd405737f1859`.
+[Hosted run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44523793452)
+· [Original proof](../../docs/evidence/fs-identifier-rename/44523793452/silex-fs-identifier-rename-proof.json)
+
 The explicit `native_followup=fs-identifier-rename` profile is restricted to the
 `main` branch on the approved disposable
 Ubuntu24.04 runner. It authenticates the existing Rust1.99.1 carrier, creates an

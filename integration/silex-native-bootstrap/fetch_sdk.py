@@ -13,7 +13,7 @@ import stat
 import subprocess
 import sys
 import time
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -275,7 +275,18 @@ def fetch(records, invoke, archives, mirror_note=None):
             mirror_note(public_text)
     verify_uris(uris, records, mirror_raw)
     archives.mkdir(mode=0o700)
-    invoke(['/usr/bin/apt-get', *APT_OPTIONS, 'download', *specs], 240, cwd=archives)
+    download = ['/usr/bin/apt-get', *APT_OPTIONS, 'download', *specs]
+    if mirror_raw is not None and hashlib.sha256(mirror_raw).hexdigest() == 'af9816b59bc904eaf28838ae673ac2b625b6628bebfc67a7cbeae78ba06e226a':
+        # This exact EC2 descriptor includes the official HTTPS archive. Use
+        # that admitted replica directly after its regional HTTP transport
+        # twice exhausted the work budget. APT checks each signed size/hash.
+        download = ['/usr/lib/apt/apt-helper', *APT_OPTIONS, 'download-file']
+        for row in records.values():
+            relative = row['Filename']
+            download.extend(['https://archive.ubuntu.com/ubuntu/' + quote(relative, safe='/+~'),
+                str(archives / PurePosixPath(relative).name), 'SHA256:' + row['SHA256'],
+                'Checksum-FileSize:' + row['Size']])
+    invoke(download, 240, cwd=archives)
     return verify_archives(archives, records)
 
 

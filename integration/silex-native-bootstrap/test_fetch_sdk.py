@@ -158,6 +158,20 @@ class SdkFetchTests(unittest.TestCase):
             self.assertEqual(archives.stat().st_mode & 0o777, 0o700)
             verify.assert_called_once_with(archives, records)
 
+    def test_exact_ec2_descriptor_uses_its_official_https_replica_with_full_hash_and_size(self):
+        records = {'aa': record()}
+        observed = OBSERVED_MIRRORS.replace(b'azure.archive.', b'us-east-2.ec2.archive.')
+        with tempfile.TemporaryDirectory() as directory:
+            archives = Path(directory) / 'sdk-archives'
+            invoke = Mock(side_effect=[metadata(records), uris(records, mirror=True), b''])
+            with patch.object(sdk, 'system_read', return_value=observed), patch.object(sdk, 'verify_archives'):
+                sdk.fetch(records, invoke, archives)
+            row = records['aa']
+            self.assertEqual(invoke.call_args.args, (['/usr/lib/apt/apt-helper', *sdk.APT_OPTIONS, 'download-file',
+                'https://archive.ubuntu.com/ubuntu/' + row['Filename'], str(archives / Path(row['Filename']).name),
+                'SHA256:' + row['SHA256'], 'Checksum-FileSize:' + row['Size']], 240))
+            self.assertEqual(invoke.call_args.kwargs, {'cwd': archives})
+
     def test_observed_ec2_descriptor_admits_only_its_exact_region_and_fallbacks(self):
         mirror = OBSERVED_MIRRORS.replace(b'azure.archive.', b'us-east-2.ec2.archive.')
         self.assertEqual(len(mirror), 152)
