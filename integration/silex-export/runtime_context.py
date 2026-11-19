@@ -6,17 +6,21 @@ from pathlib import Path
 import pwd
 import stat
 
+from topology_image import NAME as CHART_NAME
+
 CONTEXT_KEYS = frozenset(('STUDIO_NODE', 'STUDIO_CHROME', 'STUDIO_SILEX_SOURCE',
     'STUDIO_FIXTURE_TEMP', 'STUDIO_ZIP_OUTPUT', 'STUDIO_BROWSER_RECEIPT', 'RUNNER_TEMP', 'HOME'))
 
 
 def checked_context(path, values):
     temporary = Path(path).parent
-    if set(values) != CONTEXT_KEYS or any(type(value) is not str for value in values.values()):
+    if set(values) not in (CONTEXT_KEYS, CONTEXT_KEYS | {'STUDIO_FIXTURE_IMAGE'}) or any(type(value) is not str for value in values.values()):
         raise ValueError('closed runtime context required')
     expected = {'STUDIO_NODE': temporary / 'node/node', 'STUDIO_SILEX_SOURCE': temporary / 'silex',
         'STUDIO_FIXTURE_TEMP': temporary, 'STUDIO_ZIP_OUTPUT': temporary / 'actual-export.zip',
         'STUDIO_BROWSER_RECEIPT': temporary / 'browser.json', 'RUNNER_TEMP': temporary.parent}
+    if 'STUDIO_FIXTURE_IMAGE' in values:
+        expected['STUDIO_FIXTURE_IMAGE'] = temporary / CHART_NAME
     if any(values[key] != str(value) for key, value in expected.items()):
         raise ValueError('runtime context path boundary')
     if values['HOME'] != pwd.getpwuid(os.getuid()).pw_dir:
@@ -27,7 +31,8 @@ def checked_context(path, values):
 
 
 def write_context(path, env):
-    values = checked_context(path, {key: env[key] for key in CONTEXT_KEYS})
+    keys = CONTEXT_KEYS | ({'STUDIO_FIXTURE_IMAGE'} if 'STUDIO_FIXTURE_IMAGE' in env else set())
+    values = checked_context(path, {key: env[key] for key in keys})
     data = (json.dumps(values, sort_keys=True) + '\n').encode()
     if len(data) > 16384:
         raise ValueError('runtime context size bound')
