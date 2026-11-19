@@ -237,3 +237,39 @@ external petite-vue. This profile is private compile evidence only: six JSON
 artifact paths, no ELF, frontend assets, dashboard bytes or raw build-log uploads.
 Native GUI/privacy, offline functional dashboard, product distribution, native
 publication consent, hosting and full Studio acceptance remain open.
+
+### Ubuntu 24.04 runner refresh on November 19
+
+The October SDK remains pinned at the source of its successful private compile.
+Run 44436582427 verified the compiler and fetched 607 locked Cargo records, then
+refused the old package set against the runner's current signed APT indexes.
+It read package metadata, joined its owned process and downloaded zero SDK archives.
+[October manifest](https://github.com/VOLPAROSSA/volparossa-studio/blob/66f512c444538127b7e59c34d5f618bb8a98d1cf/integration/silex-native-bootstrap/ubuntu-sdk.json) · [November refusal](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44436582427)
+
+Read-only inventory 44437919214 resolved the same 16 requested packages to 178
+planned installations and 184 distinct archives totaling 74,345,024 bytes.
+Of 180 common package records, 165 are byte-identical and 15 carry Ubuntu
+version updates for WebKit/JavaScriptCore, Soup, GStreamer and Mesa. The new
+plan includes four Mesa libraries and omits the two Brotli entries from the old
+plan. The manifest binds the exact artifact, signed indexes and per-archive
+hashes. Installation still requires an exact offline, no-removal plan, refuses
+downgrades and verifies installed versions and architectures.
+[Signed package inventory](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44437919214)
+
+An independent check matched all 184 recorded package descriptors, including
+versions, dependencies, byte lengths, archive paths and SHA-256 values, to
+Ubuntu's signed noble, updates and security indexes. It verified their
+InRelease signatures against the Ubuntu archive key
+`F6ECB3762474EDA9D21B7022871920D1991BC93C` and the listed hashes of the
+main and universe amd64 Packages indexes. The updates snapshot matches the
+runner's exact InRelease SHA-256 `dc5bcae8f20f2430cdcbfb712573ada0914bd457096eeea5daf7ffdb6d273356`.
+[Ubuntu snapshot](https://snapshot.ubuntu.com/ubuntu/20261118T223800Z/dists/noble-updates/InRelease)
+
+The first November build matched the 184 current archive descriptors, then
+refused the runner's newly observed 152-byte Canonical EC2 mirror descriptor
+before downloading or installing any package. The approved file has the exact
+SHA-256 `af9816b59bc904eaf28838ae673ac2b625b6628bebfc67a7cbeae78ba06e226a`.
+It selects `us-east-2.ec2.archive.ubuntu.com` with the existing official archive
+and security fallbacks. The earlier Azure descriptor remains admitted. The
+negative controls include a different EC2 region and changed fallback priority.
+[Mirror receipt](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44439231433)

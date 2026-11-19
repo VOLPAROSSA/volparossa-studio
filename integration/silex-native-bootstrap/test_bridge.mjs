@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import test from 'node:test';
+import { spawnSync } from 'node:child_process';
 import { URL, URLSearchParams } from 'node:url';
 import vm from 'node:vm';
 
@@ -14,7 +14,7 @@ const MAX_SOURCE = 64 * 1024;
 const VM_MILLISECONDS = 200;
 const TEST_MILLISECONDS = 5000;
 
-function admittedSource() {
+function admittedSource(args) {
   assert.equal(process.env.GITHUB_ACTIONS, 'true');
   assert.equal(process.env.RUNNER_ENVIRONMENT, 'github-hosted');
   assert.equal(process.env.RUNNER_OS, 'Linux');
@@ -24,7 +24,6 @@ function admittedSource() {
   assert.equal(process.version, 'v24.19.0');
   assert.notEqual(process.getuid(), 0);
   assert.notEqual(process.geteuid(), 0);
-  const args = process.argv.slice(2);
   assert.equal(args.length, 6);
   assert.equal(args[0], '--source-root');
   assert.equal(args[2], '--bridge-sha256');
@@ -255,8 +254,11 @@ function noTelemetry(observed) {
   assert.deepEqual(observed.scripts, []);
 }
 
-const sources = admittedSource();
-const boundedTest = (name, callback) => test(name, { timeout: TEST_MILLISECONDS }, callback);
+const args = process.argv.slice(2);
+const child = args.length === 8 && args[6] === '--case';
+const sources = admittedSource(child ? args.slice(0, 6) : args);
+const cases = [];
+const boundedTest = (name, callback) => cases.push({ name, callback });
 
 boundedTest('pristine 672 bridge positively detects stale-context SDK identity error and timing paths', () => {
   const f = fixture(sources.baseline, { allowSdk: true, poisonSentry: false, rejectListeners: true });
@@ -410,3 +412,25 @@ boundedTest('patched editor polling and bounded VM refuse real network module ac
   assert.throws(() => promises.execute('Promise.resolve().then(function again() { Promise.resolve().then(again); });'),
     /Script execution timed out/);
 });
+
+// Node's test runner installs async hooks. Keep a VM's own microtask queue and
+// timeout in a separate process, including a hard per-case deadline.
+assert.equal(cases.length, 9);
+if (child) {
+  assert.match(args[7], /^[0-8]$/);
+  cases[Number(args[7])].callback();
+  process.stdout.write('bridge case passed\n');
+} else {
+  const { test } = await import('node:test');
+  for (const [index, { name }] of cases.entries()) {
+    test(name, () => {
+      const result = spawnSync(process.execPath, [process.argv[1], ...args, '--case', String(index)], {
+        timeout: TEST_MILLISECONDS, killSignal: 'SIGKILL', maxBuffer: 64 * 1024, encoding: 'utf8',
+      });
+      assert.ok(!result.error && result.signal === null, 'bounded bridge case must finish');
+      assert.equal(result.status, 0, 'bridge assertions must pass');
+      assert.equal(result.stdout, 'bridge case passed\n');
+      assert.equal(result.stderr, '');
+    });
+  }
+}

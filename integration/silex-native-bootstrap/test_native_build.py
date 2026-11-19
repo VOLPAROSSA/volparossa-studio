@@ -138,14 +138,14 @@ class NativeBuildTests(unittest.TestCase):
         revision = 'a' * 40
         outer = dict(schema=1, mode='native-sdk-offline-install', status='passed', stage='complete',
                      sdk_manifest_sha256=M.SDK_MANIFEST, packages_installed=True, sdk_installed=True,
-                     studio_revision=revision, verified_package_count=182, archive_bytes=63772228, hashes=hashes,
+                     studio_revision=revision, verified_package_count=184, archive_bytes=74345024, hashes=hashes,
                      admission_diagnostic={'substage': 'complete'},
                      cleanup={'owned_groups_joined': True, 'owned_group_count': 1, 'root_cache_retained': True,
                               'package_rollback_attempted': False}, **dict.fromkeys(M.SDK_FALSE, False))
         root = dict(schema=1, mode='native-sdk-offline-root-install', status='passed', stage='complete',
                     sdk_manifest_sha256=M.SDK_MANIFEST, packages_installed=True, sdk_installed=True,
-                    studio_revision=revision, run_id='123', run_attempt='1', verified_package_count=182,
-                    hashes=hashes, owned_group_count=6, planned_package_count=182, plan_sha256='c' * 64,
+                    studio_revision=revision, run_id='123', run_attempt='1', verified_package_count=184,
+                    hashes=hashes, owned_group_count=6, planned_package_count=184, plan_sha256='c' * 64,
                     **dict.fromkeys(M.SDK_FALSE, False))
         root['admission_diagnostic'] = {'substage': 'complete'}
         root.update(dict.fromkeys(('network_namespace_isolated', 'root_archive_cache_verified',
@@ -166,7 +166,7 @@ class NativeBuildTests(unittest.TestCase):
             for key, bad in (('owned_groups_joined', False), ('policy_restored', False), ('run_id', '124'),
                              ('owned_group_count', 5),
                              ('planned_package_count', True), ('planned_package_count', -1),
-                             ('planned_package_count', 183), ('planned_package_count', '182'),
+                             ('planned_package_count', 185), ('planned_package_count', '184'),
                              ('plan_sha256', 'A' * 64), ('plan_sha256', 'c' * 63), ('plan_sha256', None)):
                 changed = copy.deepcopy(root)
                 changed[key] = bad

@@ -48,8 +48,8 @@ class SdkFetchTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(raw).hexdigest(), sdk.MANIFEST_SHA256)
         value = json.loads(raw)
         records = sdk.validate_manifest(value)
-        self.assertEqual(len(records), 182)
-        self.assertEqual(sum(int(row['Size']) for row in records.values()), 63772228)
+        self.assertEqual(len(records), 184)
+        self.assertEqual(sum(int(row['Size']) for row in records.values()), 74345024)
         self.assertEqual(set(value['requested']), sdk.REQUESTED)
         for key in value['scope']:
             self.assertIs(value['scope'][key], key == 'metadata_verified')
@@ -157,6 +157,18 @@ class SdkFetchTests(unittest.TestCase):
                              ['/usr/bin/apt-get', *sdk.APT_OPTIONS, 'download', 'aa=1.0-1'])
             self.assertEqual(archives.stat().st_mode & 0o777, 0o700)
             verify.assert_called_once_with(archives, records)
+
+    def test_observed_ec2_descriptor_admits_only_its_exact_region_and_fallbacks(self):
+        mirror = OBSERVED_MIRRORS.replace(b'azure.archive.', b'us-east-2.ec2.archive.')
+        self.assertEqual(len(mirror), 152)
+        self.assertEqual(hashlib.sha256(mirror).hexdigest(),
+                         'af9816b59bc904eaf28838ae673ac2b625b6628bebfc67a7cbeae78ba06e226a')
+        records = {'aa': record()}
+        sdk.verify_uris(uris(records, mirror=True), records, mirror)
+        for candidate in (mirror.replace(b'us-east-2', b'us-east-1'),
+                          mirror.replace(b'priority:1', b'priority:2'), mirror.rstrip()):
+            with self.subTest(candidate=candidate), self.assertRaises(sdk.support.Rejected):
+                sdk.verify_uris(uris(records, mirror=True), records, candidate)
 
     def test_unobserved_public_mirror_is_diagnostic_only_and_denies_before_effects(self):
         records = {'aa': record()}
