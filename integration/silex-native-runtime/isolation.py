@@ -133,7 +133,8 @@ def root_command(environment):
 def verify_root(value, revision, hashes):
     keys = {'schema', 'operation', 'status', 'stage', 'studio_revision', 'source_sha256', 'worker',
         'namespace_parent_joined', 'namespace_init_exit_confirmed', 'host_before_sha256', 'host_after_sha256',
-        'host_network_configuration_unchanged', 'root_carrier_removed', 'source_groups_started',
+        'host_network_configuration_unchanged', 'veth_initially_registered', 'veth_temporarily_loaded',
+        'veth_state_restored', 'root_carrier_removed', 'source_groups_started',
         'source_groups_joined', 'owned_groups_started', 'owned_groups_joined', 'failure_kind'}
     S.require(type(value) is dict and value.keys() == keys and type(value['schema']) is int
         and value['schema'] == 1 and value['operation'] == 'root_isolation_supervisor'
@@ -141,7 +142,9 @@ def verify_root(value, revision, hashes):
         and value['studio_revision'] == revision and value['source_sha256'] == hashes
         and value['failure_kind'] is None, 'protocol')
     S.require(all(value[name] is True for name in ('namespace_parent_joined', 'namespace_init_exit_confirmed',
-        'host_network_configuration_unchanged', 'root_carrier_removed')), 'cleanup')
+        'host_network_configuration_unchanged', 'veth_state_restored', 'root_carrier_removed')), 'cleanup')
+    S.require(type(value['veth_initially_registered']) is bool and
+        value['veth_temporarily_loaded'] is (not value['veth_initially_registered']), 'cleanup')
     for prefix in ('source_groups', 'owned_groups'):
         S.require(type(value[prefix + '_started']) is int and 0 < value[prefix + '_started'] <= 128
             and value[prefix + '_started'] == value[prefix + '_joined'], 'cleanup')
@@ -198,12 +201,15 @@ def root_failure(raw, revision, hashes):
                   and value['host_before_sha256'] is None and value['host_after_sha256'] is None, 'protocol')
     else:
         S.require(value.keys() == common | {'source_sha256', 'worker', 'namespace_parent_joined',
-            'namespace_init_exit_confirmed', 'host_network_configuration_unchanged'}
+            'namespace_init_exit_confirmed', 'host_network_configuration_unchanged', 'veth_initially_registered',
+            'veth_temporarily_loaded', 'veth_state_restored'}
             and value['operation'] == 'root_isolation_supervisor'
             and value['stage'] in S.ROOT_SUPERVISOR_STAGES and value['source_sha256'] == hashes, 'source')
         verified = True
         S.require(all(type(value[name]) is bool for name in ('namespace_parent_joined',
-            'namespace_init_exit_confirmed', 'host_network_configuration_unchanged')), 'protocol')
+            'namespace_init_exit_confirmed', 'host_network_configuration_unchanged', 'veth_temporarily_loaded',
+            'veth_state_restored')) and (value['veth_initially_registered'] is None or
+            type(value['veth_initially_registered']) is bool), 'protocol')
         candidate = value['worker']
         if candidate is not None:
             S.require(type(candidate) is dict, 'protocol')

@@ -70,9 +70,9 @@ No runtime-isolation or GUI acceptance follows from a complete inventory.
 The separate manual `sdk-isolation` choice uses the existing
 `.github/workflows/silex-publication-bounds.yml`, restricted to those same branches and their
 exact selected source SHA. It authenticates the four reviewed isolation
-source/control files and the frozen lifecycle helper, then runs twenty-two
+source/control files and the frozen lifecycle helper, then runs the
 isolation controls before any APT or SDK action. It reuses the unchanged signed
-metadata update, exact 182-package SDK acquisition/offline installation and fresh
+metadata update, reviewed SDK acquisition, offline installation and fresh
 strict inventory from `runtime-sdk-inventory`. Only then does the absolute,
 no-argument isolation controller run. Its fixed internal environment and typed
 protocol remain the authority boundary; no caller-supplied tool, command or path
@@ -104,3 +104,13 @@ manifest and installer plus all 184 verified package rows and their 74,345,024
 archive bytes. The worker, actor, namespace checks and cleanup requirements
 are the same ones exercised by the October isolation probe.
 [Signed inventory](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44437919214)
+
+
+When the host resolver is managed by systemd-resolved, the supervisor reads the
+root-selected target as the recorded service UID. The worker recreates the
+mount target inside its fresh private `/run`. The host resolver is sampled again
+after the worker has exited. If the fixture needs to register veth, it uses the
+Ubuntu 7.0.0-1017-azure package's installed 20,571-byte module. The supervisor
+checks the exact SHA-256 and root-owned path, then unloads its own registration
+after the namespace exits. An existing registration is preserved. Successful
+cleanup requires the observed original registration state.

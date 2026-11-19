@@ -62,7 +62,7 @@ RESOLVER = b'nameserver 127.0.0.53\noptions attempts:1 timeout:1\n'
 COOPERATIVE_GRACE = {'namespace': 6.0, 'root': 20.0}
 ROOT_ENTRY_STAGES = frozenset(('entry', 'admission', 'identity', 'carrier_create',
     'lifecycle_authentication', 'source_verification', 'carrier_write', 'carrier_exec', 'staged_source'))
-ROOT_SUPERVISOR_STAGES = frozenset(('host_before', 'namespace_worker', 'host_after', 'complete'))
+ROOT_SUPERVISOR_STAGES = frozenset(('host_before', 'veth_setup', 'namespace_worker', 'host_after', 'complete'))
 # Request-local state only. Unknown observations remain null, never successful.
 ENTRY_STATE = dict(stage='entry', source_verified=False, source_sha256=None,
                    source_owner=None, root_carrier_removed=None)
@@ -455,7 +455,86 @@ def clean_network_json(value):
     return value
 
 
+RESOLV_CONF = Path('/etc/resolv.conf')
+RESOLVED_CONF = frozenset((Path('/run/systemd/resolve/resolv.conf'), Path('/run/systemd/resolve/stub-resolv.conf')))
+
+
+def resolver_target():
+    target = RESOLV_CONF.resolve(strict=True)
+    require(target == RESOLV_CONF or target in RESOLVED_CONF, 'host_changed')
+    return target
+
+
+def host_resolver(target):
+    require(target == RESOLV_CONF or target in RESOLVED_CONF, 'filesystem')
+    owner = target.stat().st_uid
+    if owner == 0:
+        return read(target, 65536, owner=0)
+    require(target in RESOLVED_CONF and RESOLV_CONF.lstat().st_uid == 0, 'filesystem')
+    service = pwd.getpwnam('systemd-resolve').pw_uid
+    require(0 < service < 1000 and owner == service, 'filesystem')
+    directory(Path('/run'), 0)
+    directory(Path('/run/systemd'), 0)
+    parent_owner = target.parent.stat().st_uid
+    require(parent_owner in (0, service), 'filesystem')
+    directory(target.parent, parent_owner)
+    return read(target, 65536, owner=service, modes=(0o644,))
+
+
+# Canonical Ubuntu linux-modules-7.0.0-1017-azure, archive SHA-256
+# 19ad1d32c0138b6ef90257f211e80490d3aaf322ba5c3c2910fdfbfb1f20da6d.
+VETH_RELEASE = '7.0.0-1017-azure'
+VETH_MODULE = Path('/usr/lib/modules') / VETH_RELEASE / 'kernel/drivers/net/veth.ko.zst'
+VETH_SHA256 = 'c3b882d30b01b331da0554b4bf838f87bb6be6b5c8b96ef3e98052abd5d6b32d'
+VETH_REGISTERED = Path('/sys/module/veth')
+
+
+class VethRegistration:
+    def __init__(self):
+        self.before = None
+        self.inserted = False
+        self.identity = None
+        self.restored = False
+
+    def prepare(self, owner):
+        self.before = VETH_REGISTERED.is_dir()
+        if not self.before:
+            require(os.uname().release == VETH_RELEASE, 'source')
+            for parent in VETH_MODULE.parents:
+                directory(parent, 0)
+            raw = read(VETH_MODULE, 20571, owner=0, modes=(0o644,))
+            require(len(raw) == 20571 and hashlib.sha256(raw).hexdigest() == VETH_SHA256, 'source')
+            # Only the vendor's fixed, dependency-free module can be admitted.
+            # The bracket owns the successful load before delivering cancellation.
+            previous = signal.pthread_sigmask(signal.SIG_BLOCK, SIGNALS)
+            original_control = owner.control
+            try:
+                owner.control = False
+                owner.run(['/usr/sbin/insmod', str(VETH_MODULE)])
+                self.inserted = True
+            finally:
+                owner.control = original_control
+                signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+        self.identity = directory(VETH_REGISTERED, 0)
+
+    def restore(self, owner):
+        if self.before is None:
+            return
+        if self.inserted:
+            require(owner.started == owner.joined, 'cleanup')
+            if self.identity is not None:
+                require(directory(VETH_REGISTERED, 0) == self.identity, 'host_changed')
+            # Use the existing terminal cleanup reserve after the worker has exited.
+            owner.work, owner.control = owner.end - 4, False
+            owner.run(['/usr/sbin/rmmod', 'veth'])
+        require(VETH_REGISTERED.is_dir() == self.before, 'host_changed')
+        if self.before and self.identity is not None:
+            require(directory(VETH_REGISTERED, 0) == self.identity, 'host_changed')
+        self.restored = True
+
+
 def host_network(owner):
+    require(Path('/sys/module/nf_tables').is_dir(), 'network')
     routes = {}
     for name, dropped in (('route', (4, 5)), ('ipv6_route', (6, 7))):
         raw = kernel_read(Path('/proc/net/' + name), 65536)
@@ -463,9 +542,7 @@ def host_network(owner):
         rows = [line.split() for line in lines]
         require(all(len(row) == (11 if name == 'route' else 10) for row in rows), 'host_changed')
         routes[name] = [[token.decode('ascii') for index, token in enumerate(row) if index not in dropped] for row in rows]
-    resolver = Path('/etc/resolv.conf').resolve(strict=True)
-    require(str(resolver) in ('/etc/resolv.conf', '/run/systemd/resolve/resolv.conf', '/run/systemd/resolve/stub-resolv.conf'), 'host_changed')
-    raw = read(resolver, 65536, owner=0)
+    raw = host_resolver(resolver_target())
     nft = parse(owner.run(['/usr/sbin/nft', '--json', '--numeric', 'list', 'ruleset']), maximum=MAX_JSON)
     return dict(routes_sha256=hashlib.sha256(encoded(routes)).hexdigest(),
                 resolver_sha256=hashlib.sha256(raw).hexdigest(),
@@ -557,6 +634,7 @@ def namespace_init():
     try:
         # Cache every source byte before hiding the original workspace/home/run.
         actor = read(stage / 'isolation_actor.py', MAX_SOURCE, owner=0)
+        resolver = resolver_target()
         os.chdir('/')
         # Recursive bind preserves the already-private proc/dev child mounts;
         # remount,bind,ro changes this mount, never the host superblock's mode.
@@ -585,11 +663,17 @@ def namespace_init():
         runtime = Path('/run/user') / str(uid)
         runtime.mkdir(mode=0o700); os.chown(runtime, uid, gid)
         # The fixture resolver is private. No host resolver bytes are edited.
-        target = Path('/etc/resolv.conf').resolve(strict=True)
-        require(str(target) == '/etc/resolv.conf', 'filesystem')
+        if resolver in RESOLVED_CONF:
+            # The original systemd resolver directory was hidden by our private /run.
+            # Recreate only the known target so the existing system symlink remains valid.
+            for parent in (Path('/run/systemd'), Path('/run/systemd/resolve')):
+                parent.mkdir(mode=0o755)
+                parent.chmod(0o755)
+            write_new(resolver, b'', mode=0o444)
+        require(resolver_target() == resolver, 'filesystem')
         write_new(Path('/run/fixture/resolv.conf'), RESOLVER, mode=0o444)
-        owner.run(['/usr/bin/mount', '--no-mtab', '--bind', '/run/fixture/resolv.conf', '/etc/resolv.conf'])
-        owner.run(['/usr/bin/mount', '--no-mtab', '-o', 'remount,bind,ro', '/etc/resolv.conf'])
+        owner.run(['/usr/bin/mount', '--no-mtab', '--bind', '/run/fixture/resolv.conf', str(resolver)])
+        owner.run(['/usr/bin/mount', '--no-mtab', '-o', 'remount,bind,ro', str(resolver)])
         environment = actor_environment(uid, gid, meta['parent_namespaces'], meta['host_canary'],
                                         meta['parent_ipc_views'], meta['host_ipc_canary'])
         report['stage'] = 'admission_actor'
@@ -688,6 +772,7 @@ def staged_supervisor():
         require(hashlib.sha256(read(stage / filename, MAX_SOURCE, owner=0)).hexdigest() == meta['sources'][label], 'source')
     lifecycle = load_lifecycle(stage / 'lifecycle.py', meta['sources']['lifecycle'], 0)
     owner = Owner(lifecycle, work, end)
+    veth = VethRegistration()
     primary = None
     report = dict(schema=1, operation='root_isolation_supervisor', status='failed', stage='host_before',
         studio_revision=meta['revision'], source_sha256=meta['sources'], worker=None, namespace_parent_joined=False,
@@ -698,6 +783,8 @@ def staged_supervisor():
     try:
         before = host_network(owner)
         report['host_before_sha256'] = before
+        report['stage'] = 'veth_setup'
+        veth.prepare(owner)
         report['stage'] = 'namespace_worker'
         env = {k: os.environ[k] for k in HOST_KEYS}
         env.update(ENV, VP_ISOLATION_WORK_NS=os.environ['VP_ISOLATION_WORK_NS'],
@@ -732,6 +819,9 @@ def staged_supervisor():
         except BaseException:
             pass
     finally:
+        primary = masked_cleanup(primary, lambda: veth.restore(owner))
+        report.update(veth_initially_registered=veth.before, veth_temporarily_loaded=veth.inserted,
+                      veth_state_restored=veth.restored)
         def remove():
             require(owner.started == owner.joined, 'cleanup')
             directory(stage, 0, private=True)

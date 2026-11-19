@@ -15,7 +15,7 @@ import tempfile
 import time
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 HERE = Path(__file__).resolve().parent
 
@@ -50,6 +50,7 @@ def passed_root():
         namespace_parent_joined=True, namespace_init_exit_confirmed=True,
         host_before_sha256=host, host_after_sha256=dict(host),
         host_network_configuration_unchanged=True, root_carrier_removed=True,
+        veth_initially_registered=False, veth_temporarily_loaded=True, veth_state_restored=True,
         source_groups_started=8, source_groups_joined=8,
         owned_groups_started=3, owned_groups_joined=3, failure_kind=None)
 
@@ -59,6 +60,75 @@ def verify(value):
 
 
 class IsolationTests(unittest.TestCase):
+    def test_host_resolver_binds_known_service_uid_path_and_mode(self):
+        target = Path('/run/systemd/resolve/stub-resolv.conf')
+        observed = SimpleNamespace(st_uid=991)
+        with patch.object(Path, 'stat', return_value=observed), \
+                patch.object(Path, 'lstat', return_value=SimpleNamespace(st_uid=0)), \
+                patch.object(S.pwd, 'getpwnam', return_value=SimpleNamespace(pw_uid=991)), \
+                patch.object(S, 'directory') as directory, patch.object(S, 'read') as read:
+            S.host_resolver(target)
+            read.assert_called_once_with(target, 65536, owner=991, modes=(0o644,))
+            self.assertEqual([args.args for args in directory.call_args_list],
+                [(Path('/run'), 0), (Path('/run/systemd'), 0), (target.parent, 991)])
+            observed.st_uid = 992
+            with self.assertRaises(S.Rejected):
+                S.host_resolver(target)
+            observed.st_uid = 0
+            with self.assertRaises(S.Rejected):
+                S.host_resolver(Path('/run/unreviewed'))
+            self.assertEqual(read.call_count, 1)
+
+    def test_veth_preserves_registered_module_and_rejects_changed_vendor_bytes(self):
+        for registered in (True, False):
+            with self.subTest(registered=registered), patch.object(Path, 'is_dir', return_value=registered), \
+                    patch.object(S, 'directory', return_value=(1, 2)), \
+                    patch.object(S.os, 'uname', return_value=SimpleNamespace(release=S.VETH_RELEASE)), \
+                    patch.object(S, 'read', return_value=b'x' * 20571):
+                state, owner = S.VethRegistration(), Mock()
+                if registered:
+                    state.prepare(owner)
+                else:
+                    with self.assertRaises(S.Rejected):
+                        state.prepare(owner)
+                state.restore(owner)
+                self.assertTrue(state.restored)
+                self.assertFalse(state.inserted)
+                owner.run.assert_not_called()
+
+    def test_veth_removes_only_successfully_inserted_fixture_module(self):
+        original = b'v' * 20571
+        owner = Mock(control=True, started=2, joined=2, end=103)
+        with patch.object(Path, 'is_dir', return_value=False), \
+                patch.object(S, 'directory', return_value=(1, 2)), \
+                patch.object(S.os, 'uname', return_value=SimpleNamespace(release=S.VETH_RELEASE)), \
+                patch.object(S, 'read', return_value=original), \
+                patch.object(S, 'VETH_SHA256', S.hashlib.sha256(original).hexdigest()):
+            state = S.VethRegistration()
+            state.prepare(owner)
+            self.assertTrue(owner.control)
+            self.assertTrue(state.inserted)
+            state.restore(owner)
+            self.assertTrue(state.restored)
+            self.assertEqual([args.args[0] for args in owner.run.call_args_list],
+                [['/usr/sbin/insmod', str(S.VETH_MODULE)], ['/usr/sbin/rmmod', 'veth']])
+            self.assertEqual(owner.work, 99)
+            owner.run.reset_mock()
+            owner.run.side_effect = S.Rejected('child')
+            failed = S.VethRegistration()
+            with self.assertRaises(S.Rejected):
+                failed.prepare(owner)
+            failed.restore(owner)
+            owner.run.assert_called_once_with(['/usr/sbin/insmod', str(S.VETH_MODULE)])
+
+    def test_success_requires_closed_module_lifecycle(self):
+        for key, observed in (('veth_state_restored', False), ('veth_initially_registered', True),
+                              ('veth_temporarily_loaded', 1)):
+            with self.subTest(key=key), self.assertRaises(S.Rejected):
+                value = passed_root()
+                value[key] = observed
+                verify(value)
+
     def test_duplicate_nonfinite_oversized_or_invalid_utf8_protocol_is_closed(self):
         for raw in (b'{"passed":true,"passed":false}', b'{"value":NaN}', b'\xff',
                     b' ' * (S.MAX_JSON + 1), b''):
