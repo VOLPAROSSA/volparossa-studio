@@ -5,7 +5,7 @@ set -euo pipefail
 umask 077
 [[ $GITHUB_ACTIONS == true && $RUNNER_ENVIRONMENT == github-hosted && $RUNNER_OS == Linux && $RUNNER_ARCH == X64 ]]
 [[ $GITHUB_EVENT_NAME == workflow_dispatch && $GITHUB_REPOSITORY == VOLPAROSSA/volparossa-studio ]]
-[[ $GITHUB_REF == refs/heads/main || $GITHUB_REF == refs/heads/feature/native-local-dashboard-20261029 ]]
+[[ $GITHUB_REF == refs/heads/main ]]
 [[ $GITHUB_SHA =~ ^[0-9a-f]{40}$ && $GITHUB_SHA == "$GITHUB_WORKFLOW_SHA" ]]
 [[ $GITHUB_RUN_ID =~ ^[1-9][0-9]{0,19}$ && $GITHUB_RUN_ATTEMPT =~ ^[1-9][0-9]{0,5}$ ]]
 [[ $(id -u) != 0 && $(git -C "$GITHUB_WORKSPACE/studio" rev-parse HEAD) == "$GITHUB_SHA" ]]

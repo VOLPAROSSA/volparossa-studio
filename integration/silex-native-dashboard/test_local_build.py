@@ -218,7 +218,7 @@ class LocalBuildTests(unittest.TestCase):
         with patch.object(M, 'COMPOSE_SHA256', compose_digest), \
                 patch.object(M.sys, 'argv', [str(M.HERE / 'local_build.py')]), \
                 patch.dict(M.os.environ, {'GITHUB_EVENT_NAME': 'workflow_dispatch',
-                    'GITHUB_REF': 'refs/heads/feature/native-local-dashboard-20261029', 'GITHUB_WORKSPACE': '/workspace'}), \
+                    'GITHUB_REF': 'refs/heads/main', 'GITHUB_WORKSPACE': '/workspace'}), \
                 patch('importlib.util.spec_from_file_location', return_value=spec), \
                 patch('importlib.util.module_from_spec', return_value=native), \
                 patch.object(M.Path, 'exists', return_value=False), \

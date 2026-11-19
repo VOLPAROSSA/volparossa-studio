@@ -1,7 +1,7 @@
 # Hosted FS identifier and rename proof
 
 The explicit `native_followup=fs-identifier-rename` profile is restricted to the
-`feature/native-local-dashboard-20261029` branch on the approved disposable
+`main` branch on the approved disposable
 Ubuntu24.04 runner. It authenticates the existing Rust1.99.1 carrier, creates an
 empty private Cargo home, and reuses the public-only locked acquisition of the
 607-package / `35d0…3536` publication baseline. It then applies the reviewed

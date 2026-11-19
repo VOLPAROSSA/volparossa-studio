@@ -342,6 +342,15 @@ class ProofTests(unittest.TestCase):
         for path, expected in M.PINS.items():
             self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), expected)
 
+    def test_main_dispatch_reaches_the_pinned_native_helper(self):
+        reached = RuntimeError('verified entry')
+        with patch.object(M.sys, 'argv', [str(M.HERE / 'proof.py')]), \
+                patch.dict(M.os.environ, {'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_REF': 'refs/heads/main'}), \
+                patch.object(M, 'load', side_effect=reached) as load, self.assertRaises(RuntimeError) as stopped:
+            M.main()
+        self.assertIs(stopped.exception, reached)
+        load.assert_called_once_with('fs_proof_native', M.BOOTSTRAP / 'native_build.py')
+
     def test_wrong_profile_or_nonabsolute_entry_is_refused_before_any_helper_import(self):
         with patch.object(M.sys, 'argv', [str(M.HERE / 'proof.py')]), \
                 patch.dict(M.os.environ, {'GITHUB_EVENT_NAME': 'workflow_dispatch',
