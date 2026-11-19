@@ -72,6 +72,21 @@ class SiteExportTests(unittest.TestCase):
                 with self.assertRaises(supervisor.Rejected):
                     supervisor.verify_site_review(wrong)
 
+    def test_export_profile_requires_its_review_and_the_reopen_profile_remains_independent(self):
+        actor = dict(status='passed', stage='complete', process_groups_started=4, process_groups_joined=4,
+            desktop_launches=2, native_window_closes=2, editor_title_states=['clean', 'clean'],
+            canvas_readbacks=['accessible_text', 'accessible_text'], close_actions=['quit_dialog', 'quit_dialog'],
+            original_project_reopened=True, project_id_sha256='0' * 64)
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            saved(root)
+            exported = dict(actor, site_pack_review=review(root))
+            for enabled, accepted, rejected in ((False, actor, exported), (True, exported, actor)):
+                with patch.object(supervisor, 'SITE_EXPORT', enabled):
+                    supervisor.verify_gui(accepted)
+                    with self.assertRaises(supervisor.Rejected):
+                        supervisor.verify_gui(rejected)
+
     def test_packer_receipt_is_bound_to_actual_bundle_and_original_files(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / 'site'

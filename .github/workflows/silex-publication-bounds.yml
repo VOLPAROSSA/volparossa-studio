@@ -632,6 +632,11 @@ jobs:
           export PATH="$RUNNER_TEMP/volparossa-rust-1.89.0/bin:$PATH"
           export CARGO_HOME="$RUNNER_TEMP/volparossa-cargo-public-v1"
           export CARGO_TARGET_DIR="$RUNNER_TEMP/studio-native-site-core-target"
+          # GitHub applies the compiler's exported Git environment to later steps.
+          # This step also fetches, so activate and check Core's same public policy here.
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_GLOBAL=/dev/null
+          export GIT_ALLOW_PROTOCOL=https GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/usr/bin/false
+          python3 -I -B scripts/cargo-source-policy.py check
           cargo fetch --locked
           cargo build --locked --offline -p volparossa --bin volparossa
           test -z "$(git status --porcelain)"

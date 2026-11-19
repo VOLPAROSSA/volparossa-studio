@@ -2,6 +2,7 @@
 """Bind Silex's local publication to the production Core pack review receipt."""
 import hashlib
 import json
+from itertools import islice
 import os
 from pathlib import Path
 import re
@@ -38,10 +39,13 @@ def read_regular(path, maximum):
 
 
 def assets(directory, project_id):
-    require(directory.resolve(strict=True) == directory and {p.name for p in directory.iterdir()} == {'css', 'index.html'})
+    require(directory.resolve(strict=True) == directory)
+    with os.scandir(directory) as entries:
+        require({entry.name for entry in islice(entries, 3)} == {'css', 'index.html'})
     css_dir = directory / 'css'
     require(css_dir.resolve(strict=True) == css_dir and css_dir.is_dir())
-    styles = list(css_dir.iterdir())
+    with os.scandir(css_dir) as entries:
+        styles = [css_dir / entry.name for entry in islice(entries, 2)]
     require(len(styles) == 1 and CSS.fullmatch(styles[0].name))
     html = read_regular(directory / 'index.html', 32768)
     css = read_regular(styles[0], 32768)
