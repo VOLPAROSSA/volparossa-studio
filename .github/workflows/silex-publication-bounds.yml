@@ -517,8 +517,8 @@ jobs:
           root = pathlib.Path('studio/integration/silex-native-bootstrap')
           expected = {
             'ubuntu-sdk.json': 'b968a55b95b693dd8b33adc16d84d9fca86d5b43b0aaaf7b45695e3ac4b588c7',
-            'fetch_sdk.py': '478be279d69ce36f63e4b288d5551939bc35bd687d808556892305d383caa37b',
-            'install_sdk.py': 'c4c1ec11852c1b935c2a414300df7bc31e1a16cb5760568f7c56d3165194dad9',
+            'fetch_sdk.py': '33bd322aa0ed3adf766f26b194154d65adac8a03f0caae492e4c7eed96b851de',
+            'install_sdk.py': '094dfa6c1d76d4b011dd800490a1719906758be45fbfcc7c9127a83be7a37be1',
           }
           for name, digest in expected.items():
               assert hashlib.sha256((root / name).read_bytes()).hexdigest() == digest
@@ -570,7 +570,7 @@ jobs:
           import hashlib, pathlib
           root = pathlib.Path('studio/integration')
           expected = {
-            'silex-native-runtime/isolation.py': 'b35c464dd8dbb95ef09009bd86073b8c0e259f43c590d1653ba8a70329944978',
+            'silex-native-runtime/isolation.py': '4e081875d3b26c90d5377265b753f8263233ce32d232a68a194277b12d5c65b5',
             'silex-native-runtime/isolation_root.py': 'ce8d17c332ab7174560692b5baaa26399b85828c11b359812d03ad3d3495b617',
             'silex-native-runtime/isolation_actor.py': 'e659a2eb6edfe6df7ca75523bb5ae2f8645667e0751f35ad3afa953308f5e9d2',
             'silex-native-runtime/test_isolation.py': 'aacb9f4cefba5e7875a753019c900a9c402454848fd3f74be5bb9e87014d83d7',
@@ -603,8 +603,8 @@ jobs:
           root = pathlib.Path('studio/integration/silex-native-bootstrap')
           expected = {
             'ubuntu-sdk.json': 'b968a55b95b693dd8b33adc16d84d9fca86d5b43b0aaaf7b45695e3ac4b588c7',
-            'fetch_sdk.py': '478be279d69ce36f63e4b288d5551939bc35bd687d808556892305d383caa37b',
-            'install_sdk.py': 'c4c1ec11852c1b935c2a414300df7bc31e1a16cb5760568f7c56d3165194dad9',
+            'fetch_sdk.py': '33bd322aa0ed3adf766f26b194154d65adac8a03f0caae492e4c7eed96b851de',
+            'install_sdk.py': '094dfa6c1d76d4b011dd800490a1719906758be45fbfcc7c9127a83be7a37be1',
           }
           for name, digest in expected.items():
               assert hashlib.sha256((root / name).read_bytes()).hexdigest() == digest

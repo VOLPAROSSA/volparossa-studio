@@ -23,7 +23,7 @@ SPEC = importlib.util.spec_from_file_location('native_isolation_protocol', HERE 
 S = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = S
 SPEC.loader.exec_module(S)
-SDK_HELPER = 'c4c1ec11852c1b935c2a414300df7bc31e1a16cb5760568f7c56d3165194dad9'
+SDK_HELPER = '094dfa6c1d76d4b011dd800490a1719906758be45fbfcc7c9127a83be7a37be1'
 INVENTORY_SOURCE = '3be00d4d68eece6920d2332af64a815f0f434584575574aeb04daef7c9dbcf70'
 TOOLS = {'Xvfb': '/usr/bin/Xvfb', 'bwrap': '/usr/bin/bwrap',
     'dbus-daemon': '/usr/bin/dbus-daemon', 'ip': '/usr/bin/ip',
