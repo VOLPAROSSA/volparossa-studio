@@ -358,6 +358,10 @@ def main():
         controller_groups_started=0, controller_groups_joined=0,
         private_work_removed=False, host_ipc_canary_removed=False, cleanup_confirmed=False,
         **dict.fromkeys(S.SCOPES, False))
+    if S.GUI:
+        # A missing nested acknowledgement leaves execution unknown on failure.
+        report.update(operation='native_webview_project_reopen', application_executed=None,
+                      display_started=None, browser_started=None)
     try:
         payloads = S.source_payloads(owner, ROOT, revision, uid)
         hashes = {label: hashlib.sha256(raw).hexdigest() for label, raw in payloads.items()}
@@ -382,7 +386,7 @@ def main():
         verify_root(value, revision, hashes)
         report['root_result'] = value
         if S.GUI:
-            report.update(operation='native_webview_project_reopen', application_executed=True, display_started=True)
+            report.update(application_executed=True, display_started=True, browser_started=True)
         root_acknowledged = True
         S.require(S.source_payloads(owner, ROOT, revision, uid) == payloads, 'source')
         report['stage'] = 'complete'

@@ -210,11 +210,15 @@ def main():
                     await_value(lambda: app.poll() is None and available())
                     if phase == 'first':
                         stage = 'seed_project'
+                        require(remote('GET', '/api/website?connectorId=fs-storage') == [])
                         created = remote('PUT', '/api/website?connectorId=fs-storage', {'name': NAME})
                         project_id = created['websiteId']
                         require(type(project_id) is str and UUID.fullmatch(project_id))
                         stage = 'refresh_dashboard'
                         desktop_action(Atspi, 'Refresh', app)
+                    projects = remote('GET', '/api/website?connectorId=fs-storage')
+                    require(type(projects) is list and len(projects) == 1 and projects[0]['websiteId'] == project_id
+                            and projects[0]['name'] == NAME)
                     meta = remote('GET', '/api/website/meta?websiteId=' + project_id + '&connectorId=fs-storage')
                     require(meta['name'] == NAME)
                     stage = phase + '_open'

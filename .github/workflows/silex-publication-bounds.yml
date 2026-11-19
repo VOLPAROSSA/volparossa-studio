@@ -920,7 +920,7 @@ jobs:
           root = pathlib.Path('studio/integration/silex-native-bootstrap')
           expected = {
             'ubuntu-sdk.json': 'b968a55b95b693dd8b33adc16d84d9fca86d5b43b0aaaf7b45695e3ac4b588c7',
-            'fetch_sdk.py': '33bd322aa0ed3adf766f26b194154d65adac8a03f0caae492e4c7eed96b851de',
+            'fetch_sdk.py': 'c8c642b1f81e525e6eda9a90c5a43d167528321e5354502f529f00cb6da128db',
             'install_sdk.py': '094dfa6c1d76d4b011dd800490a1719906758be45fbfcc7c9127a83be7a37be1',
           }
           for name, digest in expected.items():
@@ -973,7 +973,7 @@ jobs:
           import hashlib, pathlib
           root = pathlib.Path('studio/integration')
           expected = {
-            'silex-native-runtime/isolation.py': 'de881089af282689f75ee03cccfff403cd4df5d52ca9c17dacc44978b9f4930c',
+            'silex-native-runtime/isolation.py': 'e12b6eeceb6e059ac1a4c122b987e17e3bc881b2a43277c37a61947d2ac7c164',
             'silex-native-runtime/isolation_root.py': 'aecb65cfdf5857073583d7bed2d37dd54426dc6e78724f260ffc8ebc2be0e4bd',
             'silex-native-runtime/isolation_actor.py': 'b2dd0793ae14775c51a1f72fb5b7bf5c58e482e50e9f7987f3731b18b94f8de6',
             'silex-native-runtime/test_isolation.py': 'cff4436bb9604db6a868e0427792ec657dfd8690dc3b5ac3f11c9a9d0de1f80b',
@@ -1006,7 +1006,7 @@ jobs:
           root = pathlib.Path('studio/integration/silex-native-bootstrap')
           expected = {
             'ubuntu-sdk.json': 'b968a55b95b693dd8b33adc16d84d9fca86d5b43b0aaaf7b45695e3ac4b588c7',
-            'fetch_sdk.py': '33bd322aa0ed3adf766f26b194154d65adac8a03f0caae492e4c7eed96b851de',
+            'fetch_sdk.py': 'c8c642b1f81e525e6eda9a90c5a43d167528321e5354502f529f00cb6da128db',
             'install_sdk.py': '094dfa6c1d76d4b011dd800490a1719906758be45fbfcc7c9127a83be7a37be1',
           }
           for name, digest in expected.items():
