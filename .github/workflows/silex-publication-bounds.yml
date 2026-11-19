@@ -446,7 +446,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'runtime-inventory' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      github.ref == 'refs/heads/feature/native-bootstrap-runtime-20261029'
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-runtime-20261029')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -486,7 +486,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'runtime-sdk-inventory' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      github.ref == 'refs/heads/feature/native-bootstrap-runtime-20261029'
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-runtime-20261029')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -547,7 +547,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'sdk-isolation' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      github.ref == 'refs/heads/feature/native-bootstrap-runtime-20261029'
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-runtime-20261029')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
