@@ -158,3 +158,25 @@ the project ID. Pixel samples stay inside the disposable display. It closes the
 window and repeats these checks in a fresh process. Its success requires both normal exits,
 the live WebKit processes, the network counter checks and cleanup. Project
 publishing, editing, updates and distribution have separate acceptance gates.
+
+## Prepare the native editor's local output for Core
+
+In the saved Silex project, name the entry page `Index` so its published path is
+`index.html`. Open the project, press Alt+P, select **File system hosting** if
+prompted, then choose **Publish**. Silex offers **Open published folder** when it
+has written the static assets. Its default Linux output is the project's own
+`public` directory under the Silex application data directory.
+
+With the VOLPAROSSA CLI available, the owner can prepare that exact directory
+for review. Choose a new output file outside the published folder.
+
+```sh
+volparossa content site pack --directory /path/to/published/public --output ./site.bundle --review-receipt
+```
+
+The receipt identifies the bundle, lists each public asset and reports that
+owner review is required. The manual `native-site-export` trial exercises the
+same native dialog and production CLI on a synthetic saved site. It compares
+the exported heading to the project ID and checks both assets against the actual
+bundle receipt. Signing, distribution and opening this native export from an
+offline publisher are subsequent operations.
