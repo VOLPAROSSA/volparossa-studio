@@ -24,9 +24,9 @@ DRIVER_SUBSTAGES = frozenset(('not_started', 'carrier_authentication', 'fixture_
     'context_files', 'context_validate', 'context_write', 'complete', 'unavailable'))
 PINS = {
     BOOTSTRAP / 'native_build.py': '68cf00741ff3ff0047bc013b73c88e845e6a15c8ea85677558097c004204dfe4',
-    HERE / 'local_build.py': 'fe9b4272303a36ed024875b387822748f9aeac7b5f1da698a981729cc75ac6f6',
+    HERE / 'local_build.py': 'e8b53b2717e259df56145afe134a6d90696f1c99fe9c959f694223b7af53c032',
     HERE / 'check.py': '17659daef9eedba2ff8440e40eaccaa71b520ffeae953a4fc2882e3739356ae7',
-    FS / 'proof.py': '6c50cc06a2d8a6d416c7b8c0d2dc6e15300817f95ba747eeb77528c4eb8c311e',
+    FS / 'proof.py': '59c7a30a98e81c7e2cad8366ec6bf388034a6e5420e30296dea354ff89eebac2',
     FS / 'manifest.json': 'ca7f1b9b04fb7e5be36c4ed44511ae5950185df4e4572918c7a0530302e96edc',
     FS / 'prepare.py': 'd2f1cd0d964f4d89d932ab4d26201cc9d8eae0a97408087d1f102b9331bb4f3e',
 }
@@ -242,7 +242,7 @@ def main():
     require(sys.flags.isolated == 1 and sys.flags.dont_write_bytecode == 1
         and sys.argv == [str(HERE / 'crud.py')]
         and os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
-        and os.environ.get('GITHUB_REF') in ('refs/heads/main', 'refs/heads/feature/native-local-dashboard-20261029'))
+        and os.environ.get('GITHUB_REF') == 'refs/heads/main')
     for path, digest in PINS.items():
         require(hashlib.sha256(path.read_bytes()).hexdigest() == digest)
     p = load('crud_protocol', HERE / 'crud_protocol.py')

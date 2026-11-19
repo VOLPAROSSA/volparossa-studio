@@ -1,13 +1,6 @@
 name: Pinned Silex bounded publication checks
 
 on:
-  push:
-    branches: [fix/publication-preparation-bounds-20261028]
-    paths:
-      - .github/workflows/silex-publication-bounds.yml
-      - integration/silex-publication/**
-      - upstream.lock.json
-      - THIRD_PARTY_LICENSES.md
   workflow_dispatch:
     inputs:
       native_inventory:
@@ -47,7 +40,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && inputs.native_inventory && inputs.native_followup == 'none' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029')
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
@@ -82,7 +75,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'bridge' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029')
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
@@ -152,7 +145,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'verify-lock' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029')
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -241,7 +234,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && (inputs.native_followup == 'sdk-admission' || inputs.native_followup == 'sdk-baseline') &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029')
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -284,7 +277,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && (inputs.native_followup == 'sdk-fetch' || inputs.native_followup == 'sdk-install') &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029')
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -331,7 +324,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'native-build' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029')
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -446,7 +439,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'dashboard-compose-unit' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-local-dashboard-20261029')
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:
@@ -474,7 +467,7 @@ jobs:
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
       ((inputs.native_followup == 'local-native-build' &&
-        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-local-dashboard-20261029')) ||
+        github.ref == 'refs/heads/main') ||
        (inputs.native_followup == 'native-webview' &&
         (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development/studio-native-webview-20261119')))
     runs-on: ubuntu-24.04
@@ -632,7 +625,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'dashboard-crud' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-local-dashboard-20261029')
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -737,7 +730,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'dashboard-unit' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-local-dashboard-20261029')
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
@@ -772,7 +765,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'fs-identifier-rename' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-local-dashboard-20261029')
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -869,7 +862,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'runtime-inventory' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-runtime-20261029')
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -909,7 +902,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'runtime-sdk-inventory' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-runtime-20261029')
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -970,7 +963,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'sdk-isolation' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-runtime-20261029')
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -1058,9 +1051,8 @@ jobs:
   publication:
     if: >-
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      (github.ref == 'refs/heads/fix/publication-preparation-bounds-20261028' ||
-       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) &&
-      (github.event_name != 'workflow_dispatch' || (!inputs.native_inventory && inputs.native_followup == 'none'))
+      github.ref == 'refs/heads/main' &&
+      !inputs.native_inventory && inputs.native_followup == 'none'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:

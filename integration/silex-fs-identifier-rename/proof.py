@@ -293,7 +293,7 @@ def main():
     require(sys.flags.isolated == 1 and sys.flags.dont_write_bytecode == 1
             and sys.argv == [str(HERE / 'proof.py')], 'admission')
     require(os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
-            and os.environ.get('GITHUB_REF') == 'refs/heads/feature/native-local-dashboard-20261029', 'admission')
+            and os.environ.get('GITHUB_REF') == 'refs/heads/main', 'admission')
     for path, expected in PINS.items():
         require(hashlib.sha256(path.read_bytes()).hexdigest() == expected)
     native = load('fs_proof_native', BOOTSTRAP / 'native_build.py')
