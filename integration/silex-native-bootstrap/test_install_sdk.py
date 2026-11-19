@@ -43,11 +43,11 @@ class InstallSdkTests(unittest.TestCase):
     def test_exact_manifest_and_actual_fetch_binding_cannot_gain_install_or_native_authority(self):
         data = (HERE / 'ubuntu-sdk.json').read_bytes()
         expected = sdk.records_from_manifest(data)
-        self.assertEqual(len(expected), 182)
-        self.assertEqual(sum(int(row['Size']) for row in expected.values()), 63772228)
+        self.assertEqual(len(expected), 184)
+        self.assertEqual(sum(int(row['Size']) for row in expected.values()), 74345024)
         value = dict(schema=1, mode='native-sdk-archives-fetch', status='passed', stage='complete',
             studio_revision='a' * 40, sdk_manifest_sha256=sdk.MANIFEST, archives_verified=True,
-            archive_count=182, archive_bytes=63772228, hashes=sdk.expected_hashes(expected),
+            archive_count=184, archive_bytes=74345024, hashes=sdk.expected_hashes(expected),
             cleanup=dict(owned_groups_joined=True, owned_group_count=3, archives_retained=True, archive_tree_private=True),
             packages_installed=False, sdk_installed=False, archive_contents_executed=False, archive_contents_extracted=False,
             **dict.fromkeys(sdk.FALSE_FLAGS, False))
@@ -227,7 +227,7 @@ class InstallSdkTests(unittest.TestCase):
             sdk_installed=True, network_namespace_isolated=True, root_archive_cache_verified=True,
             post_install_exact_versions=True, dpkg_audit_clean=True, installation_attempted=True, policy_created=True, policy_restored=True,
             root_cache_retained=True, owned_groups_joined=True, owned_group_count=6,
-            verified_package_count=182, hashes=sdk.expected_hashes(records()), **dict.fromkeys(sdk.FALSE_FLAGS, False))
+            verified_package_count=184, hashes=sdk.expected_hashes(records()), **dict.fromkeys(sdk.FALSE_FLAGS, False))
         sdk.check_root(value, 'a' * 40, records())
         for key, bad in (('policy_restored', False), ('owned_groups_joined', False), ('status', 'failed'),
                          ('hashes', []), ('native_build', True), ('owned_group_count', True),
@@ -515,7 +515,7 @@ class InstallSdkTests(unittest.TestCase):
         for bad in ({'raw': 'private'}, {'package': 'aa'}, {'version': '1.0'},
                     {'failure_predicate': 'unreviewed'}, {'arch_class': 'arm64'},
                     {'state_class': 'install ok installed'}, {'stdout_bytes': 4 * 1024 * 1024 + 1},
-                    {'row_index': 183}, {'row_index': True}, {'query_exit_code': 256}):
+                    {'row_index': 185}, {'row_index': True}, {'query_exit_code': 256}):
             with self.subTest(bad=bad), self.assertRaises(sdk.Rejected):
                 sdk.check_baseline_diagnostic(bad)
 

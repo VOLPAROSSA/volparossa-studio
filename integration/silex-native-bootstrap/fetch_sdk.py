@@ -24,7 +24,7 @@ try:
 finally:
     sys.path.remove(str(HERE))
 
-MANIFEST_SHA256 = 'c2e3e609b6dc9e204b65d173ac087be89c37e06f25e10c997dd1fd87831178a8'
+MANIFEST_SHA256 = 'b968a55b95b693dd8b33adc16d84d9fca86d5b43b0aaaf7b45695e3ac4b588c7'
 MAX_ARCHIVE = 64 * 1024 * 1024
 MAX_TOTAL = 128 * 1024 * 1024
 REQUIRED = {'Package', 'Version', 'Architecture', 'Filename', 'SHA256', 'Size'}
@@ -94,8 +94,8 @@ def validate_manifest(value):
         'requested', 'installation_plan', 'scope', 'signed_apt_indices'})
     require(type(value['schema']) is int and value['schema'] == 1
             and value['system'] == 'ubuntu-24.04-amd64' and value['apt_verification'] == 'system apt-get update')
-    require(type(value['inventory_run']) is int and value['inventory_run'] == 40800390743
-            and type(value['inventory_artifact']) is int and value['inventory_artifact'] == 12865891170)
+    require(type(value['inventory_run']) is int and value['inventory_run'] == 44437919214
+            and type(value['inventory_artifact']) is int and value['inventory_artifact'] == 14488934250)
     for key in ('inventory_artifact_sha256', 'inventory_receipt_sha256'):
         require(type(value[key]) is str and re.fullmatch('[0-9a-f]{64}', value[key]) is not None)
     scope = value['scope']
@@ -113,8 +113,8 @@ def validate_manifest(value):
                 and re.fullmatch('[0-9a-f]{64}', row['sha256']) is not None)
         names.add(row['name'])
     records = collect_records(value)
-    require(set(value['requested']) == REQUESTED and len(value['installation_plan']) == 176
-            and len(records) == 182 and sum(int(row['Size']) for row in records.values()) == 63772228)
+    require(set(value['requested']) == REQUESTED and len(value['installation_plan']) == 178
+            and len(records) == 184 and sum(int(row['Size']) for row in records.values()) == 74345024)
     return records
 
 
@@ -377,7 +377,7 @@ def finish(report, cleanups, archives, receipt):
         report.update(status='failed', archives_verified=False)
         report['failure'] = dict(stage='cleanup', kind='cleanup_failed')
     if receipt is not None:
-        # This independent finite receipt includes 182 archive identity rows.
+        # This independent finite receipt includes 184 archive identity rows.
         raw = (json.dumps(report, sort_keys=True) + '\n').encode()
         require(len(raw) <= 65536)
         with os.fdopen(os.open(receipt, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600), 'wb') as stream:
@@ -409,7 +409,7 @@ def main():
         records = validate_manifest(value)
         report.update(studio_revision=revision, inventory_run=value['inventory_run'],
             inventory_artifact=value['inventory_artifact'], pinned_index_provenance=value['signed_apt_indices'],
-            pinned_indices_are_current_assertion=False, expected_archives=len(records), expected_bytes=63772228)
+            pinned_indices_are_current_assertion=False, expected_archives=len(records), expected_bytes=74345024)
         environment = dict(PATH='/usr/bin:/bin', HOME='/nonexistent', XDG_CONFIG_HOME='/nonexistent',
             LANG='C', LC_ALL='C', DEBIAN_FRONTEND='noninteractive')
         require(not Path('/nonexistent').exists())

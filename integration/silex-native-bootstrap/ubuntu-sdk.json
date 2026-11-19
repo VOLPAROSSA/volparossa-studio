@@ -10,15 +10,6 @@
       "Size": "56650",
       "Version": "2.52.0-1build1"
     },
-    "brotli": {
-      "Architecture": "amd64",
-      "Depends": "libbrotli1 (>= 1.1.0), libc6 (>= 2.34)",
-      "Filename": "pool/universe/b/brotli/brotli_1.1.0-2ubuntu0.1_amd64.deb",
-      "Package": "brotli",
-      "SHA256": "16654269f1fc3fa2a538fd9fbf64b2a3e98824f12fd4d1e4ed700a65459f4b3b",
-      "Size": "70796",
-      "Version": "1.1.0-2ubuntu0.1"
-    },
     "bubblewrap": {
       "Architecture": "amd64",
       "Depends": "libc6 (>= 2.38), libcap2 (>= 1:2.10), libselinux1 (>= 3.1~)",
@@ -150,13 +141,13 @@
     },
     "gir1.2-javascriptcoregtk-4.1": {
       "Architecture": "amd64",
-      "Depends": "libjavascriptcoregtk-4.1-0 (= 2.52.6-0ubuntu0.24.04.1), gir1.2-gobject-2.0",
-      "Filename": "pool/main/w/webkit2gtk/gir1.2-javascriptcoregtk-4.1_2.52.6-0ubuntu0.24.04.1_amd64.deb",
+      "Depends": "libjavascriptcoregtk-4.1-0 (= 2.52.6-0ubuntu0.24.04.2), gir1.2-gobject-2.0",
+      "Filename": "pool/main/w/webkit2gtk/gir1.2-javascriptcoregtk-4.1_2.52.6-0ubuntu0.24.04.2_amd64.deb",
       "Package": "gir1.2-javascriptcoregtk-4.1",
-      "SHA256": "de763132bf381637ca0bb14322884f9f13db624a48328451b62e4005aea0d4b1",
-      "Size": "38616",
+      "SHA256": "11a7441773e779a96e5ede93016206b744982d2c110f2b5a49f35b8bac94a018",
+      "Size": "38614",
       "Source": "webkit2gtk",
-      "Version": "2.52.6-0ubuntu0.24.04.1"
+      "Version": "2.52.6-0ubuntu0.24.04.2"
     },
     "gir1.2-pango-1.0": {
       "Architecture": "amd64",
@@ -180,23 +171,23 @@
     },
     "gir1.2-soup-3.0": {
       "Architecture": "amd64",
-      "Depends": "gir1.2-gio-2.0, libsoup-3.0-0 (= 3.4.4-5ubuntu0.9)",
-      "Filename": "pool/main/libs/libsoup3/gir1.2-soup-3.0_3.4.4-5ubuntu0.9_amd64.deb",
+      "Depends": "gir1.2-gio-2.0, libsoup-3.0-0 (= 3.4.4-5ubuntu0.11)",
+      "Filename": "pool/main/libs/libsoup3/gir1.2-soup-3.0_3.4.4-5ubuntu0.11_amd64.deb",
       "Package": "gir1.2-soup-3.0",
-      "SHA256": "56c886ea35b327b63420eb8c9a09f7c66c6e830ecd9ce59eee520d5e7fe8aade",
+      "SHA256": "a81988177608f7be3b3e4c3d535c92d82591d428d32321a6c598abd2108516a3",
       "Size": "22476",
       "Source": "libsoup3",
-      "Version": "3.4.4-5ubuntu0.9"
+      "Version": "3.4.4-5ubuntu0.11"
     },
     "gir1.2-webkit2-4.1": {
       "Architecture": "amd64",
-      "Depends": "libwebkit2gtk-4.1-0 (= 2.52.6-0ubuntu0.24.04.1), gir1.2-gtk-3.0, gir1.2-javascriptcoregtk-4.1 (= 2.52.6-0ubuntu0.24.04.1), gir1.2-soup-3.0",
-      "Filename": "pool/main/w/webkit2gtk/gir1.2-webkit2-4.1_2.52.6-0ubuntu0.24.04.1_amd64.deb",
+      "Depends": "libwebkit2gtk-4.1-0 (= 2.52.6-0ubuntu0.24.04.2), gir1.2-gtk-3.0, gir1.2-javascriptcoregtk-4.1 (= 2.52.6-0ubuntu0.24.04.2), gir1.2-soup-3.0",
+      "Filename": "pool/main/w/webkit2gtk/gir1.2-webkit2-4.1_2.52.6-0ubuntu0.24.04.2_amd64.deb",
       "Package": "gir1.2-webkit2-4.1",
-      "SHA256": "2926002b81cd1ad6a553c4f97f23cc8218b0c7f6c47f4f11acc5887c8befbffc",
-      "Size": "105182",
+      "SHA256": "8590cd52304398aab4296dcb2629711249eba1bd285b151e447cc3ea27664522",
+      "Size": "105180",
       "Source": "webkit2gtk",
-      "Version": "2.52.6-0ubuntu0.24.04.1"
+      "Version": "2.52.6-0ubuntu0.24.04.2"
     },
     "glib-networking": {
       "Architecture": "amd64",
@@ -238,12 +229,12 @@
     "gstreamer1.0-plugins-base": {
       "Architecture": "amd64",
       "Depends": "libc6 (>= 2.33), libcdparanoia0 (>= 3.10.2+debian), libglib2.0-0t64 (>= 2.79.0), libgstreamer-plugins-base1.0-0 (>= 1.24.0), libgstreamer1.0-0 (>= 1.24.0), libogg0 (>= 1.0rc3), libopus0 (>= 1.1), liborc-0.4-0t64 (>= 1:0.4.34), libtheora0 (>= 1.1), libvisual-0.4-0 (>= 0.4.0), libvorbis0a (>= 1.3.1), libvorbisenc2 (>= 1.3.1)",
-      "Filename": "pool/main/g/gst-plugins-base1.0/gstreamer1.0-plugins-base_1.24.2-1ubuntu0.5_amd64.deb",
+      "Filename": "pool/main/g/gst-plugins-base1.0/gstreamer1.0-plugins-base_1.24.2-1ubuntu0.7_amd64.deb",
       "Package": "gstreamer1.0-plugins-base",
-      "SHA256": "2371d7571762fb78f6ec693d2a33c601521a216144a3be2e24b4e9bec9548ed1",
-      "Size": "721012",
+      "SHA256": "d0246839f55cf4e0e0fe83065507ab86eb3ccea48f03b45a22266e08e426be80",
+      "Size": "720992",
       "Source": "gst-plugins-base1.0",
-      "Version": "1.24.2-1ubuntu0.5"
+      "Version": "1.24.2-1ubuntu0.7"
     },
     "gstreamer1.0-plugins-good": {
       "Architecture": "amd64",
@@ -395,16 +386,6 @@
       "Source": "brotli",
       "Version": "1.1.0-2ubuntu0.1"
     },
-    "libbrotli1": {
-      "Architecture": "amd64",
-      "Depends": "libc6 (>= 2.29)",
-      "Filename": "pool/main/b/brotli/libbrotli1_1.1.0-2ubuntu0.1_amd64.deb",
-      "Package": "libbrotli1",
-      "SHA256": "70b188a86d81f30d7510aab30e25d638ed5037dded6691af1533952b71ac61de",
-      "Size": "330968",
-      "Source": "brotli",
-      "Version": "1.1.0-2ubuntu0.1"
-    },
     "libbz2-dev": {
       "Architecture": "amd64",
       "Depends": "libbz2-1.0 (= 1.0.8-5.1ubuntu0.1), libc6-dev | libc-dev",
@@ -517,13 +498,13 @@
     },
     "libegl-mesa0": {
       "Architecture": "amd64",
-      "Depends": "libc6 (>= 2.38), libdrm2 (>= 2.4.125-1), libexpat1 (>= 2.0.1), libgbm1 (= 25.2.8-0ubuntu0.24.04.4), libgcc-s1 (>= 3.4), libwayland-client0 (>= 1.20.0), libx11-xcb1 (>= 2:1.8.7), libxcb-dri3-0 (>= 1.13), libxcb-present0, libxcb-randr0 (>= 1.3), libxcb-shm0, libxcb-xfixes0, libxcb1 (>= 1.6), mesa-libgallium (= 25.2.8-0ubuntu0.24.04.4)",
-      "Filename": "pool/main/m/mesa/libegl-mesa0_25.2.8-0ubuntu0.24.04.4_amd64.deb",
+      "Depends": "libc6 (>= 2.38), libdrm2 (>= 2.4.125-1), libexpat1 (>= 2.0.1), libgbm1 (= 25.2.8-0ubuntu0.24.04.5), libgcc-s1 (>= 3.4), libwayland-client0 (>= 1.20.0), libx11-xcb1 (>= 2:1.8.7), libxcb-dri3-0 (>= 1.13), libxcb-present0, libxcb-randr0 (>= 1.3), libxcb-shm0, libxcb-xfixes0, libxcb1 (>= 1.6), mesa-libgallium (= 25.2.8-0ubuntu0.24.04.5)",
+      "Filename": "pool/main/m/mesa/libegl-mesa0_25.2.8-0ubuntu0.24.04.5_amd64.deb",
       "Package": "libegl-mesa0",
-      "SHA256": "2b8363cb29868603c827cb569a19373a45bebb29bdca5cd34de42dce2f3c9419",
-      "Size": "117224",
+      "SHA256": "c04cdb8c4d29667ab9d2c3abac6bb38dc066f5cdb874d867f85f5e238d546f82",
+      "Size": "117190",
       "Source": "mesa",
-      "Version": "25.2.8-0ubuntu0.24.04.4"
+      "Version": "25.2.8-0ubuntu0.24.04.5"
     },
     "libegl1": {
       "Architecture": "amd64",
@@ -538,12 +519,12 @@
     "libegl1-mesa-dev": {
       "Architecture": "amd64",
       "Depends": "libegl-dev, libglvnd-dev",
-      "Filename": "pool/main/m/mesa/libegl1-mesa-dev_25.2.8-0ubuntu0.24.04.4_amd64.deb",
+      "Filename": "pool/main/m/mesa/libegl1-mesa-dev_25.2.8-0ubuntu0.24.04.5_amd64.deb",
       "Package": "libegl1-mesa-dev",
-      "SHA256": "3ead723f2b10b9981d42d74b6843ab5e4cb91d70a0249d229fba1745cf58eb3d",
-      "Size": "26838",
+      "SHA256": "7debcf7ef1c36ffc5eba2a4f5314ff6f34006a5124071444d9f22bc6e943d421",
+      "Size": "26944",
       "Source": "mesa",
-      "Version": "25.2.8-0ubuntu0.24.04.4"
+      "Version": "25.2.8-0ubuntu0.24.04.5"
     },
     "libepoxy-dev": {
       "Architecture": "amd64",
@@ -595,6 +576,16 @@
       "Source": "fribidi",
       "Version": "1.0.13-3build1"
     },
+    "libgbm1": {
+      "Architecture": "amd64",
+      "Depends": "libc6 (>= 2.38), libdrm2 (>= 2.4.125-1), libexpat1 (>= 2.0.1), mesa-libgallium (= 25.2.8-0ubuntu0.24.04.5)",
+      "Filename": "pool/main/m/mesa/libgbm1_25.2.8-0ubuntu0.24.04.5_amd64.deb",
+      "Package": "libgbm1",
+      "SHA256": "e841e7d681bec57ffff70df1a9950e5ff42b0f6def7d1a98d7e8671b180bbbe8",
+      "Size": "34204",
+      "Source": "mesa",
+      "Version": "25.2.8-0ubuntu0.24.04.5"
+    },
     "libgdk-pixbuf-2.0-dev": {
       "Architecture": "amd64",
       "Depends": "gir1.2-gdkpixbuf-2.0 (= 2.42.10+dfsg-3ubuntu3.3), libgdk-pixbuf-2.0-0 (= 2.42.10+dfsg-3ubuntu3.3), libgdk-pixbuf2.0-bin (= 2.42.10+dfsg-3ubuntu3.3), libglib2.0-dev, libjpeg-dev, libpng-dev (<< 1.7), libtiff-dev, shared-mime-info, gir1.2-gio-2.0-dev, gir1.2-gmodule-2.0-dev",
@@ -634,6 +625,16 @@
       "Size": "102444",
       "Source": "libglvnd",
       "Version": "1.7.0-1build1"
+    },
+    "libgl1-mesa-dri": {
+      "Architecture": "amd64",
+      "Depends": "libgbm1 (= 25.2.8-0ubuntu0.24.04.5), libvulkan1, libc6 (>= 2.34)",
+      "Filename": "pool/main/m/mesa/libgl1-mesa-dri_25.2.8-0ubuntu0.24.04.5_amd64.deb",
+      "Package": "libgl1-mesa-dri",
+      "SHA256": "c7ed56ca57d9fd6bcc0f6d88ab98c00e22ffc55063bfcd5af726c8365c148e4c",
+      "Size": "37952",
+      "Source": "mesa",
+      "Version": "25.2.8-0ubuntu0.24.04.5"
     },
     "libgles-dev": {
       "Architecture": "amd64",
@@ -714,6 +715,16 @@
       "Source": "libglvnd",
       "Version": "1.7.0-1build1"
     },
+    "libglx-mesa0": {
+      "Architecture": "amd64",
+      "Depends": "libc6 (>= 2.38), libdrm2 (>= 2.4.125-1), libexpat1 (>= 2.0.1), libx11-6 (>= 2:1.4.99.1), libx11-xcb1 (>= 2:1.8.7), libxcb-dri3-0, libxcb-glx0 (>= 1.8), libxcb-present0, libxcb-shm0, libxcb-xfixes0, libxcb1, libxext6, libxxf86vm1, mesa-libgallium (= 25.2.8-0ubuntu0.24.04.5), libgl1-mesa-dri",
+      "Filename": "pool/main/m/mesa/libglx-mesa0_25.2.8-0ubuntu0.24.04.5_amd64.deb",
+      "Package": "libglx-mesa0",
+      "SHA256": "0bc964889cb24ecef3d241f8ee88540aea96b7dd1c811f6efcefdb04fc197129",
+      "Size": "110258",
+      "Source": "mesa",
+      "Version": "25.2.8-0ubuntu0.24.04.5"
+    },
     "libgraphite2-dev": {
       "Architecture": "amd64",
       "Depends": "libgraphite2-3 (= 1.3.14-2ubuntu0.24.04.1)",
@@ -727,22 +738,22 @@
     "libgstreamer-gl1.0-0": {
       "Architecture": "amd64",
       "Depends": "libc6 (>= 2.14), libdrm2 (>= 2.4.55), libegl1, libgbm1 (>= 8.1~0), libgl1, libglib2.0-0t64 (>= 2.79.0), libgstreamer-plugins-base1.0-0 (>= 1.23.1), libgstreamer1.0-0 (>= 1.24.0), libgudev-1.0-0 (>= 165), libwayland-client0 (>= 1.20.0), libwayland-cursor0 (>= 1.11), libwayland-egl1 (>= 1.15.0), libx11-6, libx11-xcb1 (>= 2:1.8.7), libxcb1",
-      "Filename": "pool/main/g/gst-plugins-base1.0/libgstreamer-gl1.0-0_1.24.2-1ubuntu0.5_amd64.deb",
+      "Filename": "pool/main/g/gst-plugins-base1.0/libgstreamer-gl1.0-0_1.24.2-1ubuntu0.7_amd64.deb",
       "Package": "libgstreamer-gl1.0-0",
-      "SHA256": "fb87a72e431d2c57c35b0b2bd4189bb6a6e771788c3ba389a9e3623886486b22",
-      "Size": "213954",
+      "SHA256": "e0b1c59e3c3c76120f07ee373b27ca58bf048cc8ed7f7f9d3c24810b62f8a04c",
+      "Size": "213960",
       "Source": "gst-plugins-base1.0",
-      "Version": "1.24.2-1ubuntu0.5"
+      "Version": "1.24.2-1ubuntu0.7"
     },
     "libgstreamer-plugins-base1.0-0": {
       "Architecture": "amd64",
       "Depends": "libc6 (>= 2.33), libdrm2 (>= 2.4.74), libglib2.0-0t64 (>= 2.79.0), libgstreamer1.0-0 (>= 1.24.0), liborc-0.4-0t64 (>= 1:0.4.34), zlib1g (>= 1:1.1.4), iso-codes",
-      "Filename": "pool/main/g/gst-plugins-base1.0/libgstreamer-plugins-base1.0-0_1.24.2-1ubuntu0.5_amd64.deb",
+      "Filename": "pool/main/g/gst-plugins-base1.0/libgstreamer-plugins-base1.0-0_1.24.2-1ubuntu0.7_amd64.deb",
       "Package": "libgstreamer-plugins-base1.0-0",
-      "SHA256": "3c5826eee14cb5077c7e53707fbe86cc0882c787ffe79b330cad636c0009473d",
-      "Size": "862170",
+      "SHA256": "4a15f2c0dbe46e940673b933b2850cfe5120e036c89b6d90b6f0496f0d9fcd5e",
+      "Size": "863218",
       "Source": "gst-plugins-base1.0",
-      "Version": "1.24.2-1ubuntu0.5"
+      "Version": "1.24.2-1ubuntu0.7"
     },
     "libgstreamer-plugins-good1.0-0": {
       "Architecture": "amd64",
@@ -847,22 +858,22 @@
     "libjavascriptcoregtk-4.1-0": {
       "Architecture": "amd64",
       "Depends": "libatomic1 (>= 4.8), libc6 (>= 2.38), libgcc-s1 (>= 3.0), libglib2.0-0t64 (>= 2.66.0), libicu74 (>= 74.1-1~), libstdc++6 (>= 12), libsystemd0, zlib1g (>= 1:1.1.4)",
-      "Filename": "pool/main/w/webkit2gtk/libjavascriptcoregtk-4.1-0_2.52.6-0ubuntu0.24.04.1_amd64.deb",
+      "Filename": "pool/main/w/webkit2gtk/libjavascriptcoregtk-4.1-0_2.52.6-0ubuntu0.24.04.2_amd64.deb",
       "Package": "libjavascriptcoregtk-4.1-0",
-      "SHA256": "81ab415373b601a1379710c87dfbee82536805218920f66aa102fa3c9bdc2da2",
-      "Size": "8156176",
+      "SHA256": "ef4483cc2a26f0f9a432eb784a927f45a6f9efa5b48e9e1d187ffa8361a845f4",
+      "Size": "8156236",
       "Source": "webkit2gtk",
-      "Version": "2.52.6-0ubuntu0.24.04.1"
+      "Version": "2.52.6-0ubuntu0.24.04.2"
     },
     "libjavascriptcoregtk-4.1-dev": {
       "Architecture": "amd64",
-      "Depends": "libjavascriptcoregtk-4.1-0 (= 2.52.6-0ubuntu0.24.04.1), libglib2.0-dev, gir1.2-gobject-2.0-dev, gir1.2-javascriptcoregtk-4.1 (= 2.52.6-0ubuntu0.24.04.1)",
-      "Filename": "pool/universe/w/webkit2gtk/libjavascriptcoregtk-4.1-dev_2.52.6-0ubuntu0.24.04.1_amd64.deb",
+      "Depends": "libjavascriptcoregtk-4.1-0 (= 2.52.6-0ubuntu0.24.04.2), libglib2.0-dev, gir1.2-gobject-2.0-dev, gir1.2-javascriptcoregtk-4.1 (= 2.52.6-0ubuntu0.24.04.2)",
+      "Filename": "pool/universe/w/webkit2gtk/libjavascriptcoregtk-4.1-dev_2.52.6-0ubuntu0.24.04.2_amd64.deb",
       "Package": "libjavascriptcoregtk-4.1-dev",
-      "SHA256": "78c6bdb6dd6463e2adb2ed4408921b7ef68e09e610cfc121b2999a3959d5c6a0",
-      "Size": "69830",
+      "SHA256": "aa39a3d140aa6663a1e3a5ce5594254cbe47ce162c2e295525101ce4a26e6cce",
+      "Size": "69848",
       "Source": "webkit2gtk",
-      "Version": "2.52.6-0ubuntu0.24.04.1"
+      "Version": "2.52.6-0ubuntu0.24.04.2"
     },
     "libjbig-dev": {
       "Architecture": "amd64",
@@ -1215,31 +1226,31 @@
     "libsoup-3.0-0": {
       "Architecture": "amd64",
       "Depends": "glib-networking, libsoup-3.0-common, libbrotli1 (>= 0.6.0), libc6 (>= 2.38), libglib2.0-0t64 (>= 2.79.0), libgssapi-krb5-2 (>= 1.17), libnghttp2-14 (>= 1.50.0), libpsl5t64 (>= 0.16.0), libsqlite3-0 (>= 3.5.9), zlib1g (>= 1:1.2.0)",
-      "Filename": "pool/main/libs/libsoup3/libsoup-3.0-0_3.4.4-5ubuntu0.9_amd64.deb",
+      "Filename": "pool/main/libs/libsoup3/libsoup-3.0-0_3.4.4-5ubuntu0.11_amd64.deb",
       "Package": "libsoup-3.0-0",
-      "SHA256": "cd6bab2b426b0c81b0f7856df11f3633df118df33517378049545ff440751fcc",
-      "Size": "290828",
+      "SHA256": "9064c04e9cf76539b8d9e47a06ef0c7cdbed201e83c9d2f8a390498e07115a84",
+      "Size": "292296",
       "Source": "libsoup3",
-      "Version": "3.4.4-5ubuntu0.9"
+      "Version": "3.4.4-5ubuntu0.11"
     },
     "libsoup-3.0-common": {
       "Architecture": "all",
-      "Filename": "pool/main/libs/libsoup3/libsoup-3.0-common_3.4.4-5ubuntu0.9_all.deb",
+      "Filename": "pool/main/libs/libsoup3/libsoup-3.0-common_3.4.4-5ubuntu0.11_all.deb",
       "Package": "libsoup-3.0-common",
-      "SHA256": "950de96545c81a4bcf9c67600c6c6b84fcf5fd680f87d4301a1e3dc1238474f0",
-      "Size": "12284",
+      "SHA256": "69a9d7f10bfb61dbb1e8a299b77d9a3a5cff90d71dcad313b764e56efea1278f",
+      "Size": "12970",
       "Source": "libsoup3",
-      "Version": "3.4.4-5ubuntu0.9"
+      "Version": "3.4.4-5ubuntu0.11"
     },
     "libsoup-3.0-dev": {
       "Architecture": "amd64",
-      "Depends": "gir1.2-soup-3.0 (= 3.4.4-5ubuntu0.9), libbrotli-dev, libglib2.0-dev (>= 2.69.1), libnghttp2-dev, libpsl-dev, libsoup-3.0-0 (= 3.4.4-5ubuntu0.9), libsqlite3-dev, libsysprof-capture-4-dev, zlib1g-dev, gir1.2-gio-2.0-dev",
-      "Filename": "pool/universe/libs/libsoup3/libsoup-3.0-dev_3.4.4-5ubuntu0.9_amd64.deb",
+      "Depends": "gir1.2-soup-3.0 (= 3.4.4-5ubuntu0.11), libbrotli-dev, libglib2.0-dev (>= 2.69.1), libnghttp2-dev, libpsl-dev, libsoup-3.0-0 (= 3.4.4-5ubuntu0.11), libsqlite3-dev, libsysprof-capture-4-dev, zlib1g-dev, gir1.2-gio-2.0-dev",
+      "Filename": "pool/universe/libs/libsoup3/libsoup-3.0-dev_3.4.4-5ubuntu0.11_amd64.deb",
       "Package": "libsoup-3.0-dev",
-      "SHA256": "710598c3ab281970c83b5e58cc2d32c4d28367165c55c178a15923ab8e54a230",
-      "Size": "104832",
+      "SHA256": "c058d05f3ef6b69b28dfbf581522ea129a36b1942e226cb5a3287438d8db79dd",
+      "Size": "104826",
       "Source": "libsoup3",
-      "Version": "3.4.4-5ubuntu0.9"
+      "Version": "3.4.4-5ubuntu0.11"
     },
     "libspeex1": {
       "Architecture": "amd64",
@@ -1422,23 +1433,23 @@
     },
     "libwebkit2gtk-4.1-0": {
       "Architecture": "amd64",
-      "Depends": "libjavascriptcoregtk-4.1-0 (= 2.52.6-0ubuntu0.24.04.1), gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, libgles2, bubblewrap (>= 0.3.1), xdg-dbus-proxy, libatk1.0-0t64 (>= 1.32.0), libatomic1 (>= 4.8), libc6 (>= 2.38), libcairo-gobject2 (>= 1.10.0), libcairo2 (>= 1.14.0), libdrm2 (>= 2.4.107), libenchant-2-2 (>= 2.2.3), libepoxy0 (>= 1.3), libexpat1 (>= 2.1~beta3), libfontconfig1 (>= 2.12.6), libfreetype6 (>= 2.11.1), libgbm1 (>= 21.3.0~rc1), libgcc-s1 (>= 4.0), libgcrypt20 (>= 1.10.3), libgdk-pixbuf-2.0-0 (>= 2.22.0), libglib2.0-0t64 (>= 2.79.0), libgpg-error0 (>= 1.14), libgstreamer-gl1.0-0 (>= 1.14.0), libgstreamer-plugins-base1.0-0 (>= 1.23.1), libgstreamer1.0-0 (>= 1.22.0), libgtk-3-0t64 (>= 3.23.0), libharfbuzz-icu0 (>= 0.9.9), libharfbuzz0b (>= 1.8.6), libhyphen0 (>= 2.7.1), libicu74 (>= 74.1-1~), libjpeg8 (>= 8c), liblcms2-2 (>= 2.2+git20110628), libmanette-0.2-0 (>= 0.1.2), libpango-1.0-0 (>= 1.14.0), libpangocairo-1.0-0 (>= 1.14.0), libpng16-16t64 (>= 1.6.2), libseccomp2 (>= 0.0.0~20120605), libsecret-1-0 (>= 0.7), libsoup-3.0-0 (>= 3.0.3), libsqlite3-0 (>= 3.8.7), libstdc++6 (>= 12), libsystemd0, libtasn1-6 (>= 4.14), libwayland-client0 (>= 1.20.0), libwayland-egl1 (>= 1.15.0), libwayland-server0 (>= 1.0.2), libwebp7 (>= 1.3.2), libwebpdemux2 (>= 1.3.2), libwebpmux3 (>= 1.3.2), libx11-6, libxml2 (>= 2.7.4), libxslt1.1 (>= 1.1.25), zlib1g (>= 1:1.2.2)",
-      "Filename": "pool/main/w/webkit2gtk/libwebkit2gtk-4.1-0_2.52.6-0ubuntu0.24.04.1_amd64.deb",
+      "Depends": "libjavascriptcoregtk-4.1-0 (= 2.52.6-0ubuntu0.24.04.2), gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, libgles2, bubblewrap (>= 0.3.1), xdg-dbus-proxy, libatk1.0-0t64 (>= 1.32.0), libatomic1 (>= 4.8), libc6 (>= 2.38), libcairo-gobject2 (>= 1.10.0), libcairo2 (>= 1.14.0), libdrm2 (>= 2.4.107), libenchant-2-2 (>= 2.2.3), libepoxy0 (>= 1.3), libexpat1 (>= 2.1~beta3), libfontconfig1 (>= 2.12.6), libfreetype6 (>= 2.11.1), libgbm1 (>= 21.3.0~rc1), libgcc-s1 (>= 4.0), libgcrypt20 (>= 1.10.3), libgdk-pixbuf-2.0-0 (>= 2.22.0), libglib2.0-0t64 (>= 2.79.0), libgpg-error0 (>= 1.14), libgstreamer-gl1.0-0 (>= 1.14.0), libgstreamer-plugins-base1.0-0 (>= 1.23.1), libgstreamer1.0-0 (>= 1.22.0), libgtk-3-0t64 (>= 3.23.0), libharfbuzz-icu0 (>= 0.9.9), libharfbuzz0b (>= 1.8.6), libhyphen0 (>= 2.7.1), libicu74 (>= 74.1-1~), libjpeg8 (>= 8c), liblcms2-2 (>= 2.2+git20110628), libmanette-0.2-0 (>= 0.1.2), libpango-1.0-0 (>= 1.14.0), libpangocairo-1.0-0 (>= 1.14.0), libpng16-16t64 (>= 1.6.2), libseccomp2 (>= 0.0.0~20120605), libsecret-1-0 (>= 0.7), libsoup-3.0-0 (>= 3.0.3), libsqlite3-0 (>= 3.8.7), libstdc++6 (>= 12), libsystemd0, libtasn1-6 (>= 4.14), libwayland-client0 (>= 1.20.0), libwayland-egl1 (>= 1.15.0), libwayland-server0 (>= 1.0.2), libwebp7 (>= 1.3.2), libwebpdemux2 (>= 1.3.2), libwebpmux3 (>= 1.3.2), libx11-6, libxml2 (>= 2.7.4), libxslt1.1 (>= 1.1.25), zlib1g (>= 1:1.2.2)",
+      "Filename": "pool/main/w/webkit2gtk/libwebkit2gtk-4.1-0_2.52.6-0ubuntu0.24.04.2_amd64.deb",
       "Package": "libwebkit2gtk-4.1-0",
-      "SHA256": "3b3f7e2c36c679fd60392f6526b8c5659d6c5db324ebe792003831dc8108ac03",
-      "Size": "25528616",
+      "SHA256": "0f0278776be4250283a2120e849f9d0d856d5f3e45e886e2ced92fa93f58a969",
+      "Size": "25528614",
       "Source": "webkit2gtk",
-      "Version": "2.52.6-0ubuntu0.24.04.1"
+      "Version": "2.52.6-0ubuntu0.24.04.2"
     },
     "libwebkit2gtk-4.1-dev": {
       "Architecture": "amd64",
-      "Depends": "libwebkit2gtk-4.1-0 (= 2.52.6-0ubuntu0.24.04.1), libgtk-3-dev, libsoup-3.0-dev, libjavascriptcoregtk-4.1-dev (= 2.52.6-0ubuntu0.24.04.1), gir1.2-gtk-3.0-dev, gir1.2-soup-3.0-dev, gir1.2-webkit2-4.1 (= 2.52.6-0ubuntu0.24.04.1)",
-      "Filename": "pool/universe/w/webkit2gtk/libwebkit2gtk-4.1-dev_2.52.6-0ubuntu0.24.04.1_amd64.deb",
+      "Depends": "libwebkit2gtk-4.1-0 (= 2.52.6-0ubuntu0.24.04.2), libgtk-3-dev, libsoup-3.0-dev, libjavascriptcoregtk-4.1-dev (= 2.52.6-0ubuntu0.24.04.2), gir1.2-gtk-3.0-dev, gir1.2-soup-3.0-dev, gir1.2-webkit2-4.1 (= 2.52.6-0ubuntu0.24.04.2)",
+      "Filename": "pool/universe/w/webkit2gtk/libwebkit2gtk-4.1-dev_2.52.6-0ubuntu0.24.04.2_amd64.deb",
       "Package": "libwebkit2gtk-4.1-dev",
-      "SHA256": "5f82dea84d3e3107d95c7d373e2a71ed1ebe2a8263e7482718a54f86931ad510",
-      "Size": "289948",
+      "SHA256": "5b50ac16e4478ead2a4573cb212e07b30cd008a008e4c40842a91e5b344ab5d0",
+      "Size": "289918",
       "Source": "webkit2gtk",
-      "Version": "2.52.6-0ubuntu0.24.04.1"
+      "Version": "2.52.6-0ubuntu0.24.04.2"
     },
     "libwebp-dev": {
       "Architecture": "amd64",
@@ -1650,6 +1661,16 @@
       "Source": "libxtst",
       "Version": "2:1.2.3-1.1ubuntu0.1"
     },
+    "mesa-libgallium": {
+      "Architecture": "amd64",
+      "Depends": "libc6 (>= 2.38), libdrm-amdgpu1 (>= 2.4.125-1), libdrm-intel1 (>= 2.4.125-1), libdrm2 (>= 2.4.125-1), libelf1t64 (>= 0.142), libexpat1 (>= 2.0.1), libgcc-s1 (>= 3.4), libllvm20, libsensors5 (>= 1:3.5.0), libstdc++6 (>= 11), libx11-xcb1 (>= 2:1.8.7), libxcb-dri3-0 (>= 1.13), libxcb-present0, libxcb-randr0, libxcb-sync1, libxcb-xfixes0, libxcb1 (>= 1.9.2), libxshmfence1, libzstd1 (>= 1.5.5), zlib1g (>= 1:1.1.4)",
+      "Filename": "pool/main/m/mesa/mesa-libgallium_25.2.8-0ubuntu0.24.04.5_amd64.deb",
+      "Package": "mesa-libgallium",
+      "SHA256": "36a2813f4dc26c713a716a776fab407e49e831706960b19fd7007ef907da38eb",
+      "Size": "10788850",
+      "Source": "mesa",
+      "Version": "25.2.8-0ubuntu0.24.04.5"
+    },
     "pango1.0-tools": {
       "Architecture": "amd64",
       "Depends": "libc6 (>= 2.38), libcairo2 (>= 1.6.0), libfontconfig1 (>= 2.12.6), libglib2.0-0t64 (>= 2.75.3), libharfbuzz0b (>= 5.1.0), libpango-1.0-0 (= 1.52.1+ds-1build1), libpangocairo-1.0-0 (= 1.52.1+ds-1build1), libpangoft2-1.0-0 (= 1.52.1+ds-1build1), libpangoxft-1.0-0 (= 1.52.1+ds-1build1), libx11-6, libxft2 (>> 2.1.1)",
@@ -1743,10 +1764,10 @@
       "Version": "1.4.0-1"
     }
   },
-  "inventory_artifact": 12865891170,
-  "inventory_artifact_sha256": "02a7297fc546f47d9cb32423cf83b05b376e93177363b56ad64bed953b4c2681",
-  "inventory_receipt_sha256": "e38bc343b447b93471e88c156c0274656bf7e200e249d27fe3474da9af172d07",
-  "inventory_run": 40800390743,
+  "inventory_artifact": 14488934250,
+  "inventory_artifact_sha256": "d658ae5c109781ac1603d1af0e822875df9f948f156d993a110a95688a1b3f84",
+  "inventory_receipt_sha256": "cd5815e1d77be342b6e02e17f5bc0b83e6e4bddf7219a9e50ced70ca366c33d3",
+  "inventory_run": 44437919214,
   "requested": {
     "at-spi2-core": {
       "Architecture": "amd64",
@@ -1829,13 +1850,13 @@
     },
     "libwebkit2gtk-4.1-dev": {
       "Architecture": "amd64",
-      "Depends": "libwebkit2gtk-4.1-0 (= 2.52.6-0ubuntu0.24.04.1), libgtk-3-dev, libsoup-3.0-dev, libjavascriptcoregtk-4.1-dev (= 2.52.6-0ubuntu0.24.04.1), gir1.2-gtk-3.0-dev, gir1.2-soup-3.0-dev, gir1.2-webkit2-4.1 (= 2.52.6-0ubuntu0.24.04.1)",
-      "Filename": "pool/universe/w/webkit2gtk/libwebkit2gtk-4.1-dev_2.52.6-0ubuntu0.24.04.1_amd64.deb",
+      "Depends": "libwebkit2gtk-4.1-0 (= 2.52.6-0ubuntu0.24.04.2), libgtk-3-dev, libsoup-3.0-dev, libjavascriptcoregtk-4.1-dev (= 2.52.6-0ubuntu0.24.04.2), gir1.2-gtk-3.0-dev, gir1.2-soup-3.0-dev, gir1.2-webkit2-4.1 (= 2.52.6-0ubuntu0.24.04.2)",
+      "Filename": "pool/universe/w/webkit2gtk/libwebkit2gtk-4.1-dev_2.52.6-0ubuntu0.24.04.2_amd64.deb",
       "Package": "libwebkit2gtk-4.1-dev",
-      "SHA256": "5f82dea84d3e3107d95c7d373e2a71ed1ebe2a8263e7482718a54f86931ad510",
-      "Size": "289948",
+      "SHA256": "5b50ac16e4478ead2a4573cb212e07b30cd008a008e4c40842a91e5b344ab5d0",
+      "Size": "289918",
       "Source": "webkit2gtk",
-      "Version": "2.52.6-0ubuntu0.24.04.1"
+      "Version": "2.52.6-0ubuntu0.24.04.2"
     },
     "libx11-dev": {
       "Architecture": "amd64",
@@ -1916,15 +1937,15 @@
   "signed_apt_indices": [
     {
       "name": "_etc_apt_apt-mirrors.txt_dists_noble-backports_InRelease",
-      "sha256": "b6a0b10bb67d8da7ecb72a3f62dda5f408091d5a1abe8cbda2380f4af6b705cd"
+      "sha256": "a853769b1583a20dfbc2a5488f3c7ba80cad91fdca180ce9555c979177a1023d"
     },
     {
       "name": "_etc_apt_apt-mirrors.txt_dists_noble-security_InRelease",
-      "sha256": "38f7d01ad74eaeefd526677cdfaee36a81a2370dfa9a7936ab0f8fe5accc34a4"
+      "sha256": "92fde223e2612e7d5d715bdac5abb4af07543899af1b919048811c5ffdb450d9"
     },
     {
       "name": "_etc_apt_apt-mirrors.txt_dists_noble-updates_InRelease",
-      "sha256": "e1c5857e7e172d38526c644d0a9726de89464923655593fcf0530eb49287a981"
+      "sha256": "dc5bcae8f20f2430cdcbfb712573ada0914bd457096eeea5daf7ffdb6d273356"
     },
     {
       "name": "_etc_apt_apt-mirrors.txt_dists_noble_InRelease",
@@ -1932,7 +1953,7 @@
     },
     {
       "name": "packages.microsoft.com_ubuntu_24.04_prod_dists_noble_InRelease",
-      "sha256": "a9f0ddad943c83481453d3e025fad513b1f52ecb182f0eb9c2cc4a3046833f21"
+      "sha256": "6ba829a76ea4d8e0e5d2fc1bedf7b1f83634f220018b40dfc97c02dae37054a2"
     }
   ],
   "system": "ubuntu-24.04-amd64"

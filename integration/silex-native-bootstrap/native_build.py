@@ -25,7 +25,7 @@ EXPORT = HERE.parent / 'silex-export'
 DASHBOARD_COMMIT = 'cb36b01a609915facfb1c134f96a98eabcdd3374'
 DASHBOARD_ORIGIN = 'https://gitlab.com/silexlabs/silex_silex-dashboard-2026.git'
 DASHBOARD_MANIFEST = 'b5c534f85d883b837a64dae853012a47bc0ededf38602e40e5964f8064a46d49'
-SDK_MANIFEST = 'c2e3e609b6dc9e204b65d173ac087be89c37e06f25e10c997dd1fd87831178a8'
+SDK_MANIFEST = 'b968a55b95b693dd8b33adc16d84d9fca86d5b43b0aaaf7b45695e3ac4b588c7'
 TOOL_PINS = 'bd05e28169a610a0c782572d83eca9e46e21f1819796f0e9ea43f0b34a24a2c5'
 TOOL_HELPER = '3ece5556fbcadd6d8c8a14ff12ff287c6ce00905548eb625c8c6bc8bf6d95422'
 PNPM_LOCK = '02bb3b4a2db54b4a708b73c37318161163eaf160d610ae37c25db8f9b0dc64c1'
@@ -156,8 +156,8 @@ def sdk_receipts(outer, root, revision, records, installer):
             and outer['status'] == 'passed' and outer['stage'] == 'complete'
             and outer['studio_revision'] == revision and outer['sdk_manifest_sha256'] == SDK_MANIFEST
             and outer['packages_installed'] is True and outer['sdk_installed'] is True
-            and type(outer['verified_package_count']) is int and outer['verified_package_count'] == 182
-            and type(outer['archive_bytes']) is int and outer['archive_bytes'] == 63772228
+            and type(outer['verified_package_count']) is int and outer['verified_package_count'] == 184
+            and type(outer['archive_bytes']) is int and outer['archive_bytes'] == 74345024
             and outer['hashes'] == installer.expected_hashes(records)
             and outer['admission_diagnostic'] == {'substage': 'complete'}
             and all(outer[key] is False for key in SDK_FALSE), 'sdk_rejected')
@@ -176,7 +176,7 @@ def sdk_receipts(outer, root, revision, records, installer):
     require(type(root) is dict and root.keys() == root_keys and type(root['schema']) is int
             and root['installation_attempted'] is True
             and root['admission_diagnostic'] == {'substage': 'complete'}
-            and type(root['planned_package_count']) is int and 0 <= root['planned_package_count'] <= 182
+            and type(root['planned_package_count']) is int and 0 <= root['planned_package_count'] <= 184
             and type(root['plan_sha256']) is str and re.fullmatch(r'[0-9a-f]{64}', root['plan_sha256'])
             and root['run_id'] == os.environ.get('GITHUB_RUN_ID')
             and root['run_attempt'] == os.environ.get('GITHUB_RUN_ATTEMPT'), 'sdk_rejected')
