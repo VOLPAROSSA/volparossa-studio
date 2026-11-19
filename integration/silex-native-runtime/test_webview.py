@@ -170,6 +170,23 @@ class WebViewTests(unittest.TestCase):
         with self.assertRaises(root.Rejected):
             root.gui_output(detail + b'{"status":"passed"}')
 
+    def test_toolkit_session_uses_a_private_bounded_receipt_and_waits_for_its_exit(self):
+        def write_terminal(command, *, pass_fds, stdin, timeout, check):
+            self.assertEqual(command[:5], [gui.sys.executable, '-I', '-B', gui.__file__, '--desktop-session'])
+            self.assertEqual(pass_fds, (int(command[5]),))
+            self.assertEqual(stdin, gui.subprocess.DEVNULL)
+            os.write(pass_fds[0], terminal)
+            return gui.subprocess.CompletedProcess(command, 1)
+
+        with tempfile.TemporaryDirectory() as private, patch.object(gui.subprocess, 'run', side_effect=write_terminal):
+            terminal = b'{"status":"passed","stage":"complete"}'
+            code, record = gui.run_desktop_session(private)
+            self.assertEqual(code, 1)
+            self.assertEqual(record['status'], 'passed')
+            for terminal in (b'', b'x' * 4097):
+                with self.assertRaises(RuntimeError):
+                    gui.run_desktop_session(private)
+
     def test_reopen_evidence_requires_both_normal_native_closes_and_owned_groups(self):
         value = dict(
             status='passed', stage='complete', process_groups_started=4, process_groups_joined=4,

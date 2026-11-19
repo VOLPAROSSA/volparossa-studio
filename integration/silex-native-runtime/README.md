@@ -128,7 +128,8 @@ declared no kernel dependencies and matched their own kernel version.
 · [Ubuntu package, signed index and module digests](../../docs/evidence/native-webview/ubuntu-veth.json)
 
 Ubuntu's `python3-gi` 3.48.2-1 opens GDK's default display during import.
-The fixture uses that connection and closes it before Xvfb exits. The 232,016-byte
+The unprivileged supervisor keeps Xvfb and the session bus running until the
+GTK client exits. The 232,016-byte
 amd64 package matched its signed Noble index SHA-256,
 `2a69ad9d8ab3b5801725480986b9abbf83bd4a06c38450fe143f6689d19d4bd8`.
 The worker can retain the last fixed GUI checkpoint and process exit status if
@@ -142,11 +143,11 @@ local dashboard. The build and both native launches share a disposable runner.
 Only bounded JSON receipts leave the job. The namespace verifies the private
 executable against the same-revision build receipt before exposing it to the
 original unprivileged UID. Following the IPv4, IPv6 and DNS calibration, the
-application can use the local Silex TCP port on loopback. The fixture waits
-for the empty dashboard, enters the project name in its native form and activates
-Create project. It saves a unique page through the new project's local API and selects
-the dashboard’s Open action through accessibility, reads the native editor title
-and checks the saved canvas content in the visible native window. The readback
+application can use the local Silex TCP port on loopback. The fixture checks that
+the original project list is empty, clicks the rendered form, types the name and
+presses Enter. After Silex creates the project, it saves a unique page through the
+local API. It then selects the dashboard’s Open action through accessibility, reads
+the native editor title and checks the saved content in the visible canvas. The readback
 uses its exact accessible text or the adjacent border and fill colors derived from
 the project ID. Pixel samples stay inside the disposable display. It closes the
 window and repeats these checks in a fresh process. Its success requires both normal exits,

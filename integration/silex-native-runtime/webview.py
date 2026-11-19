@@ -14,6 +14,7 @@ import secrets
 import struct
 import subprocess
 import sys
+import tempfile
 import time
 
 NAME = 'Public native WebView project'
@@ -357,10 +358,181 @@ def checkpoint(stage):
     print('GUI ' + stage, flush=True)
 
 
-def main():
-    stage = 'admission'
+@contextlib.contextmanager
+def service(life, state, command, on_error=None):
+    process, identity = life.start_group(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, cwd=os.environ['HOME'], env=os.environ.copy(), close_fds=True)
+    state['process_groups_started'] += 1
+    try:
+        yield process
+    except BaseException as error:
+        if on_error is not None:
+            try:
+                on_error(process.pid, error)
+            except Exception:
+                pass
+        raise
+    finally:
+        result = life.drain_group(process, identity)
+        require(result['leader_joined'] and result['live_group_drained'])
+        state['process_groups_joined'] += 1
+
+
+def desktop_session(result):
+    # The original unprivileged supervisor keeps Xvfb and D-Bus alive through
+    # this interpreter's complete shutdown, including native library finalizers.
+    life = load('lifecycle')
+    stage = 'bus'
     state = dict(process_groups_started=0, process_groups_joined=0, desktop_launches=0,
         native_window_closes=0, editor_title_states=[], canvas_readbacks=[], close_actions=[], original_project_reopened=False)
+    def observe_error(pid, error):
+        detail = interface_observation(Atspi, pid, error)
+        print('GUI detail ' + json.dumps(detail, sort_keys=True), flush=True)
+
+    try:
+        import gi
+        gi.require_version('Atspi', '2.0')
+        gi.require_version('Gdk', '3.0')
+        gi.require_version('GdkX11', '3.0')
+        from gi.repository import Atspi, Gdk, GdkX11, Gio, GLib
+        screen = Gdk.Display.get_default()
+        require(screen is not None and screen.get_name() in (':87', ':87.0'))
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        bus.call_sync('org.a11y.Bus', '/org/a11y/bus', 'org.freedesktop.DBus.Properties', 'Set',
+            GLib.Variant('(ssv)', ('org.a11y.Status', 'IsEnabled', GLib.Variant('b', True))),
+            None, Gio.DBusCallFlags.NONE, 3000, None)
+        events = GLib.MainContext.default()
+        Atspi.set_main_context(events)
+        Atspi.set_timeout(1000, 1500)
+        Atspi.init()
+        checkpoint('bus_ready')
+        project_id = None
+        for phase in ('first', 'second'):
+            stage = phase + '_launch'
+            with service(life, state, ['/run/fixture/silex-desktop', '--stdio'], observe_error) as app:
+                state['desktop_launches'] += 1
+                checkpoint(phase + '_launch')
+                await_value(lambda: app.poll() is None and available())
+                if phase == 'first':
+                    stage = 'empty_dashboard'
+                    require(remote('GET', '/api/website?connectorId=fs-storage') == [])
+                    stage = 'project_name'
+                    point = await_value(lambda: find_accessible(Atspi,
+                        lambda node: project_name_point(node, Atspi)), context=events)
+                    stage = 'create_project'
+                    type_project_name(point)
+                    created = await_value(lambda: remote('GET', '/api/website?connectorId=fs-storage'))
+                    require(type(created) is list and len(created) == 1 and created[0]['name'] == NAME)
+                    project_id = created[0]['websiteId']
+                    require(type(project_id) is str and UUID.fullmatch(project_id))
+                    checkpoint('dashboard_created')
+                    stage = 'seed_project'
+                    uri = '/api/website?websiteId=' + project_id + '&connectorId=fs-storage'
+                    project = remote('GET', uri)
+                    require(project['pages'] == [{}])
+                    project['pages'] = [saved_page(project_id)]
+                    remote('POST', uri, project)
+                stage = phase + '_list'
+                projects = remote('GET', '/api/website?connectorId=fs-storage')
+                require(type(projects) is list and len(projects) == 1 and projects[0]['websiteId'] == project_id
+                        and projects[0]['name'] == NAME)
+                stage = phase + '_metadata'
+                meta = remote('GET', '/api/website/meta?websiteId=' + project_id + '&connectorId=fs-storage')
+                require(meta['name'] == NAME)
+                stage = phase + '_saved_page'
+                require(remote('GET', uri)['pages'] == [saved_page(project_id)])
+                stage = phase + '_open'
+                checkpoint(phase + '_saved_page')
+                desktop_action(Atspi, 'Open project: ' + NAME, app, events)
+                stage = phase + '_editor'
+                try:
+                    window, title_state = await_value(lambda: editor_window(app.pid), context=events)
+                    state['editor_title_states'].append(title_state)
+                except TimeoutError:
+                    stage = phase + '_' + editor_observation(Atspi, app.pid, project_id)
+                    raise
+                stage = phase + '_webkit_process'
+                require(await_value(webkit_process))
+                checkpoint(phase + '_webkit_process')
+                # Xvfb has no window manager to honor Tauri's maximize request.
+                # Size the confirmed project window to the full private display.
+                stage = phase + '_window_size'
+                subprocess.run(['/usr/bin/xdotool', 'windowsize', '--sync', str(window), '1280', '800'],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    timeout=3, check=True)
+                def read_canvas():
+                    nonlocal stage
+                    stage = phase + '_canvas_pixels'
+                    if visual_canvas(Gdk, GdkX11, screen, window, project_id):
+                        return 'visible_pixels'
+                    stage = phase + '_canvas_accessibility'
+                    if visible_canvas_heading(Atspi, project_id):
+                        return 'accessible_text'
+                    return None
+                try:
+                    state['canvas_readbacks'].append(await_value(read_canvas, context=events))
+                except TimeoutError:
+                    stage = phase + '_canvas_' + editor_observation(Atspi, app.pid, project_id)
+                    raise
+                stage = phase + '_close_request'
+                checkpoint(phase + '_canvas_read')
+                request_close(window)
+                checkpoint(phase + '_close_request')
+                choice = 'window_close'
+                # Silex may mark the restored project changed while mounting the canvas.
+                # The saved fixture is already verified. Use the app's own Quit choice.
+                def normal_exit():
+                    nonlocal choice, stage
+                    observed = os.waitid(os.P_PID, app.pid, os.WEXITED | os.WNOWAIT | os.WNOHANG)
+                    if observed:
+                        stage = phase + '_exit_status'
+                        require(observed.si_code == os.CLD_EXITED and observed.si_status == 0)
+                        return True
+                    if choice == 'window_close':
+                        stage = phase + '_quit_dialog'
+                        action = find_accessible(Atspi, lambda node: quit_dialog_action(node, app.pid))
+                        if action:
+                            stage = phase + '_quit_action'
+                            require(action.do_action(0))
+                            choice = 'quit_dialog'
+                            checkpoint(phase + '_quit_action')
+                    else:
+                        stage = phase + '_exit'
+                    return False
+                await_value(normal_exit, 12, context=events)
+                state['native_window_closes'] += 1
+                state['close_actions'].append(choice)
+                checkpoint(phase + '_closed')
+            stage = phase + '_server_stop'
+            await_value(lambda: not available(), 5)
+            checkpoint(phase + '_server_stopped')
+        state['original_project_reopened'] = True
+        state['project_id_sha256'] = hashlib.sha256(project_id.encode()).hexdigest()
+        checkpoint('accessibility_closing')
+        Atspi.exit()
+        checkpoint('accessibility_closed')
+        require(state['process_groups_started'] == state['process_groups_joined'] == 2)
+        print(json.dumps(dict(status='passed', stage='complete', **state)), file=result, flush=True)
+        return 0
+    except BaseException:
+        print(json.dumps(dict(status='failed', stage=stage, **state)), file=result, flush=True)
+        return 1
+
+
+def run_desktop_session(private):
+    with tempfile.TemporaryFile(dir=private) as result:
+        fd = result.fileno()
+        completed = subprocess.run([sys.executable, '-I', '-B', __file__, '--desktop-session', str(fd)],
+            pass_fds=(fd,), stdin=subprocess.DEVNULL, timeout=66, check=False)
+        result.seek(0)
+        raw = result.read(4097)
+    require(0 < len(raw) <= 4096)
+    return completed.returncode, json.loads(raw)
+
+
+def main():
+    state = dict(process_groups_started=0, process_groups_joined=0)
+    stage = 'admission'
     actor = load('isolation_actor')
     life = load('lifecycle')
     # The admission actor uses the same original identity and view assertions.
@@ -380,172 +552,40 @@ def main():
                      + field(b'MIT-MAGIC-COOKIE-1') + field(secrets.token_bytes(16)))
     os.environ.update(DISPLAY=':87', XAUTHORITY=str(cookie), DBUS_SESSION_BUS_ADDRESS='unix:path=' + str(address),
         GDK_BACKEND='x11', GTK_A11Y='atspi', NO_AT_BRIDGE='0', LIBGL_ALWAYS_SOFTWARE='1', LC_ALL='C.UTF-8', LANG='C.UTF-8')
-    @contextlib.contextmanager
-    def service(command):
-        process, identity = life.start_group(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL, cwd=os.environ['HOME'], env=os.environ.copy(), close_fds=True)
-        state['process_groups_started'] += 1
-        try:
-            yield process
-        except BaseException as error:
-            if command[0] == '/run/fixture/silex-desktop':
-                try:
-                    detail = interface_observation(Atspi, process.pid, error)
-                    print('GUI detail ' + json.dumps(detail, sort_keys=True), flush=True)
-                except Exception:
-                    pass
-            raise
-        finally:
-            result = life.drain_group(process, identity)
-            require(result['leader_joined'] and result['live_group_drained'])
-            state['process_groups_joined'] += 1
     try:
         with contextlib.ExitStack() as stack:
             stage = 'display'
-            stack.enter_context(service(['/usr/bin/Xvfb', ':87', '-screen', '0', '1280x800x24', '-nolisten', 'tcp',
+            stack.enter_context(service(life, state, ['/usr/bin/Xvfb', ':87', '-screen', '0', '1280x800x24', '-nolisten', 'tcp',
                                          '-auth', str(cookie), '-noreset']))
             await_value(lambda: Path('/tmp/.X11-unix/X87').is_socket(), 5)
             stage = 'bus'
-            stack.enter_context(service(['/usr/bin/dbus-daemon', '--session', '--nofork', '--nopidfile',
+            stack.enter_context(service(life, state, ['/usr/bin/dbus-daemon', '--session', '--nofork', '--nopidfile',
                                          '--address=unix:path=' + str(address)]))
             await_value(address.is_socket, 5)
-            import gi
-            gi.require_version('Atspi', '2.0')
-            gi.require_version('Gdk', '3.0')
-            gi.require_version('GdkX11', '3.0')
-            from gi.repository import Atspi, Gdk, GdkX11, Gio, GLib
-            # PyGObject initializes GDK and opens the default X11 display on import.
-            # Close that connection while Xvfb is alive, before draining the server.
-            screen = Gdk.Display.get_default()
-            require(screen is not None and screen.get_name() in (':87', ':87.0'))
-            def close_display():
-                checkpoint('display_closing')
-                screen.close()
-                checkpoint('display_closed')
-            stack.callback(close_display)
-            bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-            bus.call_sync('org.a11y.Bus', '/org/a11y/bus', 'org.freedesktop.DBus.Properties', 'Set',
-                GLib.Variant('(ssv)', ('org.a11y.Status', 'IsEnabled', GLib.Variant('b', True))),
-                None, Gio.DBusCallFlags.NONE, 3000, None)
-            events = GLib.MainContext.default()
-            Atspi.set_main_context(events)
-            Atspi.set_timeout(1000, 1500)
-            Atspi.init()
-            checkpoint('bus_ready')
-            project_id = None
-            for phase in ('first', 'second'):
-                stage = phase + '_launch'
-                with service(['/run/fixture/silex-desktop', '--stdio']) as app:
-                    state['desktop_launches'] += 1
-                    checkpoint(phase + '_launch')
-                    await_value(lambda: app.poll() is None and available())
-                    if phase == 'first':
-                        stage = 'empty_dashboard'
-                        require(remote('GET', '/api/website?connectorId=fs-storage') == [])
-                        stage = 'project_name'
-                        point = await_value(lambda: find_accessible(Atspi,
-                            lambda node: project_name_point(node, Atspi)), context=events)
-                        stage = 'create_project'
-                        type_project_name(point)
-                        created = await_value(lambda: remote('GET', '/api/website?connectorId=fs-storage'))
-                        require(type(created) is list and len(created) == 1 and created[0]['name'] == NAME)
-                        project_id = created[0]['websiteId']
-                        require(type(project_id) is str and UUID.fullmatch(project_id))
-                        checkpoint('dashboard_created')
-                        stage = 'seed_project'
-                        uri = '/api/website?websiteId=' + project_id + '&connectorId=fs-storage'
-                        project = remote('GET', uri)
-                        require(project['pages'] == [{}])
-                        project['pages'] = [saved_page(project_id)]
-                        remote('POST', uri, project)
-                    stage = phase + '_list'
-                    projects = remote('GET', '/api/website?connectorId=fs-storage')
-                    require(type(projects) is list and len(projects) == 1 and projects[0]['websiteId'] == project_id
-                            and projects[0]['name'] == NAME)
-                    stage = phase + '_metadata'
-                    meta = remote('GET', '/api/website/meta?websiteId=' + project_id + '&connectorId=fs-storage')
-                    require(meta['name'] == NAME)
-                    stage = phase + '_saved_page'
-                    require(remote('GET', uri)['pages'] == [saved_page(project_id)])
-                    stage = phase + '_open'
-                    checkpoint(phase + '_saved_page')
-                    desktop_action(Atspi, 'Open project: ' + NAME, app, events)
-                    stage = phase + '_editor'
-                    try:
-                        window, title_state = await_value(lambda: editor_window(app.pid), context=events)
-                        state['editor_title_states'].append(title_state)
-                    except TimeoutError:
-                        stage = phase + '_' + editor_observation(Atspi, app.pid, project_id)
-                        raise
-                    stage = phase + '_webkit_process'
-                    require(await_value(webkit_process))
-                    checkpoint(phase + '_webkit_process')
-                    # Xvfb has no window manager to honor Tauri's maximize request.
-                    # Size the confirmed project window to the full private display.
-                    stage = phase + '_window_size'
-                    subprocess.run(['/usr/bin/xdotool', 'windowsize', '--sync', str(window), '1280', '800'],
-                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                        timeout=3, check=True)
-                    def read_canvas():
-                        nonlocal stage
-                        stage = phase + '_canvas_pixels'
-                        if visual_canvas(Gdk, GdkX11, screen, window, project_id):
-                            return 'visible_pixels'
-                        stage = phase + '_canvas_accessibility'
-                        if visible_canvas_heading(Atspi, project_id):
-                            return 'accessible_text'
-                        return None
-                    try:
-                        state['canvas_readbacks'].append(await_value(read_canvas, context=events))
-                    except TimeoutError:
-                        stage = phase + '_canvas_' + editor_observation(Atspi, app.pid, project_id)
-                        raise
-                    stage = phase + '_close_request'
-                    checkpoint(phase + '_canvas_read')
-                    request_close(window)
-                    checkpoint(phase + '_close_request')
-                    choice = 'window_close'
-                    # Silex may mark the restored project changed while mounting the canvas.
-                    # The saved fixture is already verified. Use the app's own Quit choice.
-                    def normal_exit():
-                        nonlocal choice, stage
-                        observed = os.waitid(os.P_PID, app.pid, os.WEXITED | os.WNOWAIT | os.WNOHANG)
-                        if observed:
-                            stage = phase + '_exit_status'
-                            require(observed.si_code == os.CLD_EXITED and observed.si_status == 0)
-                            return True
-                        if choice == 'window_close':
-                            stage = phase + '_quit_dialog'
-                            action = find_accessible(Atspi, lambda node: quit_dialog_action(node, app.pid))
-                            if action:
-                                stage = phase + '_quit_action'
-                                require(action.do_action(0))
-                                choice = 'quit_dialog'
-                                checkpoint(phase + '_quit_action')
-                        else:
-                            stage = phase + '_exit'
-                        return False
-                    await_value(normal_exit, 12, context=events)
-                    state['native_window_closes'] += 1
-                    state['close_actions'].append(choice)
-                    checkpoint(phase + '_closed')
-                stage = phase + '_server_stop'
-                await_value(lambda: not available(), 5)
-                checkpoint(phase + '_server_stopped')
-            state['original_project_reopened'] = True
-            state['project_id_sha256'] = hashlib.sha256(project_id.encode()).hexdigest()
-            checkpoint('accessibility_closing')
-            Atspi.exit()
-            checkpoint('accessibility_closed')
+            stage = 'desktop_session'
+            code, gui = run_desktop_session(private)
+            if gui.get('status') == 'failed':
+                stage = gui['stage']
+            require(code == 0 and gui.get('status') == 'passed' and gui['stage'] == 'complete')
+            require(gui['process_groups_started'] == gui['process_groups_joined'] == 2)
+            checkpoint('desktop_session_joined')
         stage = 'cleanup'
         checkpoint('services_drained')
-        require(state['process_groups_started'] == state['process_groups_joined'] == 4)
+        require(state['process_groups_started'] == state['process_groups_joined'] == 2)
+        stage = 'cookie_cleanup'
         cookie.unlink()
-        print(json.dumps(dict(status='passed', stage='complete', **state), sort_keys=True), flush=True)
+        for name, count in state.items():
+            gui[name] += count
+        print(json.dumps(gui, sort_keys=True), flush=True)
     except BaseException:
-        print(json.dumps(dict(status='failed', stage=stage, **state), sort_keys=True), flush=True)
+        print(json.dumps(dict(status='failed', stage=stage)), flush=True)
         raise SystemExit(1) from None
 
 
 if __name__ == '__main__':
+    if sys.argv[1:2] == ['--desktop-session']:
+        require(len(sys.argv) == 3 and sys.argv[2].isdecimal() and int(sys.argv[2]) > 2)
+        with os.fdopen(int(sys.argv[2]), 'w', encoding='utf-8') as result:
+            raise SystemExit(desktop_session(result))
+    require(len(sys.argv) == 1)
     main()

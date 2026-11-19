@@ -40,6 +40,21 @@ when quitting. The follow-up recognizes its two explicit choices in the owned
 GTK dialog and records how each desktop process closed.
 [First confirmed native canvas](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44524950940)
 
+A native creation-form trial identified the dashboard heading, Create,
+Refresh and the project-name label among 27 accessible objects. It timed out
+while waiting for programmatic text entry. The next trial pumps the GLib event
+queue and uses the pointer and keyboard to submit the original form. Creation
+must yield one named filesystem project with an ID assigned by Silex.
+[Native form receipt](evidence/native-webview/44537129267/silex-native-webview.json)
+
+The native pointer and keyboard then created a real project in the dashboard.
+Two fresh Silex processes each opened it, displayed the saved canvas and closed
+with exit code zero. The GUI observer reached `services_drained` after both
+local servers stopped, then exited with code one. The final network counters
+and host cleanup were not verified in this run. The next source waits for the
+GTK interpreter to exit before it stops the private display and session bus.
+[Native reopen observation](evidence/native-webview/44539015216/silex-native-webview.json)
+
 ## A fresh browser opens a Studio site after its publisher goes offline — 2026-11-18
 
 A single hosted trial followed a synthetic public site from its saved Silex
