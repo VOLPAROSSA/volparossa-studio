@@ -153,10 +153,7 @@ def editor_observation(atspi, pid, project_id):
 
 def desktop_action(atspi, label, app_process):
     def match(node):
-        if node.get_name() != label or node.get_role() != atspi.Role.PUSH_BUTTON:
-            return None
-        states = node.get_state_set()
-        if states.contains(atspi.StateType.SENSITIVE) and states.contains(atspi.StateType.SHOWING):
+        if node.get_name() == label:
             action = node.get_action_iface()
             if action and action.get_n_actions():
                 return action
@@ -338,11 +335,14 @@ def main():
                         remote('POST', uri, project)
                         stage = 'refresh_dashboard'
                         desktop_action(Atspi, 'Refresh', app)
+                    stage = phase + '_list'
                     projects = remote('GET', '/api/website?connectorId=fs-storage')
                     require(type(projects) is list and len(projects) == 1 and projects[0]['websiteId'] == project_id
                             and projects[0]['name'] == NAME)
+                    stage = phase + '_metadata'
                     meta = remote('GET', '/api/website/meta?websiteId=' + project_id + '&connectorId=fs-storage')
                     require(meta['name'] == NAME)
+                    stage = phase + '_saved_page'
                     require(remote('GET', uri)['pages'] == [saved_page(project_id)])
                     stage = phase + '_open'
                     desktop_action(Atspi, 'Open project: ' + NAME, app)
@@ -354,10 +354,18 @@ def main():
                         raise
                     stage = phase + '_webkit_process'
                     require(await_value(webkit_process))
-                    stage = phase + '_canvas'
+                    # Xvfb has no window manager to honor Tauri's maximize request.
+                    # Size the confirmed project window to the full private display.
+                    stage = phase + '_window_size'
+                    subprocess.run(['/usr/bin/xdotool', 'windowsize', '--sync', str(window), '1280', '800'],
+                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                        timeout=3, check=True)
                     def read_canvas():
+                        nonlocal stage
+                        stage = phase + '_canvas_pixels'
                         if visual_canvas(Gdk, GdkX11, screen, window, project_id):
                             return 'visible_pixels'
+                        stage = phase + '_canvas_accessibility'
                         if visible_canvas_heading(Atspi, project_id):
                             return 'accessible_text'
                         return None

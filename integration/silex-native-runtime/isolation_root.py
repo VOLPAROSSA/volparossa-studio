@@ -49,7 +49,8 @@ GUI_STAGES = ('admission', 'display', 'bus', 'first_launch', 'seed_project', 're
               'first_open', 'first_editor', 'first_close', 'second_launch', 'second_open',
               'second_editor', 'second_close', 'cleanup', 'complete') + tuple(
     phase + '_' + observed for phase in ('first', 'second')
-    for observed in ('dirty_title', 'id_title', 'dashboard', 'loading', 'editor_url', 'unknown_page', 'webkit_process', 'canvas', 'canvas_dirty_title', 'canvas_id_title',
+    for observed in ('list', 'metadata', 'saved_page', 'window_size', 'canvas_pixels', 'canvas_accessibility',
+                     'dirty_title', 'id_title', 'dashboard', 'loading', 'editor_url', 'unknown_page', 'webkit_process', 'canvas', 'canvas_dirty_title', 'canvas_id_title',
                      'canvas_dashboard', 'canvas_loading', 'canvas_editor_url', 'canvas_unknown_page'))
 
 ENV = dict(PATH='/usr/sbin:/usr/bin:/sbin:/bin', LANG='C', LC_ALL='C', PYTHONDONTWRITEBYTECODE='1')

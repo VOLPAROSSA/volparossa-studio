@@ -62,6 +62,19 @@ class WebViewTests(unittest.TestCase):
         with self.assertRaises(root.Rejected):
             root.gui_policy(0)
 
+    def test_dashboard_action_uses_the_exact_named_action_and_observes_the_live_application(self):
+        sdk, process = Mock(), Mock()
+        process.poll.return_value = None
+        node = sdk.get_desktop.return_value
+        node.get_name.return_value = 'Refresh'
+        node.get_action_iface.return_value.get_n_actions.return_value = 1
+        node.get_action_iface.return_value.do_action.return_value = True
+        gui.desktop_action(sdk, 'Refresh', process)
+        node.get_action_iface.return_value.do_action.assert_called_once_with(0)
+        process.poll.return_value = 1
+        with self.assertRaises(RuntimeError):
+            gui.desktop_action(sdk, 'Refresh', process)
+
     def test_visible_heading_must_match_the_content_saved_for_this_project(self):
         sdk = Mock()
         project_id = 'c3218641-230e-414f-8a6a-367733abeb23'
