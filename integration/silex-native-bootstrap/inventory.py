@@ -55,84 +55,6 @@ def package(name, version):
     return value
 
 
-def pinned_simulation():
-    """Compare this runner's read-only APT plan with the exact reviewed installer."""
-    import install_sdk
-
-    records = install_sdk.records_from_manifest(Path(__file__).with_name('ubuntu-sdk.json').read_bytes())
-    query = ['/usr/bin/dpkg-query', '-W', '-f=${Package}\t${Version}\t${Architecture}\t${Status}\n', *records]
-    installed = install_sdk.dpkg_rows(command(query, accepted=(0, 1)).encode(), records, complete=False)
-    targets = [name + '=' + row['Version'] for name, row in records.items()]
-    options = install_sdk.install_options(Path('/var/cache/apt/archives'))
-    result = subprocess.run(['/usr/bin/apt-get', *options, '--simulate', 'install', *targets],
-        env=install_sdk.ENV, capture_output=True, timeout=45, check=False)
-    if len(result.stdout) + len(result.stderr) > 2 * 1024 * 1024:
-        raise ValueError('bounded simulation output required')
-    observation = dict(exit_code=result.returncode, input_count=len(records), installed_count=len(installed),
-        stdout_sha256=hashlib.sha256(result.stdout).hexdigest(), unchanged_installer_accepted=False)
-    if result.returncode != 0:
-        output = result.stdout.decode('utf-8', errors='strict')
-        error = result.stderr.decode('utf-8', errors='strict')
-        markers = ('unmet dependencies', 'held broken packages', 'not installable',
-            'not going to be installed', 'unable to fetch', 'essential packages',
-            'could not open', 'permission denied', 'archives directory', 'no such file',
-            'requested an impossible situation', 'no-download', 'packages need to be removed',
-            'packages were downgraded', 'unable to locate', 'is not available',
-            'cannot download', 'no installation candidate')
-        combined = (output + '\n' + error).lower()
-        observation['failure_markers'] = [marker for marker in markers if marker in combined]
-        observation['stderr_sha256'] = hashlib.sha256(result.stderr).hexdigest()
-        # apt-cache must authenticate the terminal public package name before it is recorded.
-        dependencies = []
-        for line in output.splitlines():
-            match = re.fullmatch(r'\s*([a-z0-9+.-]+)(?::amd64)? : (Depends|PreDepends|Breaks|Conflicts): ([a-z0-9+.-]+)(?::amd64)?(?: |$).*', line)
-            if match and len(dependencies) < 16:
-                subject, relation, dependency = match.groups()
-                for name in (subject, dependency):
-                    if name not in records:
-                        candidate = record(command(['/usr/bin/apt-cache', 'show', name]))
-                        package(name, candidate['Version'])
-                dependencies.append(dict(package=subject, relation=relation, dependency=dependency))
-        observation['dependency_constraints'] = dependencies
-        return observation
-    try:
-        planned = install_sdk.plan_rows(result.stdout, records, installed)
-    except install_sdk.Rejected:
-        # Report only typed observations about publicly authenticated package records.
-        shapes, extra, seen_inst, seen_conf = [], set(), set(), set()
-        for line in result.stdout.decode('utf-8', errors='strict').splitlines():
-            match = re.match(r'^(Inst|Conf|Purg|Remv) ([a-z0-9+.-]+)(?::amd64)?(?: \[([^\]]+)\])? \((\S+) ', line)
-            if match is None:
-                continue
-            operation, name, old, version = match.groups()
-            # package() authenticates the public candidate before its name may leave the runner.
-            if name not in records:
-                package(name, version)
-                extra.add(name)
-            else:
-                expected = records[name]
-                tail = line.rpartition(')')[2]
-                if (operation in ('Purg', 'Remv') or tail or version != expected['Version']
-                        or old is not None and installed.get(name, (None,))[0] != old):
-                    if len(shapes) < 8:
-                        shapes.append(dict(operation=operation, package=name,
-                            version_matches=version == expected['Version'],
-                            old_matches=old is None or installed.get(name, (None,))[0] == old,
-                            has_tail=bool(tail), tail_empty_brackets=tail.strip() == '[]',
-                            tail_package_brackets=re.fullmatch(r' \[(?:[a-z0-9+.:_-]+ *)+\]', tail) is not None))
-            if operation == 'Inst':
-                seen_inst.add(name)
-            elif operation == 'Conf':
-                seen_conf.add(name)
-        observation.update(first_unmatched_shapes=shapes, extra_packages=sorted(extra),
-            missing_packages=[name for name, row in records.items() if name not in seen_inst
-                and installed.get(name) != (row['Version'], row['Architecture'])],
-            configured_set_matches=seen_conf == seen_inst)
-    else:
-        observation.update(unchanged_installer_accepted=True, planned_count=len(planned))
-    return observation
-
-
 def main():
     root = Path(__file__).resolve().parents[2]
     workspace = Path(os.environ['GITHUB_WORKSPACE']).resolve()
@@ -185,7 +107,6 @@ def main():
     receipt = dict(schema=1, status='passed', proof_mode='native-package-inventory',
         studio_revision=os.environ['GITHUB_SHA'], system='ubuntu-24.04-amd64',
         requested=selected, installed_targets=installed, installation_plan=installs,
-        pinned_plan=pinned_simulation(),
         installation_plan_sha256=hashlib.sha256(plan.encode()).hexdigest(),
         signed_apt_indices=indices, apt_verification='system apt-get update',
         packages_installed=False, compiler_or_native_build=False,
