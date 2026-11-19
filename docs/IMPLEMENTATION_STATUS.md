@@ -25,16 +25,16 @@ binary digest and reached stage.
 · [AWS run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44515212276)
 · [Archive and receipt digests](evidence/native-webview/runs.json)
 
-The same hosted profile then verified the AWS package, built the desktop and
-reached the dashboard refresh stage. Its receipt does not identify which check
+A later Azure worker verified its kernel module, built the desktop and reached
+the dashboard refresh stage. Its receipt does not identify which check
 within that stage stopped. The follow-up uses the named native action that opened
 the first editor and records separate stages for the project list, metadata,
 saved page and visible canvas. A fresh process must display that same saved
 content before this trial can establish native reopening.
 [Dashboard refresh run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44519409673)
 
-On source `93835407`, the original desktop displayed the saved project in the
-native WebKit canvas. The trial reached the first normal close request and
+On source `93835407`, an AWS worker verified kernel `7.0.0-1014-aws` and
+displayed the saved project in the original desktop's WebKit canvas. The trial reached the first normal close request and
 stopped before confirming process exit. Silex can ask whether to save changes
 when quitting. The follow-up recognizes its two explicit choices in the owned
 GTK dialog and records how each desktop process closed.

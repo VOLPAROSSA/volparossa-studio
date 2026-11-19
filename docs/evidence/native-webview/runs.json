@@ -113,5 +113,25 @@
         "sha256": "7c611a8a2d13110a9a7b53b56c311703df94bf5c106d3d3756a5d09aa2bbffcc"
       }
     ]
+  },
+  {
+    "run": 44526955628,
+    "revision": "e365004c54a065458e4a0afcefcc921d27eaa70d",
+    "conclusion": "failure",
+    "artifact_id": 14533321420,
+    "artifact_bytes": 40328,
+    "artifact_sha256": "7ad1cfab35b59b884370e5ed3682a2c75b2d7182e2453747e9b6e47c289af0be",
+    "executable": {
+      "bytes": 34339216,
+      "links": 2,
+      "mode": 493,
+      "sha256": "8507092e6039cb1b548b59ade0ad7c899afd66572606ebb91c23e5acdd75918a"
+    },
+    "files": [
+      {
+        "path": "44526955628/silex-native-webview.json",
+        "sha256": "f4085ad1fbaa2cd6ee11e1e9ad807b407d8ec5fb38fb2c5ced51df8c7bd1ab34"
+      }
+    ]
   }
 ]
