@@ -364,7 +364,7 @@ def main():
         chrome, browser_sha = installed_browser(p, diagnostic)
         require(Path(chrome).resolve(strict=True) == Path('/opt/google/chrome/google-chrome'))
         require(browser_sha == '08d5a3fba3197010b28113da201bd31a49b4439619dbf558f8040e4015c787bb')
-        # Installed browser identity is observed, never represented as source authentication.
+        report['browser_binary_sha256'] = browser_sha
         value = dict(schema=1, revision=revision, root=str(work), node=str(node), chrome=chrome,
             server=str(work / 'server'), parent_net=os.readlink('/proc/self/ns/net'),
             parent_pid=os.readlink('/proc/self/ns/pid'), uid=os.getuid(), gid=os.getgid(),
