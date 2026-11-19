@@ -20,7 +20,7 @@ import time
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-MANIFEST = 'c2e3e609b6dc9e204b65d173ac087be89c37e06f25e10c997dd1fd87831178a8'
+MANIFEST = 'b968a55b95b693dd8b33adc16d84d9fca86d5b43b0aaaf7b45695e3ac4b588c7'
 POLICY = Path('/usr/sbin/policy-rc.d')
 POLICY_BYTES = b'#!/bin/sh\nexit 101\n'
 MAX_FILE = 64 * 1024 * 1024
@@ -110,7 +110,7 @@ def records_from_manifest(raw):
     for name, row in value['installation_plan'].items():
         require(name not in records or records[name] == row)
         records[name] = row
-    require(len(records) == 182 and sum(int(row['Size']) for row in records.values()) == 63772228)
+    require(len(records) == 184 and sum(int(row['Size']) for row in records.values()) == 74345024)
     return dict(sorted(records.items()))
 
 
@@ -123,8 +123,8 @@ def check_fetch(value, records, revision):
     require(type(value) is dict and type(value.get('schema')) is int and value.get('schema') == 1 and value.get('status') == 'passed'
             and value.get('mode') == 'native-sdk-archives-fetch' and value.get('stage') == 'complete'
             and value.get('studio_revision') == revision and value.get('sdk_manifest_sha256') == MANIFEST
-            and value.get('archives_verified') is True and value.get('archive_count') == 182
-            and value.get('archive_bytes') == 63772228 and value.get('hashes') == expected_hashes(records)
+            and value.get('archives_verified') is True and value.get('archive_count') == 184
+            and value.get('archive_bytes') == 74345024 and value.get('hashes') == expected_hashes(records)
             and value.get('cleanup') == dict(owned_groups_joined=True, owned_group_count=3,
                                             archives_retained=True, archive_tree_private=True))
     require(all(value.get(key) is False for key in (*FALSE_FLAGS, 'packages_installed', 'sdk_installed',
@@ -136,7 +136,7 @@ def row_failure(diagnostic, predicate, index, fields, records):
         return
     valid = len(fields) == 4
     name, version, architecture, state = fields if valid else ('', '', '?', '?')
-    diagnostic.update(failure_predicate=predicate, row_index=min(index, 182), row_index_clipped=index > 182,
+    diagnostic.update(failure_predicate=predicate, row_index=min(index, 184), row_index_clipped=index > 184,
         known_package=valid and name in records, arch_class=architecture if architecture in ('amd64', 'all') else
         'empty' if architecture == '' else 'other', version_empty=valid and version == '',
         state_class={'install ok installed': 'installed', 'unknown ok not-installed': 'not_installed',
@@ -632,7 +632,7 @@ def root_main(*, admission_only=False, baseline_only=False):
                 raise Rejected('cancelled')
             report.update(policy_created=True, stage='offline_install')
             # The private root cache cannot be changed by the original nonroot user.
-            # All 182 exact versions remain explicit, even when already installed.
+            # All 184 exact versions remain explicit, even when already installed.
             report['installation_attempted'] = True
             invoke([*argv, '--yes', 'install', *targets])
             report.update(packages_installed=True, stage='post_install')
@@ -641,7 +641,7 @@ def root_main(*, admission_only=False, baseline_only=False):
             report['post_install_exact_versions'] = True
             audit, _code = invoke(['/usr/bin/dpkg', '--audit'])
             require(not audit.strip())
-            report.update(dpkg_audit_clean=True, verified_package_count=182, hashes=expected_hashes(records))
+            report.update(dpkg_audit_clean=True, verified_package_count=184, hashes=expected_hashes(records))
     except BaseException as error:
         primary = error
         report['failure_stage'] = report['stage']
@@ -706,7 +706,7 @@ def check_root(value, revision, records):
                 'network_namespace_isolated', 'root_archive_cache_verified', 'post_install_exact_versions',
                 'dpkg_audit_clean', 'installation_attempted', 'policy_created', 'policy_restored', 'root_cache_retained', 'owned_groups_joined'))
             and type(value.get('owned_group_count')) is int and 6 <= value['owned_group_count'] <= 188
-            and type(value.get('verified_package_count')) is int and value.get('verified_package_count') == 182
+            and type(value.get('verified_package_count')) is int and value.get('verified_package_count') == 184
             and value.get('hashes') == expected_hashes(records)
             and all(value.get(key) is False for key in FALSE_FLAGS))
 
@@ -749,7 +749,7 @@ def check_baseline_diagnostic(value):
         'arch_class': ('empty', 'amd64', 'all', 'other'),
         'state_class': ('installed', 'not_installed', 'config_only', 'other')}
     bounds = {'query_exit_code': 255, 'stdout_bytes': 4 * 1024 * 1024, 'stderr_bytes': 4 * 1024 * 1024,
-              'row_index': 182, 'parsed_installed_count': 182}
+              'row_index': 184, 'parsed_installed_count': 184}
     for key, item in value.items():
         if key in enums:
             require(type(item) is str and item in enums[key])
@@ -874,7 +874,7 @@ def main(*, admission_only=False, baseline_only=False):
             report['baseline_passed'] = True
         else:
             report.update(packages_installed=True, sdk_installed=True,
-                          verified_package_count=182, archive_bytes=63772228, hashes=expected_hashes(records))
+                          verified_package_count=184, archive_bytes=74345024, hashes=expected_hashes(records))
     except BaseException as error:
         primary = error
         report['failure_stage'] = report['stage']

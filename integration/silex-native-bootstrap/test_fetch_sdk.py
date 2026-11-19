@@ -48,8 +48,8 @@ class SdkFetchTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(raw).hexdigest(), sdk.MANIFEST_SHA256)
         value = json.loads(raw)
         records = sdk.validate_manifest(value)
-        self.assertEqual(len(records), 182)
-        self.assertEqual(sum(int(row['Size']) for row in records.values()), 63772228)
+        self.assertEqual(len(records), 184)
+        self.assertEqual(sum(int(row['Size']) for row in records.values()), 74345024)
         self.assertEqual(set(value['requested']), sdk.REQUESTED)
         for key in value['scope']:
             self.assertIs(value['scope'][key], key == 'metadata_verified')
