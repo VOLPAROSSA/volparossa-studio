@@ -26,7 +26,8 @@ DASHBOARD_COMMIT = 'cb36b01a609915facfb1c134f96a98eabcdd3374'
 DASHBOARD_ORIGIN = 'https://gitlab.com/silexlabs/silex_silex-dashboard-2026.git'
 DASHBOARD_MANIFEST = 'b5c534f85d883b837a64dae853012a47bc0ededf38602e40e5964f8064a46d49'
 SDK_MANIFEST = 'c2e3e609b6dc9e204b65d173ac087be89c37e06f25e10c997dd1fd87831178a8'
-EXPORT_MANIFEST = '02e054803e94f8773905af43a4d7aaaaedbc382a67ee27aa5ae6349ff58ca611'
+TOOL_PINS = 'bd05e28169a610a0c782572d83eca9e46e21f1819796f0e9ea43f0b34a24a2c5'
+TOOL_HELPER = '3ece5556fbcadd6d8c8a14ff12ff287c6ce00905548eb625c8c6bc8bf6d95422'
 PNPM_LOCK = '02bb3b4a2db54b4a708b73c37318161163eaf160d610ae37c25db8f9b0dc64c1'
 NATIVE_LOCK = 'de04aaf5ff1acbdde421e3447ea67f3eb7a00a7d5ed118f4387a180e84590118'
 SCHEMAS = frozenset('desktop/src-tauri/gen/schemas/' + name + '.json'
@@ -438,15 +439,15 @@ def compiler(temporary):
 
 
 def export_carrier(work):
-    raw = read_file(EXPORT / 'manifest.json', 65536)
-    require(hashlib.sha256(raw).hexdigest() == EXPORT_MANIFEST, 'carrier_rejected')
-    pins = SUPPORT.json_value(raw)
-    require(pins['node']['version'] == '24.19.0' and pins['pnpm']['version'] == '10.34.4'
+    pins = SUPPORT.json_value(read_file(EXPORT / 'manifest.json', 65536))
+    tools = {name: pins[name] for name in ('node', 'pnpm')}
+    encoded = json.dumps(tools, sort_keys=True, separators=(',', ':')).encode('ascii')
+    require(hashlib.sha256(encoded).hexdigest() == TOOL_PINS
             and pins['silex']['lock_sha256'] == PNPM_LOCK, 'carrier_rejected')
-    for name in ('extract', 'lifecycle', 'runtime_context'):
-        load(name, EXPORT / (name + '.py'))
-    carrier = load('native_build_carrier', EXPORT / 'run.py')
-    node, pnpm = carrier.prepare(work)
+    path = EXPORT / 'toolchain.py'
+    require(hashlib.sha256(read_file(path, 65536)).hexdigest() == TOOL_HELPER, 'carrier_rejected')
+    carrier = load('silex_native_toolchain', path)
+    node, pnpm = carrier.prepare(work, tools)
     require(node == work / 'node/node' and pnpm == work / 'pnpm/package/bin/pnpm.cjs', 'carrier_rejected')
     require(file_hash(node, pins['node']['files']['bin/node']['bytes'], executable=True)['sha256']
             == pins['node']['files']['bin/node']['sha256'], 'carrier_rejected')

@@ -34,7 +34,8 @@ jobs:
   baseline:
     if: >-
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      github.ref == 'refs/heads/fix/publication-preparation-bounds-20261028'
+      (github.ref == 'refs/heads/fix/publication-preparation-bounds-20261028' ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:

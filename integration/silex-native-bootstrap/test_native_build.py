@@ -24,6 +24,34 @@ def public_file(path, raw, mode=0o600):
 
 
 class NativeBuildTests(unittest.TestCase):
+    def test_carrier_admits_unrelated_editor_metadata_and_rejects_changed_inputs_before_loading(self):
+        original = json.loads((M.EXPORT / 'manifest.json').read_bytes())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            helper = root / 'toolchain.py'
+            public_file(helper, (M.EXPORT / helper.name).read_bytes())
+            manifest = root / 'manifest.json'
+            pins = dict(original, scope='independent editor fixture')
+            public_file(manifest, json.dumps(pins).encode())
+            with mock.patch.object(M, 'EXPORT', root), mock.patch.object(M, 'load') as load:
+                load.return_value.prepare.side_effect = InterruptedError('stop before any download')
+                with self.assertRaises(InterruptedError):
+                    M.export_carrier(root)
+                load.return_value.prepare.assert_called_once_with(root, {name: original[name] for name in ('node', 'pnpm')})
+                load.reset_mock()
+                for name, key in [('node', 'sha256'), ('pnpm', 'integrity'), ('silex', 'lock_sha256')]:
+                    changed = copy.deepcopy(pins)
+                    changed[name][key] += '0'
+                    public_file(manifest, json.dumps(changed).encode())
+                    with self.subTest(name=name), self.assertRaises(M.Rejected):
+                        M.export_carrier(root)
+                    load.assert_not_called()
+                public_file(manifest, json.dumps(pins).encode())
+                public_file(helper, b'# unreviewed tool loader')
+                with self.assertRaises(M.Rejected):
+                    M.export_carrier(root)
+                load.assert_not_called()
+
     def test_dashboard_descriptor_pins_genuine_nine_files_and_keeps_license_runtime_closed(self):
         raw = (HERE / 'dashboard-source.json').read_bytes()
         rows = M.dashboard_manifest(raw)

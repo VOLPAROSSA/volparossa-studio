@@ -47,7 +47,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && inputs.native_inventory && inputs.native_followup == 'none' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029'
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029')
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
@@ -82,7 +82,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'bridge' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029'
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029')
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
@@ -152,7 +152,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'verify-lock' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029'
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -241,7 +241,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && (inputs.native_followup == 'sdk-admission' || inputs.native_followup == 'sdk-baseline') &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029'
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -284,7 +284,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && (inputs.native_followup == 'sdk-fetch' || inputs.native_followup == 'sdk-install') &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029'
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -331,7 +331,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !inputs.native_inventory && inputs.native_followup == 'native-build' &&
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029'
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/native-bootstrap-privacy-20261029')
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -833,7 +833,8 @@ jobs:
   publication:
     if: >-
       github.repository == 'VOLPAROSSA/volparossa-studio' &&
-      github.ref == 'refs/heads/fix/publication-preparation-bounds-20261028' &&
+      (github.ref == 'refs/heads/fix/publication-preparation-bounds-20261028' ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) &&
       (github.event_name != 'workflow_dispatch' || (!inputs.native_inventory && inputs.native_followup == 'none'))
     runs-on: ubuntu-24.04
     timeout-minutes: 35

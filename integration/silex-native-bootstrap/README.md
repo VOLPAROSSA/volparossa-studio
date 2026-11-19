@@ -210,7 +210,10 @@ The original failed reports remain preserved.
 
 The explicit `native-build` profile first provisions the verified SDK on its own
 fresh disposable runner. It reuses the authenticated Rust1.99.1 and Node24.19.0 /
-pnpm10.34.4 carriers and the exact six-path overlay. The helper requires matching
+pnpm10.34.4 tools and the exact six-path overlay. Both the editor and native
+profiles use the same archive, member and integrity checks. Native profiles pin
+the acquisition helper and the complete Node/pnpm descriptors from the export
+manifest. The helper requires matching
 normal installation receipts and a live check of all 182 installed versions.
 Admission-only and baseline-only receipts cannot satisfy that gate.
 

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "scope": "real-editor-local-download-then-offline-core-site-pack",
+  "scope": "real-editor-export-core-pack-signed-local-viewer-independent-browser",
   "silex": {
     "commit": "672efed69dda04c0a1e968859239e042f00d9538",
     "source": "https://github.com/silexlabs/Silex",
@@ -31,11 +31,23 @@
   },
   "browser_driver": {
     "name": "playwright-core",
-    "version": "1.56.1",
-    "source": "https://github.com/microsoft/playwright/tree/v1.56.1",
-    "registry": "https://registry.npmjs.org/playwright-core/1.56.1",
+    "version": "1.65.0",
+    "source": "https://github.com/microsoft/playwright/tree/a1f35e1955976e84411f9c10358228a80b763ebe",
+    "registry": "https://registry.npmjs.org/playwright-core/1.65.0",
     "license": "Apache-2.0",
-    "integrity": "sha512-hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ=="
+    "integrity": "sha512-vNSKgH6YqtN7cdT/L334zo0a+YwkrpicyrHJlWWPIm/Q+Nn2SWInil01oT0mbu96U4GgoRtCYQD9CzJQgju+lA==",
+    "archive_sha256": "315247c55a793ca760b2f05bdcee0e6a53fd65b1f22d1d3de8323c8c9395add3",
+    "archive_files_sha256": {
+      "package/lib/coreBundle.js": "4ef8330594818d8f464de939e32bca62b758099e0d0e94a56095406da963f7f1",
+      "package/LICENSE": "45873d00a0dd243596deb4aa23b2493b3d1f0671921bf2538ea431d7380220eb",
+      "package/NOTICE": "6d602191187b35b9b01d2cffa01c8469c2c8d9de8a96f1bf868e0f264f51c81d"
+    },
+    "source_files_sha256": {
+      "packages/playwright-core/src/server/chromium/crDragDrop.ts": "131ebd185079794f03724eed23d1dbace95afa1b913dfee0c8b93821dba45f94",
+      "packages/playwright-core/src/server/chromium/crInput.ts": "20b43d336519f9bc8da1504fb503e711466ca8471aa68af67e867d0535840221",
+      "packages/playwright-core/src/server/input.ts": "dd1a2025bf3e04f52079a9ed0669f77b99a91a9746be452627de389b9539dfcc",
+      "packages/playwright-core/src/server/frames.ts": "c3b72c48361de93312eba80b096304bb374c6208429f2de65944571480c74445"
+    }
   },
   "browser": {
     "acquisition": "preinstalled-github-hosted-google-chrome-only",
