@@ -1,0 +1,69 @@
+{
+  "binding": "existing parent gitlink",
+  "commit": "cb36b01a609915facfb1c134f96a98eabcdd3374",
+  "external_module": "https://unpkg.com/petite-vue@0.4.1/dist/petite-vue.es.js",
+  "license": "Not verified: no license file or explicit declaration observed at this commit",
+  "local_execution": false,
+  "native_runtime_acceptance": false,
+  "public_assets": [
+    {
+      "bytes": 9657,
+      "git_blob": "ed3e742d6abc56ca3ad209162e766ea9b46eaed8",
+      "path": "public/assets/logo-silex-min.svg",
+      "sha256": "84e8378e4a98c8f42fba94344f1d4488da5ee593639ae9f4f2c144e2a9b9f262"
+    },
+    {
+      "bytes": 337,
+      "git_blob": "25bde7ff7672c32279deaef143dad11bad28618d",
+      "path": "public/assets/panels-top-left.svg",
+      "sha256": "3cf1bd731269094dc77d25dc893b66ec2c72ba3068e791a06b802b2c0d75791f"
+    },
+    {
+      "bytes": 1991,
+      "git_blob": "c7a281980651726e27fc0a6aa74d6b7d4891f315",
+      "path": "public/assets/picto-silex-optim.svg",
+      "sha256": "8412e076dfe3d57336d3cbafd17bf3e58131b3ed4aa4d0b84ac4af413d4f6769"
+    },
+    {
+      "bytes": 11299,
+      "git_blob": "bd3edf9e5a8194b4d94284f77ea4d547f97e4240",
+      "path": "public/css/index-008d31adb4d6ca05939154728c0b76bb8bab9a74b338d4af6094bd9a5279c333.css",
+      "sha256": "008d31adb4d6ca05939154728c0b76bb8bab9a74b338d4af6094bd9a5279c333"
+    },
+    {
+      "bytes": 7826,
+      "git_blob": "1283e2e6d52fbb1fd0fed35b3724c2476fe343ba",
+      "path": "public/css/login-64780ea0041938b8530a3d43dc10c5a467ccf95477b7ba10edfd66b5ad08cada.css",
+      "sha256": "64780ea0041938b8530a3d43dc10c5a467ccf95477b7ba10edfd66b5ad08cada"
+    },
+    {
+      "bytes": 5499,
+      "git_blob": "b003e20bc593bf61a35d32b44af2883968e3454b",
+      "path": "public/css/oauth-callback-d207801f308418ce4d45b6241f6df9df88130d6c704eae90e755fc1d76a3e17f.css",
+      "sha256": "d207801f308418ce4d45b6241f6df9df88130d6c704eae90e755fc1d76a3e17f"
+    },
+    {
+      "bytes": 19159,
+      "git_blob": "cd8d7e545629a948cc97da174aaf47b3401fe3a3",
+      "path": "public/index.html",
+      "sha256": "f5404739e342b9b4f2f5e98f3c27e463034207982610328238f1e049cf128de0"
+    },
+    {
+      "bytes": 12778,
+      "git_blob": "2038b4dee9b9b9937c0ee96bc6da284844d90dc8",
+      "path": "public/login.html",
+      "sha256": "d4224658ec740fd0e863ca1e544f1a40ca35ac3656639697d0098ff9c6975450"
+    },
+    {
+      "bytes": 10657,
+      "git_blob": "66993a84eb566dcb50d9410de1541bb2930db5bb",
+      "path": "public/oauth-callback.html",
+      "sha256": "2ecbad33b558cfe6c027d54075625944784d9dcd9b3502cb2a4ceef30d1b975f"
+    }
+  ],
+  "public_bytes": 79203,
+  "redistribution_acceptance": false,
+  "schema": 1,
+  "silex_parent_commit": "672efed69dda04c0a1e968859239e042f00d9538",
+  "source": "https://gitlab.com/silexlabs/silex_silex-dashboard-2026.git"
+}
