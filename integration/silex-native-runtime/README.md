@@ -97,3 +97,10 @@ Five additional controls cover request binding, invalid observations, preserved
 first errors and an actual harmless nonroot entry rejection. No raw error text,
 paths or process output become artifact fields. The diagnostic source change
 requires a fresh directed hosted probe; no cause or runtime success is inferred.
+
+On the November runner the two SDK-backed profiles select the signed Ubuntu
+inventory from run 44437919214. The controller requires the exact refreshed
+manifest and installer plus all 184 verified package rows and their 74,345,024
+archive bytes. The worker, actor, namespace checks and cleanup requirements
+are the same ones exercised by the October isolation probe.
+[Signed inventory](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44437919214)

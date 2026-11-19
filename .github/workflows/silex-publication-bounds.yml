@@ -516,14 +516,14 @@ jobs:
           import hashlib, pathlib
           root = pathlib.Path('studio/integration/silex-native-bootstrap')
           expected = {
-            'ubuntu-sdk.json': 'c2e3e609b6dc9e204b65d173ac087be89c37e06f25e10c997dd1fd87831178a8',
-            'fetch_sdk.py': '9b5e6bae34360839c3c3289e192ce3e1a37256e51a64d64288100ce497307dfb',
-            'install_sdk.py': '817f0ad22c4b0e6447782738e4afacb70d0c31305e883976b1a658e41291606b',
+            'ubuntu-sdk.json': 'b968a55b95b693dd8b33adc16d84d9fca86d5b43b0aaaf7b45695e3ac4b588c7',
+            'fetch_sdk.py': '478be279d69ce36f63e4b288d5551939bc35bd687d808556892305d383caa37b',
+            'install_sdk.py': 'c4c1ec11852c1b935c2a414300df7bc31e1a16cb5760568f7c56d3165194dad9',
           }
           for name, digest in expected.items():
               assert hashlib.sha256((root / name).read_bytes()).hexdigest() == digest
           PYTHON
-      - name: Acquire the same 182 reviewed SDK archives in this disposable job
+      - name: Acquire the same 184 reviewed SDK archives in this disposable job
         run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/fetch_sdk.py"
       - name: Provision the unchanged SDK closure through its offline namespace installer
         run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/install_sdk.py"
@@ -570,8 +570,8 @@ jobs:
           import hashlib, pathlib
           root = pathlib.Path('studio/integration')
           expected = {
-            'silex-native-runtime/isolation.py': 'a51983104ecca1b3f697f0057dc44960b332a0667cb4f997258a70184fbad99a',
-            'silex-native-runtime/isolation_root.py': '1a5f94ea04b4a6185b43e625e75f9b37afa835622ab892fb41ce6c99f9864ef5',
+            'silex-native-runtime/isolation.py': 'b35c464dd8dbb95ef09009bd86073b8c0e259f43c590d1653ba8a70329944978',
+            'silex-native-runtime/isolation_root.py': 'ce8d17c332ab7174560692b5baaa26399b85828c11b359812d03ad3d3495b617',
             'silex-native-runtime/isolation_actor.py': 'e659a2eb6edfe6df7ca75523bb5ae2f8645667e0751f35ad3afa953308f5e9d2',
             'silex-native-runtime/test_isolation.py': 'aacb9f4cefba5e7875a753019c900a9c402454848fd3f74be5bb9e87014d83d7',
             'silex-export/lifecycle.py': 'a3fe1d2fe7ba51c7f63a73ad505161d73e0d8f5b112a9af575f62e70f467da9e',
@@ -602,14 +602,14 @@ jobs:
           import hashlib, pathlib
           root = pathlib.Path('studio/integration/silex-native-bootstrap')
           expected = {
-            'ubuntu-sdk.json': 'c2e3e609b6dc9e204b65d173ac087be89c37e06f25e10c997dd1fd87831178a8',
-            'fetch_sdk.py': '9b5e6bae34360839c3c3289e192ce3e1a37256e51a64d64288100ce497307dfb',
-            'install_sdk.py': '817f0ad22c4b0e6447782738e4afacb70d0c31305e883976b1a658e41291606b',
+            'ubuntu-sdk.json': 'b968a55b95b693dd8b33adc16d84d9fca86d5b43b0aaaf7b45695e3ac4b588c7',
+            'fetch_sdk.py': '478be279d69ce36f63e4b288d5551939bc35bd687d808556892305d383caa37b',
+            'install_sdk.py': 'c4c1ec11852c1b935c2a414300df7bc31e1a16cb5760568f7c56d3165194dad9',
           }
           for name, digest in expected.items():
               assert hashlib.sha256((root / name).read_bytes()).hexdigest() == digest
           PYTHON
-      - name: Acquire the same 182 reviewed SDK archives in this disposable job
+      - name: Acquire the same 184 reviewed SDK archives in this disposable job
         run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/fetch_sdk.py"
       - name: Provision the unchanged SDK closure through its offline namespace installer
         run: python3 -I -B "$GITHUB_WORKSPACE/studio/integration/silex-native-bootstrap/install_sdk.py"

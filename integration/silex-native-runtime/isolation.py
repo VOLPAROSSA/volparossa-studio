@@ -23,7 +23,7 @@ SPEC = importlib.util.spec_from_file_location('native_isolation_protocol', HERE 
 S = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = S
 SPEC.loader.exec_module(S)
-SDK_HELPER = '817f0ad22c4b0e6447782738e4afacb70d0c31305e883976b1a658e41291606b'
+SDK_HELPER = 'c4c1ec11852c1b935c2a414300df7bc31e1a16cb5760568f7c56d3165194dad9'
 INVENTORY_SOURCE = '3be00d4d68eece6920d2332af64a815f0f434584575574aeb04daef7c9dbcf70'
 TOOLS = {'Xvfb': '/usr/bin/Xvfb', 'bwrap': '/usr/bin/bwrap',
     'dbus-daemon': '/usr/bin/dbus-daemon', 'ip': '/usr/bin/ip',
@@ -81,7 +81,7 @@ def prerequisites(temporary, revision, uid):
         and outer.get('stage') == 'complete' and outer.get('studio_revision') == revision
         and outer.get('sdk_manifest_sha256') == S.SDK and outer.get('packages_installed') is True
         and outer.get('sdk_installed') is True and outer.get('hashes') == sdk.expected_hashes(records)
-        and outer.get('verified_package_count') == 182 and outer.get('archive_bytes') == 63772228
+        and outer.get('verified_package_count') == 184 and outer.get('archive_bytes') == 74345024
         and outer.get('admission_diagnostic') == {'substage': 'complete'}
         and outer.get('cleanup') == dict(owned_group_count=1, owned_groups_joined=True,
                 package_rollback_attempted=False, root_cache_retained=True)
