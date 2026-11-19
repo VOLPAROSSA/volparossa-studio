@@ -1,9 +1,37 @@
 # Studio implementation status
 
-Updated 2026-11-18. Requirements are the complete permanent
+Updated 2026-11-19. Requirements are the complete permanent
 [Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/STUDIO_HOSTING_REQUIREMENTS.md),
 incorporated by the full Core goal. This file records Studio evidence and next
 work, without replacing that scope or the shared Core execution ledger.
+
+## Native Silex desktop on Ubuntu — 2026-11-19
+
+The pinned Silex v3.9.0 desktop release at `672efed69dda04c0a1e968859239e042f00d9538`
+compiled from source with Rust 1.99.1, the local dashboard and the reviewed
+Ubuntu SDK. The original build produced a 34,339,216-byte ELF. In a disposable
+network namespace, an unprivileged user opened the desktop, created a
+filesystem-backed project through its local API and activated its dashboard
+Open button. The first trial stopped while identifying the native editor.
+[First native desktop run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44456339192)
+
+A subsequent Azure run verified the saved page through the local API, the
+exact project title in the GTK window and the running WebKit web process. It
+then stopped while reading the saved heading in the editor canvas. An
+intermediate AWS run stopped before the GUI because its Ubuntu kernel module
+differed from the Azure one. The receipts record each trial's source revision,
+binary digest and reached stage.
+[Native editor run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44516940103)
+· [AWS run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44515212276)
+· [Archive and receipt digests](evidence/native-webview/runs.json)
+
+The same hosted profile then verified the AWS package, built the desktop and
+reached the dashboard refresh stage. Its receipt does not identify which check
+within that stage stopped. The follow-up uses the named native action that opened
+the first editor and records separate stages for the project list, metadata,
+saved page and visible canvas. A fresh process must display that same saved
+content before this trial can establish native reopening.
+[Dashboard refresh run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44519409673)
 
 ## A fresh browser opens a Studio site after its publisher goes offline — 2026-11-18
 
