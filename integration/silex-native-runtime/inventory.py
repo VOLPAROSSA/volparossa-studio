@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import pwd
 from pathlib import Path
 import re
 import selectors
@@ -544,6 +545,29 @@ def collect(commands, report):
     report.update(status='passed', stage='complete')
 
 
+def host_input_metadata():
+    """Describe the fixed host snapshot inputs without reading or exposing contents."""
+    try:
+        resolver_uid = pwd.getpwnam('systemd-resolve').pw_uid
+    except KeyError:
+        resolver_uid = None
+    resolver = Path('/etc/resolv.conf').resolve(strict=True)
+    targets = {Path('/etc/resolv.conf'): 'regular', Path('/run/systemd/resolve/resolv.conf'): 'resolved',
+               Path('/run/systemd/resolve/stub-resolv.conf'): 'resolved_stub'}
+    rows = {}
+    paths = {'ipv4_route': Path('/proc/net/route'), 'ipv6_route': Path('/proc/net/ipv6_route')}
+    if resolver in targets:
+        paths['resolver'] = resolver
+    for name, path in paths.items():
+        value = path.stat()
+        rows[name] = dict(regular=stat.S_ISREG(value.st_mode), mode=stat.S_IMODE(value.st_mode),
+            owner='root' if value.st_uid == 0 else 'resolver' if value.st_uid == resolver_uid else 'other',
+            single_link=value.st_nlink == 1, size_within_limit=0 <= value.st_size <= 65536)
+    return dict(inputs=rows, resolver_target=targets.get(resolver, 'other'),
+                veth_registered=Path('/sys/module/veth').is_dir(),
+                nf_tables_registered=Path('/sys/module/nf_tables').is_dir())
+
+
 def main():
     require(len(sys.argv) == 1)
     commands = Commands()
@@ -559,6 +583,7 @@ def main():
     primary = None
     try:
         report['studio_revision'], output = admission(commands)
+        report['host_input_metadata'] = host_input_metadata()
         collect(commands, report)
     except BaseException as error:
         primary = error
