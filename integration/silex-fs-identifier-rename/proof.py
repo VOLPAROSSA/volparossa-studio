@@ -17,7 +17,7 @@ ROOT = HERE.parents[1]
 BOOTSTRAP = HERE.parent / 'silex-native-bootstrap'
 PINS = {
     BOOTSTRAP / 'native_build.py': '68cf00741ff3ff0047bc013b73c88e845e6a15c8ea85677558097c004204dfe4',
-    HERE.parent / 'silex-native-dashboard/check.py': '3ae8b97d887e9ab6bf251e91eb9348931c6703af64cfc1bc0242f181836f98a4',
+    HERE.parent / 'silex-native-dashboard/check.py': '17659daef9eedba2ff8440e40eaccaa71b520ffeae953a4fc2882e3739356ae7',
     HERE / 'prepare.py': 'd2f1cd0d964f4d89d932ab4d26201cc9d8eae0a97408087d1f102b9331bb4f3e',
     HERE / 'manifest.json': 'ca7f1b9b04fb7e5be36c4ed44511ae5950185df4e4572918c7a0530302e96edc',
 }
@@ -293,7 +293,7 @@ def main():
     require(sys.flags.isolated == 1 and sys.flags.dont_write_bytecode == 1
             and sys.argv == [str(HERE / 'proof.py')], 'admission')
     require(os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
-            and os.environ.get('GITHUB_REF') == 'refs/heads/feature/native-local-dashboard-20261029', 'admission')
+            and os.environ.get('GITHUB_REF') == 'refs/heads/main', 'admission')
     for path, expected in PINS.items():
         require(hashlib.sha256(path.read_bytes()).hexdigest() == expected)
     native = load('fs_proof_native', BOOTSTRAP / 'native_build.py')

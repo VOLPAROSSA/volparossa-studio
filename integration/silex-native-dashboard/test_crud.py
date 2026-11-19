@@ -56,6 +56,11 @@ def runtime():
 
 
 class CrudTests(unittest.TestCase):
+    def test_checked_in_helpers_match_the_crud_pins(self):
+        for path, expected in M.PINS.items():
+            with self.subTest(source=path.name):
+                self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), expected)
+
     def test_missing_or_noncanonical_fixed_chrome_is_identified_before_binary_read(self):
         p = SimpleNamespace(with_fd=Mock())
         diagnostic = {}

@@ -19,7 +19,7 @@ PINS = {
     BOOTSTRAP / 'native_build.py': '68cf00741ff3ff0047bc013b73c88e845e6a15c8ea85677558097c004204dfe4',
     BOOTSTRAP / 'prepare.py': 'b805e7ddfedba9bbd6f677b992765f681c05e22f174de2603c3ca817034567f6',
     HERE / 'check.py': '17659daef9eedba2ff8440e40eaccaa71b520ffeae953a4fc2882e3739356ae7',
-    FS / 'proof.py': '7bbfcd6b64c750dafb4c304f996edfb2e4f6be29eff9659292e48f0b3cc4d56e',
+    FS / 'proof.py': '59c7a30a98e81c7e2cad8366ec6bf388034a6e5420e30296dea354ff89eebac2',
     FS / 'prepare.py': 'd2f1cd0d964f4d89d932ab4d26201cc9d8eae0a97408087d1f102b9331bb4f3e',
     FS / 'manifest.json': 'ca7f1b9b04fb7e5be36c4ed44511ae5950185df4e4572918c7a0530302e96edc',
 }
@@ -252,7 +252,7 @@ def main():
     require(sys.flags.isolated == 1 and sys.flags.dont_write_bytecode == 1
             and sys.argv == [str(HERE / 'local_build.py')]
             and os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
-            and os.environ.get('GITHUB_REF') in ('refs/heads/main', 'refs/heads/feature/native-local-dashboard-20261029'))
+            and os.environ.get('GITHUB_REF') == 'refs/heads/main')
     for path, expected in PINS.items():
         require(hashlib.sha256(path.read_bytes()).hexdigest() == expected)
     require(hashlib.sha256((HERE / 'compose.py').read_bytes()).hexdigest() == COMPOSE_SHA256)
