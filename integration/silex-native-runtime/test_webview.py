@@ -115,12 +115,29 @@ class WebViewTests(unittest.TestCase):
         self.assertFalse(gui.contains_canvas_pixels(pixels, width, 5, len(row), 3, (first, second)))
         self.assertFalse(gui.contains_canvas_pixels(row * 5 + row[3:] + row[:3], width, 6, len(row), 3, (first, second)))
 
+    def test_checkpoints_preserve_partial_progress_and_never_supply_a_terminal_receipt(self):
+        mark = b'GUI first_canvas_read\n'
+        self.assertEqual(root.last_gui_checkpoint(mark + b'private free text'), 'first_canvas_read')
+        self.assertIsNone(root.last_gui_checkpoint(b'GUI unknown_private_value'))
+        self.assertEqual(root.gui_output(mark + b'{"status":"failed"}\n'), {'status': 'failed'})
+        for raw in (mark, mark + mark + b'{}', b'private\n{}', b'GUI unknown\n{}'):
+            with self.subTest(raw=raw), self.assertRaises((root.Rejected, ValueError)):
+                root.gui_output(raw)
+
     def test_reopen_evidence_requires_both_normal_native_closes_and_owned_groups(self):
-        value = dict(status='passed', stage='complete', process_groups_started=4, process_groups_joined=4,
-            desktop_launches=2, native_window_closes=2, editor_title_states=['changed', 'clean'], canvas_readbacks=['visible_pixels', 'accessible_text'], close_actions=['window_close', 'quit_dialog'], original_project_reopened=True, project_id_sha256='0' * 64)
+        value = dict(
+            status='passed', stage='complete', process_groups_started=4, process_groups_joined=4,
+            desktop_launches=2, native_window_closes=2, editor_title_states=['changed', 'clean'],
+            canvas_readbacks=['visible_pixels', 'accessible_text'], close_actions=['window_close', 'quit_dialog'],
+            original_project_reopened=True, project_id_sha256='0' * 64,
+        )
         root.verify_gui(value)
-        for key, bad in (('native_window_closes', 1), ('editor_title_states', ['clean', 'other']), ('close_actions', ['quit_dialog', 'forced']), ('canvas_readbacks', ['visible_pixels']), ('canvas_readbacks', ['unknown', 'accessible_text']), ('process_groups_joined', 3), ('original_project_reopened', False),
-                         ('project_id_sha256', 'invalid'), ('stage', 'first_editor')):
+        for key, bad in (
+            ('native_window_closes', 1), ('process_groups_joined', 3), ('original_project_reopened', False),
+            ('editor_title_states', ['clean', 'other']), ('close_actions', ['quit_dialog', 'forced']),
+            ('canvas_readbacks', ['visible_pixels']), ('canvas_readbacks', ['unknown', 'accessible_text']),
+            ('project_id_sha256', 'invalid'), ('stage', 'first_editor'),
+        ):
             with self.subTest(key=key), self.assertRaises(root.Rejected):
                 root.verify_gui(dict(value, **{key: bad}))
 

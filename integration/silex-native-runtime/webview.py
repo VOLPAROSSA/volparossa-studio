@@ -276,6 +276,10 @@ def request_close(window):
         x.XCloseDisplay(display)
 
 
+def checkpoint(stage):
+    print('GUI ' + stage, flush=True)
+
+
 def main():
     stage = 'admission'
     state = dict(process_groups_started=0, process_groups_joined=0, desktop_launches=0,
@@ -325,20 +329,28 @@ def main():
             gi.require_version('Gdk', '3.0')
             gi.require_version('GdkX11', '3.0')
             from gi.repository import Atspi, Gdk, GdkX11, Gio, GLib
-            screen = Gdk.Display.open(os.environ['DISPLAY'])
-            require(screen is not None)
-            stack.callback(screen.close)
+            # PyGObject initializes GDK and opens the default X11 display on import.
+            # Close that connection while Xvfb is alive, before draining the server.
+            screen = Gdk.Display.get_default()
+            require(screen is not None and screen.get_name() in (':87', ':87.0'))
+            def close_display():
+                checkpoint('display_closing')
+                screen.close()
+                checkpoint('display_closed')
+            stack.callback(close_display)
             bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
             bus.call_sync('org.a11y.Bus', '/org/a11y/bus', 'org.freedesktop.DBus.Properties', 'Set',
                 GLib.Variant('(ssv)', ('org.a11y.Status', 'IsEnabled', GLib.Variant('b', True))),
                 None, Gio.DBusCallFlags.NONE, 3000, None)
             Atspi.set_timeout(1000, 1500)
             Atspi.init()
+            checkpoint('bus_ready')
             project_id = None
             for phase in ('first', 'second'):
                 stage = phase + '_launch'
                 with service(['/run/fixture/silex-desktop', '--stdio']) as app:
                     state['desktop_launches'] += 1
+                    checkpoint(phase + '_launch')
                     await_value(lambda: app.poll() is None and available())
                     if phase == 'first':
                         stage = 'seed_project'
@@ -363,6 +375,7 @@ def main():
                     stage = phase + '_saved_page'
                     require(remote('GET', uri)['pages'] == [saved_page(project_id)])
                     stage = phase + '_open'
+                    checkpoint(phase + '_saved_page')
                     desktop_action(Atspi, 'Open project: ' + NAME, app)
                     stage = phase + '_editor'
                     try:
@@ -373,6 +386,7 @@ def main():
                         raise
                     stage = phase + '_webkit_process'
                     require(await_value(webkit_process))
+                    checkpoint(phase + '_webkit_process')
                     # Xvfb has no window manager to honor Tauri's maximize request.
                     # Size the confirmed project window to the full private display.
                     stage = phase + '_window_size'
@@ -394,7 +408,9 @@ def main():
                         stage = phase + '_canvas_' + editor_observation(Atspi, app.pid, project_id)
                         raise
                     stage = phase + '_close_request'
+                    checkpoint(phase + '_canvas_read')
                     request_close(window)
+                    checkpoint(phase + '_close_request')
                     choice = 'window_close'
                     # Silex may mark the restored project changed while mounting the canvas.
                     # The saved fixture is already verified. Use the app's own Quit choice.
@@ -412,18 +428,24 @@ def main():
                                 stage = phase + '_quit_action'
                                 require(action.do_action(0))
                                 choice = 'quit_dialog'
+                                checkpoint(phase + '_quit_action')
                         else:
                             stage = phase + '_exit'
                         return False
                     await_value(normal_exit, 12)
                     state['native_window_closes'] += 1
                     state['close_actions'].append(choice)
+                    checkpoint(phase + '_closed')
                 stage = phase + '_server_stop'
                 await_value(lambda: not available(), 5)
+                checkpoint(phase + '_server_stopped')
             state['original_project_reopened'] = True
             state['project_id_sha256'] = hashlib.sha256(project_id.encode()).hexdigest()
+            checkpoint('accessibility_closing')
             Atspi.exit()
+            checkpoint('accessibility_closed')
         stage = 'cleanup'
+        checkpoint('services_drained')
         require(state['process_groups_started'] == state['process_groups_joined'] == 4)
         cookie.unlink()
         print(json.dumps(dict(status='passed', stage='complete', **state), sort_keys=True), flush=True)

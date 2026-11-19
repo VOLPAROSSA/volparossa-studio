@@ -230,6 +230,9 @@ def root_failure(raw, revision, hashes):
                 if S.GUI and 'gui_failure_stage' in candidate:
                     S.require(candidate['gui_failure_stage'] in S.GUI_STAGES, 'protocol')
                     keys.add('gui_failure_stage')
+                if S.GUI and 'gui_exit' in candidate:
+                    S.require(type(candidate['gui_exit']) is int and -64 <= candidate['gui_exit'] <= 255, 'protocol')
+                    keys.add('gui_exit')
                 S.require(candidate.keys() == keys and type(candidate['schema']) is int and candidate['schema'] == 1
                     and candidate['operation'] == 'namespace_isolation_worker'
                     and candidate['stage'] in S.WORKER_STAGES and candidate['failure_kind'] in S.KINDS
@@ -245,6 +248,8 @@ def root_failure(raw, revision, hashes):
                     'actors_joined', 'actor_failure_predicate', 'actor_failure_site')}
                 if S.GUI and 'gui_failure_stage' in candidate:
                     worker['gui_failure_stage'] = candidate['gui_failure_stage']
+                if S.GUI and 'gui_exit' in candidate:
+                    worker['gui_exit'] = candidate['gui_exit']
             else:
                 # No successful worker detail is copied into a failure receipt.
                 S.require(candidate.get('status') == 'passed', 'protocol')

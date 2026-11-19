@@ -54,6 +54,12 @@ GUI_STAGES = ('admission', 'display', 'bus', 'first_launch', 'seed_project', 're
                      'dirty_title', 'id_title', 'dashboard', 'loading', 'editor_url', 'unknown_page', 'webkit_process', 'canvas', 'canvas_dirty_title', 'canvas_id_title',
                      'canvas_dashboard', 'canvas_loading', 'canvas_editor_url', 'canvas_unknown_page'))
 
+GUI_CHECKPOINTS = frozenset(('bus_ready', 'accessibility_closing', 'accessibility_closed', 'display_closing',
+    'display_closed', 'services_drained')) | {
+    phase + '_' + action for phase in ('first', 'second') for action in
+    ('launch', 'saved_page', 'webkit_process', 'canvas_read', 'close_request', 'quit_action', 'closed', 'server_stopped')}
+GUI_STAGES += tuple(GUI_CHECKPOINTS - set(GUI_STAGES))
+
 ENV = dict(PATH='/usr/sbin:/usr/bin:/sbin:/bin', LANG='C', LC_ALL='C', PYTHONDONTWRITEBYTECODE='1')
 KINDS = frozenset(('admission', 'source', 'protocol', 'deadline', 'cancelled',
                    'child', 'output_limit', 'cleanup', 'namespace', 'identity',
@@ -294,6 +300,7 @@ class Owner:
         self.lifecycle, self.work, self.end, self.control = lifecycle, work, end, control
         self.started = self.joined = 0
         self.last_output = b''
+        self.gui_exit = None
         self.roles_started = dict.fromkeys(('tool', 'admission', 'calibration', 'namespace', 'root', 'gui'), 0)
         self.roles_joined = dict(self.roles_started)
 
@@ -354,6 +361,8 @@ class Owner:
                                 require(len(output) + len(chunk) <= maximum, 'output_limit')
                                 output.extend(chunk)
                     observed = os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+            if role == 'gui':
+                self.gui_exit = observed.si_status if observed.si_code == os.CLD_EXITED else -observed.si_status
             require(observed.si_code == os.CLD_EXITED and observed.si_status == 0, 'child')
         except BaseException as error:
             primary = error
@@ -709,6 +718,20 @@ add rule inet vpcal output meta skuid %d meta nfproto ipv6 counter name denied6 
 """ % (uid, uid, uid)).encode()
 
 
+def gui_output(raw):
+    lines = raw.splitlines()
+    require(0 < len(lines) <= len(GUI_CHECKPOINTS) + 1, 'protocol')
+    allowed = {('GUI ' + label).encode() for label in GUI_CHECKPOINTS}
+    marks = lines[:-1]
+    require(len(set(marks)) == len(marks) and all(line in allowed for line in marks), 'protocol')
+    return parse(lines[-1])
+
+
+def last_gui_checkpoint(raw):
+    allowed = {('GUI ' + label).encode(): label for label in GUI_CHECKPOINTS}
+    return next((allowed[line] for line in reversed(raw.splitlines()) if line in allowed), None)
+
+
 def verify_gui(value):
     require(type(value) is dict and value.keys() == {'status', 'stage', 'process_groups_started', 'process_groups_joined',
         'desktop_launches', 'native_window_closes', 'editor_title_states', 'canvas_readbacks', 'close_actions', 'original_project_reopened', 'project_id_sha256'} and
@@ -859,7 +882,7 @@ def namespace_init():
             require(all(start[k] == after[k] for k in after), 'observer')
             report['stage'] = 'gui_actor'
             command = actor_command(uid, gid, 'admission')[:-2] + ['/run/fixture/webview.py']
-            gui = parse(owner.run(command, environment=environment, seconds=72, role='gui'))
+            gui = gui_output(owner.run(command, environment=environment, seconds=72, role='gui'))
             verify_gui(gui)
             stop = counters(owner.run(['/usr/sbin/nft', '--json', 'list', 'table', 'inet', 'vpcal']), gui=True)
             require(all(stop[k] == start[k] for k in ('dns', 'dns_reply', 'denied4', 'denied6'))
@@ -870,8 +893,12 @@ def namespace_init():
         primary = error
         report['failure_kind'] = error.kind if isinstance(error, Rejected) else 'namespace'
         if GUI and report['stage'] == 'gui_actor':
+            if mark := last_gui_checkpoint(owner.last_output):
+                report['gui_failure_stage'] = mark
+            if owner.gui_exit is not None:
+                report['gui_exit'] = owner.gui_exit
             try:
-                failed_gui = parse(owner.last_output)
+                failed_gui = gui_output(owner.last_output)
                 require(failed_gui.get('status') == 'failed' and failed_gui.get('stage') in GUI_STAGES)
                 report['gui_failure_stage'] = failed_gui['stage']
             except BaseException:
@@ -971,6 +998,8 @@ def staged_supervisor():
                  'namespace_groups_joined', 'actors_started', 'actors_joined', 'owner_scope', 'actor_failure_predicate', 'actor_failure_site')}
             if GUI and failed.get('gui_failure_stage') in GUI_STAGES:
                 report['worker']['gui_failure_stage'] = failed['gui_failure_stage']
+            if GUI and type(failed.get('gui_exit')) is int and -64 <= failed['gui_exit'] <= 255:
+                report['worker']['gui_exit'] = failed['gui_exit']
         except BaseException:
             pass
     finally:
