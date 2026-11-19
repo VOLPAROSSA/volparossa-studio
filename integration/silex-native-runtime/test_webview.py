@@ -63,6 +63,17 @@ class WebViewTests(unittest.TestCase):
         with self.assertRaises(root.Rejected):
             root.gui_policy(0)
 
+    def test_disappearing_accessible_child_does_not_hide_its_live_sibling(self):
+        sdk, live, gone = Mock(), Mock(), Mock()
+        desktop = sdk.get_desktop.return_value
+        desktop.get_child_count.return_value = 2
+        desktop.get_child_at_index.side_effect = lambda index: (live, gone)[index]
+        gone.get_child_count.return_value = -1
+        self.assertIs(gui.find_accessible(sdk, lambda node: node if node is live else None), live)
+        gone.get_child_count.return_value = 1025
+        with self.assertRaises(RuntimeError):
+            gui.find_accessible(sdk, lambda _node: None)
+
     def test_wait_services_glib_updates_before_reading_cached_accessibility(self):
         context = Mock()
         context.iteration.side_effect = [True, False]

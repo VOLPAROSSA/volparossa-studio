@@ -124,6 +124,8 @@ def find_accessible(atspi, match):
             if result := match(node):
                 return result
             count = node.get_child_count()
+            if count == -1:  # AT-SPI can lose an object between discovery and this property read.
+                continue
             require(0 <= count <= 1024)
             queue.extend(node.get_child_at_index(i) for i in range(count))
         except Exception as error:
