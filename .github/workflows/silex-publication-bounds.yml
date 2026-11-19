@@ -533,7 +533,7 @@ jobs:
               assert 0 < len(payload) <= 131072
               digest = hashlib.sha256(payload).hexdigest()
               print('Installed veth module', len(payload), 'bytes, SHA-256', digest, flush=True)
-              assert kernel == supervisor['VETH_RELEASE'] and digest == supervisor['VETH_SHA256']
+              assert supervisor['VETH_MODULES'].get(kernel) == (len(payload), digest)
           PYTHON
       - name: Test local composition, FS source, compiler and build boundaries before provisioning
         run: |

@@ -125,7 +125,7 @@ class IsolationTests(unittest.TestCase):
         for registered in (True, False):
             with self.subTest(registered=registered), patch.object(Path, 'is_dir', return_value=registered), \
                     patch.object(S, 'directory', return_value=(1, 2)), \
-                    patch.object(S.os, 'uname', return_value=SimpleNamespace(release=S.VETH_RELEASE)), \
+                    patch.object(S.os, 'uname', return_value=SimpleNamespace(release='7.0.0-1017-azure')), \
                     patch.object(S, 'read', return_value=b'x' * 20571):
                 state, owner = S.VethRegistration(), Mock()
                 if registered:
@@ -138,14 +138,24 @@ class IsolationTests(unittest.TestCase):
                 self.assertFalse(state.inserted)
                 owner.run.assert_not_called()
 
+    def test_unknown_kernel_is_refused_before_reading_or_loading_a_module(self):
+        owner = Mock()
+        with patch.object(Path, 'is_dir', return_value=False), patch.object(S, 'read') as read, \
+                patch.object(S.os, 'uname', return_value=SimpleNamespace(release='7.0.0-9999-aws')):
+            state = S.VethRegistration()
+            with self.assertRaises(S.Rejected):
+                state.prepare(owner)
+            read.assert_not_called()
+            owner.run.assert_not_called()
+
     def test_veth_removes_only_successfully_inserted_fixture_module(self):
         original = b'v' * 20571
         owner = Mock(control=True, started=2, joined=2, end=103)
         with patch.object(Path, 'is_dir', return_value=False), \
                 patch.object(S, 'directory', return_value=(1, 2)), \
-                patch.object(S.os, 'uname', return_value=SimpleNamespace(release=S.VETH_RELEASE)), \
+                patch.object(S.os, 'uname', return_value=SimpleNamespace(release='7.0.0-1017-azure')), \
                 patch.object(S, 'read', return_value=original), \
-                patch.object(S, 'VETH_SHA256', S.hashlib.sha256(original).hexdigest()):
+                patch.dict(S.VETH_MODULES, {'7.0.0-1017-azure': (len(original), S.hashlib.sha256(original).hexdigest())}):
             state = S.VethRegistration()
             state.prepare(owner)
             self.assertTrue(owner.control)
@@ -153,7 +163,7 @@ class IsolationTests(unittest.TestCase):
             state.restore(owner)
             self.assertTrue(state.restored)
             self.assertEqual([args.args[0] for args in owner.run.call_args_list],
-                [['/usr/sbin/insmod', str(S.VETH_MODULE)], ['/usr/sbin/rmmod', 'veth']])
+                [['/usr/sbin/insmod', '/usr/lib/modules/7.0.0-1017-azure/kernel/drivers/net/veth.ko.zst'], ['/usr/sbin/rmmod', 'veth']])
             self.assertEqual(owner.work, 99)
             owner.run.reset_mock()
             owner.run.side_effect = S.Rejected('child')
@@ -161,7 +171,7 @@ class IsolationTests(unittest.TestCase):
             with self.assertRaises(S.Rejected):
                 failed.prepare(owner)
             failed.restore(owner)
-            owner.run.assert_called_once_with(['/usr/sbin/insmod', str(S.VETH_MODULE)])
+            owner.run.assert_called_once_with(['/usr/sbin/insmod', '/usr/lib/modules/7.0.0-1017-azure/kernel/drivers/net/veth.ko.zst'])
 
     def test_success_requires_closed_module_lifecycle(self):
         for key, observed in (('veth_state_restored', False), ('veth_initially_registered', True),

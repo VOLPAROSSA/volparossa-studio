@@ -507,11 +507,12 @@ def host_resolver(target):
     return read(target, 65536, owner=service, modes=(0o644,))
 
 
-# Canonical Ubuntu linux-modules-7.0.0-1017-azure, archive SHA-256
-# 19ad1d32c0138b6ef90257f211e80490d3aaf322ba5c3c2910fdfbfb1f20da6d.
-VETH_RELEASE = '7.0.0-1017-azure'
-VETH_MODULE = Path('/usr/lib/modules') / VETH_RELEASE / 'kernel/drivers/net/veth.ko.zst'
-VETH_SHA256 = 'c3b882d30b01b331da0554b4bf838f87bb6be6b5c8b96ef3e98052abd5d6b32d'
+# Ubuntu Noble signed archive records and both observed module identities are
+# documented with the native runtime proof. A different kernel needs a new pin.
+VETH_MODULES = {
+    '7.0.0-1017-azure': (20571, 'c3b882d30b01b331da0554b4bf838f87bb6be6b5c8b96ef3e98052abd5d6b32d'),
+    '7.0.0-1014-aws': (20629, '62eb4b196a13d815c1dc0f7ea216da9e3ed676dba543bb19cbb74214770fa4ab'),
+}
 VETH_REGISTERED = Path('/sys/module/veth')
 
 
@@ -525,18 +526,21 @@ class VethRegistration:
     def prepare(self, owner):
         self.before = VETH_REGISTERED.is_dir()
         if not self.before:
-            require(os.uname().release == VETH_RELEASE, 'source')
-            for parent in VETH_MODULE.parents:
+            release = os.uname().release
+            require(release in VETH_MODULES, 'source')
+            size, digest = VETH_MODULES[release]
+            module = Path('/usr/lib/modules') / release / 'kernel/drivers/net/veth.ko.zst'
+            for parent in module.parents:
                 directory(parent, 0)
-            raw = read(VETH_MODULE, 20571, owner=0, modes=(0o644,))
-            require(len(raw) == 20571 and hashlib.sha256(raw).hexdigest() == VETH_SHA256, 'source')
+            raw = read(module, size, owner=0, modes=(0o644,))
+            require(len(raw) == size and hashlib.sha256(raw).hexdigest() == digest, 'source')
             # Only the vendor's fixed, dependency-free module can be admitted.
             # The bracket owns the successful load before delivering cancellation.
             previous = signal.pthread_sigmask(signal.SIG_BLOCK, SIGNALS)
             original_control = owner.control
             try:
                 owner.control = False
-                owner.run(['/usr/sbin/insmod', str(VETH_MODULE)])
+                owner.run(['/usr/sbin/insmod', str(module)])
                 self.inserted = True
             finally:
                 owner.control = original_control

@@ -110,10 +110,21 @@ When the host resolver is managed by systemd-resolved, the supervisor reads the
 root-selected target as the recorded service UID. The worker recreates the
 mount target inside its fresh private `/run`. The host resolver is sampled again
 after the worker has exited. If the fixture needs to register veth, it uses the
-Ubuntu 7.0.0-1017-azure package's installed 20,571-byte module. The supervisor
-checks the exact SHA-256 and root-owned path, then unloads its own registration
-after the namespace exits. An existing registration is preserved. Successful
-cleanup requires the observed original registration state.
+module from the running kernel’s reviewed Ubuntu package. The supervisor
+checks the exact size, SHA-256 and root-owned path, then unloads its own
+registration after the namespace exits. An existing registration is preserved.
+Successful cleanup requires the observed original registration state.
+
+| Ubuntu kernel | Module bytes | Ubuntu package SHA-256 |
+| --- | ---: | --- |
+| `7.0.0-1017-azure` | 20,571 | `19ad1d32c0138b6ef90257f211e80490d3aaf322ba5c3c2910fdfbfb1f20da6d` |
+| `7.0.0-1014-aws` | 20,629 | `918e98bed5dae1ab40bfb3bc91e9456c1321435533165a9d7023ac60301c1e88` |
+
+The AWS preflight observed Ubuntu build `7.0.0-1014.14~24.04.1`. Its installed
+module matched the file from the independently verified 148,428,992-byte
+archive under the Ubuntu-signed Noble Updates index. Both inspected modules
+declared no kernel dependencies and matched their own kernel version.
+[Hosted AWS observation](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44519106391)
 
 The manual `native-webview` choice uses the original Silex release composed with the
 local dashboard. The build and both native launches share a disposable runner.
