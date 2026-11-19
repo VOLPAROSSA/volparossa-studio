@@ -82,10 +82,10 @@ class CallerCleanupTests(unittest.TestCase):
                 raise primary
 
             with mock.patch.object(M, 'admission', return_value=(source, pristine, runner_temp,
-                    runner_temp / 'workspace', 'a' * 40)), \
+                    runner_temp / 'workspace', 'a' * 40, {}, 'c' * 64)), \
                     mock.patch.object(M, 'read', return_value=b'public synthetic source fixture'), \
                     mock.patch.object(M, 'bounded', side_effect=failed_source_check), \
-                    mock.patch.dict(sys.modules, {'run': carrier, 'lifecycle': lifecycle}), \
+                    mock.patch.dict(sys.modules, {'toolchain': carrier, 'lifecycle': lifecycle}), \
                     mock.patch.object(M.signal, 'signal'), \
                     mock.patch.object(M.signal, 'setitimer'), \
                     mock.patch.object(M.shutil, 'rmtree') as remove, \
