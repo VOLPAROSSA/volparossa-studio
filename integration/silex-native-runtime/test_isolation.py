@@ -70,6 +70,29 @@ class IsolationTests(unittest.TestCase):
         self.assertIn('open(path', Path(A.__file__).read_text().splitlines()[site[0] - 1])
         self.assertFalse(S.actor_site(['/not-a-real-studio-private-path']))
 
+    def test_resolver_mount_requires_same_inode_readonly_and_exact_private_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'etc').mkdir()
+            fixture = root / 'fixture'
+            fixture.write_bytes(S.RESOLVER)
+            path = root / 'etc/resolv.conf'
+            path.symlink_to('../fixture')
+            with patch.object(S, 'RESOLV_CONF', path), patch.object(S.os, 'statvfs') as flags:
+                flags.return_value = SimpleNamespace(f_flag=os.ST_RDONLY)
+                S.verify_resolver_mount(fixture)
+                duplicate = root / 'other'
+                duplicate.write_bytes(S.RESOLVER)
+                with self.assertRaises(S.Rejected):
+                    S.verify_resolver_mount(duplicate)
+                flags.return_value = SimpleNamespace(f_flag=0)
+                with self.assertRaises(S.Rejected):
+                    S.verify_resolver_mount(fixture)
+                flags.return_value = SimpleNamespace(f_flag=os.ST_RDONLY)
+                fixture.write_bytes(S.RESOLVER + b'x')
+                with self.assertRaises(S.Rejected):
+                    S.verify_resolver_mount(fixture)
+
     def test_host_resolver_binds_known_service_uid_path_and_mode(self):
         target = Path('/run/systemd/resolve/stub-resolv.conf')
         observed = SimpleNamespace(st_uid=991)

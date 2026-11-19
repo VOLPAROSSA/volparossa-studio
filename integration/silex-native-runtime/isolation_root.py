@@ -469,6 +469,15 @@ def resolver_target():
     return target
 
 
+def verify_resolver_mount(fixture):
+    # Exercise the actual /etc path, including the kernel's relative symlink
+    # traversal. A textual canonical path alone cannot establish mount identity.
+    require(RESOLV_CONF.samefile(fixture) and os.statvfs(RESOLV_CONF).f_flag & os.ST_RDONLY,
+            'filesystem')
+    with RESOLV_CONF.open('rb') as stream:
+        require(stream.read(len(RESOLVER) + 1) == RESOLVER, 'filesystem')
+
+
 def host_resolver(target):
     require(target == RESOLV_CONF or target in RESOLVED_CONF, 'filesystem')
     owner = target.stat().st_uid
@@ -640,9 +649,9 @@ def namespace_init():
         actor = read(stage / 'isolation_actor.py', MAX_SOURCE, owner=0)
         resolver = resolver_target()
         os.chdir('/')
-        # Recursive bind preserves the already-private proc/dev child mounts;
-        # remount,bind,ro changes this mount, never the host superblock's mode.
-        owner.run(['/usr/bin/mount', '--no-mtab', '--rbind', '/', '/'])
+        # unshare already cloned this private mount tree and its child mounts.
+        # Overmounting / again makes relative symlinks via .. cross a different
+        # root mount from an absolute /run. Remount just our cloned mount.
         owner.run(['/usr/bin/mount', '--no-mtab', '-o', 'remount,bind,ro', '/'])
         for path in ('/tmp', '/run', '/home'):
             owner.run(['/usr/bin/mount', '--no-mtab', '-t', 'tmpfs', '-o',
@@ -678,6 +687,7 @@ def namespace_init():
         write_new(Path('/run/fixture/resolv.conf'), RESOLVER, mode=0o444)
         owner.run(['/usr/bin/mount', '--no-mtab', '--bind', '/run/fixture/resolv.conf', str(resolver)])
         owner.run(['/usr/bin/mount', '--no-mtab', '-o', 'remount,bind,ro', str(resolver)])
+        verify_resolver_mount(Path('/run/fixture/resolv.conf'))
         environment = actor_environment(uid, gid, meta['parent_namespaces'], meta['host_canary'],
                                         meta['parent_ipc_views'], meta['host_ipc_canary'])
         report['stage'] = 'admission_actor'
@@ -786,6 +796,7 @@ def staged_supervisor():
         source_groups_started=meta['source_groups_started'], source_groups_joined=meta['source_groups_joined'],
         owned_groups_started=0, owned_groups_joined=0, failure_kind=None)
     try:
+        require(not os.statvfs('/').f_flag & os.ST_RDONLY, 'host_changed')
         before = host_network(owner)
         report['host_before_sha256'] = before
         report['stage'] = 'veth_setup'
@@ -804,7 +815,7 @@ def staged_supervisor():
         report.update(worker=worker, namespace_parent_joined=True, namespace_init_exit_confirmed=True, stage='host_after')
         after = host_network(owner)
         report['host_after_sha256'] = after
-        require(after == before, 'host_changed')
+        require(after == before and not os.statvfs('/').f_flag & os.ST_RDONLY, 'host_changed')
         report['host_network_configuration_unchanged'] = True
     except BaseException as error:
         primary = error
