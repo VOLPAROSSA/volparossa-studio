@@ -47,7 +47,9 @@ if GUI:
     HOST_KEYS += ('STUDIO_NATIVE_WEBVIEW',)
 GUI_STAGES = ('admission', 'display', 'bus', 'first_launch', 'seed_project', 'refresh_dashboard',
               'first_open', 'first_editor', 'first_close', 'second_launch', 'second_open',
-              'second_editor', 'second_close', 'cleanup', 'complete')
+              'second_editor', 'second_close', 'cleanup', 'complete') + tuple(
+    phase + '_' + observed for phase in ('first', 'second')
+    for observed in ('dirty_title', 'id_title', 'dashboard', 'loading', 'editor_url', 'unknown_page', 'webkit_process'))
 
 ENV = dict(PATH='/usr/sbin:/usr/bin:/sbin:/bin', LANG='C', LC_ALL='C', PYTHONDONTWRITEBYTECODE='1')
 KINDS = frozenset(('admission', 'source', 'protocol', 'deadline', 'cancelled',

@@ -14,7 +14,25 @@ root = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(root)
 
 
+gui_spec = importlib.util.spec_from_file_location('webview_actor', HERE / 'webview.py')
+gui = importlib.util.module_from_spec(gui_spec)
+gui_spec.loader.exec_module(gui)
+
+
 class WebViewTests(unittest.TestCase):
+    def test_editor_requires_unique_exact_title_and_separates_a_dirty_project(self):
+        title = gui.NAME + ' — Silex'
+        for name in ('Silex', '• ' + title, 'other — Silex'):
+            with patch.object(gui, 'visible_titles', return_value={51: name}):
+                self.assertIsNone(gui.editor_window(15))
+        with patch.object(gui, 'visible_titles', return_value={51: '• ' + title}):
+            self.assertEqual(gui.editor_observation(None, 15, 'project'), 'dirty_title')
+        with patch.object(gui, 'visible_titles', return_value={51: title, 52: 'Silex'}):
+            self.assertEqual(gui.editor_window(15), 51)
+        with patch.object(gui, 'visible_titles', return_value={51: title, 52: title}):
+            with self.assertRaises(RuntimeError):
+                gui.editor_window(15)
+
     def test_private_executable_is_copied_only_after_exact_length_and_content_check(self):
         raw = b'\x7fELF\x02\x01' + bytes(range(100))
         with tempfile.TemporaryDirectory() as temporary:

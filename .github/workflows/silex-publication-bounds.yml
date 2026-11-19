@@ -15,7 +15,7 @@ on:
         type: boolean
         default: false
       native_followup:
-        description: 'Explicit native prerequisite; no native GUI application execution'
+        description: 'Native build, SDK or WebView project trial'
         type: choice
         options: [none, bridge, verify-lock, sdk-admission, sdk-baseline, sdk-fetch, sdk-install, native-build, dashboard-unit, fs-identifier-rename, local-native-build, dashboard-compose-unit, dashboard-crud, runtime-inventory, runtime-sdk-inventory, sdk-isolation, native-webview]
         default: none

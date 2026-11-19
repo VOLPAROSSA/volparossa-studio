@@ -19,9 +19,6 @@ import time
 NAME = 'Public native WebView project'
 UUID = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}')
 PORT = 6805
-STAGES = ('admission', 'display', 'bus', 'first_launch', 'seed_project', 'refresh_dashboard',
-          'first_open', 'first_editor', 'first_close', 'second_launch', 'second_open',
-          'second_editor', 'second_close', 'cleanup', 'complete')
 
 
 def require(condition):
@@ -68,39 +65,90 @@ def available():
         return False
 
 
-def visible_windows(title):
-    result = subprocess.run(['/usr/bin/xdotool', 'search', '--onlyvisible', '--name', '^' + re.escape(title) + '$'],
+def visible_titles(pid):
+    # Search by the GTK client's PID. getwindowname reads the EWMH UTF-8 title
+    # first; xdotool's regex name search reads the legacy WM_NAME instead.
+    result = subprocess.run(['/usr/bin/xdotool', 'search', '--onlyvisible', '--pid', str(pid)],
         stdin=subprocess.DEVNULL, capture_output=True, timeout=2, check=False)
     if result.returncode == 1 and not result.stdout:
-        return []
-    require(result.returncode == 0 and len(result.stdout) <= 256)
-    return [int(row) for row in result.stdout.splitlines() if row.isdigit()]
+        return {}
+    ids = result.stdout.splitlines()
+    require(result.returncode == 0 and len(ids) <= 16 and all(row.isdigit() for row in ids))
+    titles = {}
+    for window in ids:
+        item = subprocess.run(['/usr/bin/xdotool', 'getwindowname', window], stdin=subprocess.DEVNULL,
+            capture_output=True, timeout=2, check=False)
+        if item.returncode == 0:  # A transient splash window can disappear.
+            require(len(item.stdout) <= 512)
+            titles[int(window)] = item.stdout.rstrip(b'\n').decode('utf-8', 'replace')
+    return titles
+
+
+def editor_window(pid):
+    matches = [window for window, title in visible_titles(pid).items() if title == NAME + ' — Silex']
+    require(len(matches) <= 1)
+    return matches[0] if matches else None
+
+
+def find_accessible(atspi, match):
+    queue = [atspi.get_desktop(0)]
+    for _ in range(2500):
+        if not queue:
+            return None
+        node = queue.pop()
+        if node is None:
+            continue
+        try:
+            if result := match(node):
+                return result
+            count = node.get_child_count()
+            require(0 <= count <= 1024)
+            queue.extend(node.get_child_at_index(i) for i in range(count))
+        except Exception as error:
+            # WebKit replaces accessible objects while a new document is loading.
+            if type(error).__module__.startswith('gi.repository'):
+                continue
+            raise
+    raise RuntimeError('accessibility_tree_bound')
+
+
+def editor_observation(atspi, pid, project_id):
+    titles = set(visible_titles(pid).values())
+    if '• ' + NAME + ' — Silex' in titles:
+        return 'dirty_title'
+    if project_id + ' — Silex' in titles:
+        return 'id_title'
+    page = 'unknown_page'
+
+    def observe(node):
+        nonlocal page
+        if node.get_name() == 'Open project: ' + NAME:
+            return 'dashboard'
+        if node.get_name() == 'Loading':
+            page = 'loading'
+        document = node.get_document_iface()
+        if document and page != 'loading':
+            url = document.get_document_attribute_value('DocURL')
+            if url in (f'http://localhost:{PORT}/?id={project_id}&connectorId=fs-storage',
+                       f'http://127.0.0.1:{PORT}/?id={project_id}&connectorId=fs-storage'):
+                page = 'editor_url'
+        return None
+
+    return find_accessible(atspi, observe) or page
 
 
 def desktop_action(atspi, label, app_process):
+    def match(node):
+        if node.get_name() == label:
+            action = node.get_action_iface()
+            if action and action.get_n_actions():
+                return action
+        return None
+
     def locate():
         require(app_process.poll() is None)
-        queue = [atspi.get_desktop(0)]
-        for visited in range(2500):
-            if not queue:
-                return None
-            node = queue.pop()
-            if node is None:
-                continue
-            try:
-                if node.get_name() == label:
-                    action = node.get_action_iface()
-                    if action and action.get_n_actions():
-                        return action
-                count = node.get_child_count()
-                require(0 <= count <= 1024)
-                queue.extend(node.get_child_at_index(i) for i in range(count))
-            except Exception as error:
-                # The accessibility tree can replace a loading WebKit document.
-                if type(error).__module__.startswith('gi.repository'):
-                    continue
-                raise
-        raise RuntimeError('accessibility_tree_bound')
+        return find_accessible(atspi, match)
+
     require(await_value(locate).do_action(0))
 
 
@@ -171,7 +219,7 @@ def main():
         output.write(struct.pack('!H', 65535) + field(b'') + field(b'87')
                      + field(b'MIT-MAGIC-COOKIE-1') + field(secrets.token_bytes(16)))
     os.environ.update(DISPLAY=':87', XAUTHORITY=str(cookie), DBUS_SESSION_BUS_ADDRESS='unix:path=' + str(address),
-        GDK_BACKEND='x11', GTK_A11Y='atspi', NO_AT_BRIDGE='0', LIBGL_ALWAYS_SOFTWARE='1', LANG='C.UTF-8')
+        GDK_BACKEND='x11', GTK_A11Y='atspi', NO_AT_BRIDGE='0', LIBGL_ALWAYS_SOFTWARE='1', LC_ALL='C.UTF-8', LANG='C.UTF-8')
     @contextlib.contextmanager
     def service(command):
         process, identity = life.start_group(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -224,10 +272,15 @@ def main():
                     stage = phase + '_open'
                     desktop_action(Atspi, 'Open project: ' + NAME, app)
                     stage = phase + '_editor'
-                    window = await_value(lambda: visible_windows(NAME + ' — Silex'))
-                    require(len(window) == 1 and await_value(webkit_process))
+                    try:
+                        window = await_value(lambda: editor_window(app.pid))
+                    except TimeoutError:
+                        stage = phase + '_' + editor_observation(Atspi, app.pid, project_id)
+                        raise
+                    stage = phase + '_webkit_process'
+                    require(await_value(webkit_process))
                     stage = phase + '_close'
-                    request_close(window[0])
+                    request_close(window)
                     # waitid with WNOWAIT preserves ownership until the final drain.
                     def normal_exit():
                         observed = os.waitid(os.P_PID, app.pid, os.WEXITED | os.WNOWAIT | os.WNOHANG)
