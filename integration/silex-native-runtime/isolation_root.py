@@ -390,9 +390,10 @@ def admission_environment():
     require(sys.flags.isolated == 1 and sys.flags.dont_write_bytecode == 1
             and sys.platform == 'linux' and os.uname().machine == 'x86_64')
     for key, value in {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted',
-        'RUNNER_OS': 'Linux', 'RUNNER_ARCH': 'X64', 'GITHUB_REPOSITORY': 'VOLPAROSSA/volparossa-studio',
-        'GITHUB_REF': 'refs/heads/feature/native-bootstrap-runtime-20261029'}.items():
+        'RUNNER_OS': 'Linux', 'RUNNER_ARCH': 'X64', 'GITHUB_REPOSITORY': 'VOLPAROSSA/volparossa-studio'}.items():
         require(os.environ.get(key) == value)
+    require(os.environ.get('GITHUB_REF') in (
+        'refs/heads/main', 'refs/heads/feature/native-bootstrap-runtime-20261029'))
     revision = os.environ.get('GITHUB_SHA', '')
     require(re.fullmatch('[0-9a-f]{40}', revision) and os.environ.get('GITHUB_WORKFLOW_SHA') == revision)
     require(not any(key.startswith('LD_') or key in ('PYTHONPATH', 'PYTHONHOME') for key in os.environ))

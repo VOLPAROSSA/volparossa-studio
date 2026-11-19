@@ -571,7 +571,7 @@ jobs:
           root = pathlib.Path('studio/integration')
           expected = {
             'silex-native-runtime/isolation.py': 'a51983104ecca1b3f697f0057dc44960b332a0667cb4f997258a70184fbad99a',
-            'silex-native-runtime/isolation_root.py': '1ef18348718bd7f559b92963148aca0e8bd8eda407e66b8573155cfdae0f64b7',
+            'silex-native-runtime/isolation_root.py': '1a5f94ea04b4a6185b43e625e75f9b37afa835622ab892fb41ce6c99f9864ef5',
             'silex-native-runtime/isolation_actor.py': 'e659a2eb6edfe6df7ca75523bb5ae2f8645667e0751f35ad3afa953308f5e9d2',
             'silex-native-runtime/test_isolation.py': 'aacb9f4cefba5e7875a753019c900a9c402454848fd3f74be5bb9e87014d83d7',
             'silex-export/lifecycle.py': 'a3fe1d2fe7ba51c7f63a73ad505161d73e0d8f5b112a9af575f62e70f467da9e',
