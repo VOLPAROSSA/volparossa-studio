@@ -65,6 +65,12 @@ def available():
         return False
 
 
+def saved_page(project_id):
+    return {'id': 'native-home', 'name': 'Home', 'frames': [{'component': {
+        'type': 'wrapper', 'components': [{'type': 'text', 'tagName': 'h1',
+            'components': [{'type': 'textnode', 'content': 'Restored canvas ' + project_id}]}]}}]}
+
+
 def visible_titles(pid):
     # Search by the GTK client's PID. getwindowname reads the EWMH UTF-8 title
     # first; xdotool's regex name search reads the legacy WM_NAME instead.
@@ -152,6 +158,21 @@ def desktop_action(atspi, label, app_process):
     require(await_value(locate).do_action(0))
 
 
+def visible_canvas_heading(atspi, project_id):
+    heading = 'Restored canvas ' + project_id
+
+    def match(node):
+        if node.get_role() != atspi.Role.HEADING:
+            return False
+        text = node.get_text_iface()
+        if node.get_name() != heading and not (text and text.get_text(0, -1) == heading):
+            return False
+        states = node.get_state_set()
+        return states.contains(atspi.StateType.VISIBLE) and states.contains(atspi.StateType.SHOWING)
+
+    return find_accessible(atspi, match)
+
+
 def webkit_process():
     for proc in Path('/proc').glob('[0-9]*'):
         try:
@@ -200,7 +221,7 @@ def request_close(window):
 def main():
     stage = 'admission'
     state = dict(process_groups_started=0, process_groups_joined=0, desktop_launches=0,
-        native_window_closes=0, original_project_reopened=False)
+        native_window_closes=0, rendered_saved_pages=0, original_project_reopened=False)
     actor = load('isolation_actor')
     life = load('lifecycle')
     # The admission actor uses the same original identity and view assertions.
@@ -262,6 +283,11 @@ def main():
                         created = remote('PUT', '/api/website?connectorId=fs-storage', {'name': NAME})
                         project_id = created['websiteId']
                         require(type(project_id) is str and UUID.fullmatch(project_id))
+                        uri = '/api/website?websiteId=' + project_id + '&connectorId=fs-storage'
+                        project = remote('GET', uri)
+                        require(project['pages'] == [{}])
+                        project['pages'] = [saved_page(project_id)]
+                        remote('POST', uri, project)
                         stage = 'refresh_dashboard'
                         desktop_action(Atspi, 'Refresh', app)
                     projects = remote('GET', '/api/website?connectorId=fs-storage')
@@ -269,6 +295,7 @@ def main():
                             and projects[0]['name'] == NAME)
                     meta = remote('GET', '/api/website/meta?websiteId=' + project_id + '&connectorId=fs-storage')
                     require(meta['name'] == NAME)
+                    require(remote('GET', uri)['pages'] == [saved_page(project_id)])
                     stage = phase + '_open'
                     desktop_action(Atspi, 'Open project: ' + NAME, app)
                     stage = phase + '_editor'
@@ -279,6 +306,9 @@ def main():
                         raise
                     stage = phase + '_webkit_process'
                     require(await_value(webkit_process))
+                    stage = phase + '_canvas'
+                    require(await_value(lambda: visible_canvas_heading(Atspi, project_id)))
+                    state['rendered_saved_pages'] += 1
                     stage = phase + '_close'
                     request_close(window)
                     # waitid with WNOWAIT preserves ownership until the final drain.

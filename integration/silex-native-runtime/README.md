@@ -121,8 +121,9 @@ Only bounded JSON receipts leave the job. The namespace verifies the private
 executable against the same-revision build receipt before exposing it to the
 original unprivileged UID. Following the IPv4, IPv6 and DNS calibration, the
 application can use the local Silex TCP port on loopback. The fixture creates a
-synthetic project using the local API, activates its actual dashboard Open action
-through accessibility, observes the native editor title, closes the window and
-repeats the open in a fresh process. Its success requires both normal exits,
+synthetic project and saves a heading unique to it using the local API. It selects
+the dashboard’s Open action through accessibility, reads the native editor title
+and the visible heading in the canvas, closes the window and repeats these checks
+in a fresh process. Its success requires both normal exits,
 the live WebKit processes, the network counter checks and cleanup. Project
 publishing, editing, updates and distribution have separate acceptance gates.

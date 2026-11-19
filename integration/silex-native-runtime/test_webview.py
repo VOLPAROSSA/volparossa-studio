@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('webview_fixture_root', HERE / 'isolation_root.py')
@@ -62,11 +62,28 @@ class WebViewTests(unittest.TestCase):
         with self.assertRaises(root.Rejected):
             root.gui_policy(0)
 
+    def test_visible_heading_must_match_the_content_saved_for_this_project(self):
+        sdk = Mock()
+        project_id = 'c3218641-230e-414f-8a6a-367733abeb23'
+        expected = gui.saved_page(project_id)['frames'][0]['component']['components'][0]['components'][0]['content']
+        node = sdk.get_desktop.return_value
+        node.get_child_count.return_value = 0
+        node.get_role.return_value = sdk.Role.HEADING
+        node.get_name.return_value = expected
+        node.get_state_set.return_value.contains.side_effect = lambda state: state in (
+            sdk.StateType.VISIBLE, sdk.StateType.SHOWING)
+        self.assertTrue(gui.visible_canvas_heading(sdk, project_id))
+        self.assertFalse(gui.visible_canvas_heading(sdk, 'different-project'))
+        node.get_state_set.return_value.contains.side_effect = lambda state: state == sdk.StateType.VISIBLE
+        self.assertFalse(gui.visible_canvas_heading(sdk, project_id))
+        node.get_role.return_value = sdk.Role.PUSH_BUTTON
+        self.assertFalse(gui.visible_canvas_heading(sdk, project_id))
+
     def test_reopen_evidence_requires_both_normal_native_closes_and_owned_groups(self):
         value = dict(status='passed', stage='complete', process_groups_started=4, process_groups_joined=4,
-            desktop_launches=2, native_window_closes=2, original_project_reopened=True, project_id_sha256='0' * 64)
+            desktop_launches=2, native_window_closes=2, rendered_saved_pages=2, original_project_reopened=True, project_id_sha256='0' * 64)
         root.verify_gui(value)
-        for key, bad in (('native_window_closes', 1), ('process_groups_joined', 3), ('original_project_reopened', False),
+        for key, bad in (('native_window_closes', 1), ('rendered_saved_pages', 1), ('rendered_saved_pages', True), ('process_groups_joined', 3), ('original_project_reopened', False),
                          ('project_id_sha256', 'invalid'), ('stage', 'first_editor')):
             with self.subTest(key=key), self.assertRaises(root.Rejected):
                 root.verify_gui(dict(value, **{key: bad}))
