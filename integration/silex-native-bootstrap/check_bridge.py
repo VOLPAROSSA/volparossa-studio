@@ -21,7 +21,8 @@ EXPORT = HERE.parent / 'silex-export'
 UPSTREAM = '672efed69dda04c0a1e968859239e042f00d9538'
 PATCHED = 'f51c34bb965e69ba7f907b2473b4aa310faef1fa98ba20003e49e6b8c824a482'
 PRISTINE = 'f91e9debbe5a67175ce93bdcd17c29b8b13ba1ae5616ffa450bea4d315d90fa3'
-EXPORT_MANIFEST = '02e054803e94f8773905af43a4d7aaaaedbc382a67ee27aa5ae6349ff58ca611'
+TOOL_PINS = 'bd05e28169a610a0c782572d83eca9e46e21f1819796f0e9ea43f0b34a24a2c5'
+TOOL_HELPER = '3ece5556fbcadd6d8c8a14ff12ff287c6ce00905548eb625c8c6bc8bf6d95422'
 NODE_VERSION = '24.19.0'
 NODE_ARCHIVE = '14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647'
 NODE_BINARY = 'bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12'
@@ -179,12 +180,17 @@ def admission():
     require(all(entry.startswith(b'H ') for entry in git('ls-files', '-v', '-z').split(b'\0') if entry))
     read(source / 'desktop/src-tauri/scripts/desktop-bridge.js', 65536, expected=PATCHED)
     read(pristine, 65536, expected=PRISTINE)
-    pins = parse_json(read(EXPORT / 'manifest.json', 65536, expected=EXPORT_MANIFEST))
+    raw = read(EXPORT / 'manifest.json', 65536)
+    pins = parse_json(raw)
+    tools = {name: pins[name] for name in ('node', 'pnpm')}
+    encoded = json.dumps(tools, sort_keys=True, separators=(',', ':')).encode('ascii')
+    require(hashlib.sha256(encoded).hexdigest() == TOOL_PINS)
+    read(EXPORT / 'toolchain.py', 65536, expected=TOOL_HELPER)
     require(pins['node']['version'] == NODE_VERSION and pins['node']['sha256'] == NODE_ARCHIVE
             and pins['node']['url'] == 'https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-x64.tar.xz'
             and pins['node']['files']['bin/node']['bytes'] == NODE_BYTES
             and pins['node']['files']['bin/node']['sha256'] == NODE_BINARY)
-    return source, pristine, temporary, workspace, revision
+    return source, pristine, temporary, workspace, revision, tools, hashlib.sha256(raw).hexdigest()
 
 
 def parse_tap(raw):
@@ -320,7 +326,7 @@ def main():
         signal.signal(number, cancelled)
     signal.setitimer(signal.ITIMER_REAL, 350)
     try:
-        source, pristine, runner_temp, workspace, revision = admission()
+        source, pristine, runner_temp, workspace, revision, tools, manifest_sha = admission()
         artifact = runner_temp / 'silex-native-bridge.json'
         require(not artifact.exists() and not artifact.is_symlink())
         temporary = Path(tempfile.mkdtemp(prefix='silex-native-bridge-', dir=runner_temp))
@@ -328,7 +334,7 @@ def main():
         home.mkdir(mode=0o700)
         report.update(studio_revision=revision, upstream_revision=UPSTREAM,
             patched_bridge_sha256=PATCHED, pristine_bridge_sha256=PRISTINE,
-            export_manifest_sha256=EXPORT_MANIFEST,
+            export_manifest_sha256=manifest_sha,
             harness_sha256=hashlib.sha256(read(HERE / 'test_bridge.mjs', 65536)).hexdigest(),
             caller_sha256=hashlib.sha256(read(HERE / 'check_bridge.py', 65536)).hexdigest(),
             native_overlay_manifest_sha256=hashlib.sha256(read(HERE / 'manifest.json', 65536)).hexdigest())
@@ -337,7 +343,7 @@ def main():
         # source directory enters sys.path. These imports perform no native work.
         sys.path.insert(0, str(EXPORT))
         try:
-            import run as carrier
+            import toolchain as carrier
             from lifecycle import start_group, drain_group
         finally:
             sys.path.remove(str(EXPORT))
@@ -353,7 +359,7 @@ def main():
                 'source_rejected')
         report['stage'] = 'authenticate_node'
         try:
-            node, _pnpm = carrier.prepare(temporary)
+            node, _pnpm = carrier.prepare(temporary, tools)
         except Rejected:
             raise
         except Exception:
