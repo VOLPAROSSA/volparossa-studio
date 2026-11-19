@@ -515,6 +515,26 @@ jobs:
           for name in ('RUSTC', 'RUSTDOC', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER', 'RUSTUP_TOOLCHAIN'):
               assert name not in os.environ
           PYTHON
+      - name: Check the runner kernel before compiling the native WebView
+        if: inputs.native_followup == 'native-webview'
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PYTHON'
+          import hashlib, os, pathlib, re, runpy
+          supervisor = runpy.run_path('studio/integration/silex-native-runtime/isolation_root.py')
+          kernel = os.uname().release
+          assert re.fullmatch(r'[0-9a-z.]+(?:-[0-9a-z.]+)+', kernel)
+          module = pathlib.Path('/usr/lib/modules') / kernel / 'kernel/drivers/net/veth.ko.zst'
+          registered = supervisor['VETH_REGISTERED'].is_dir()
+          print('Kernel', kernel, 'veth registered', registered, flush=True)
+          if not registered:
+              with module.open('rb') as stream:
+                  payload = stream.read(131073)
+              assert 0 < len(payload) <= 131072
+              digest = hashlib.sha256(payload).hexdigest()
+              print('Installed veth module', len(payload), 'bytes, SHA-256', digest, flush=True)
+              assert kernel == supervisor['VETH_RELEASE'] and digest == supervisor['VETH_SHA256']
+          PYTHON
       - name: Test local composition, FS source, compiler and build boundaries before provisioning
         run: |
           set -euo pipefail
