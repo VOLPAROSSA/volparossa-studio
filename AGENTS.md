@@ -1,11 +1,17 @@
 # VOLPAROSSA Studio repository guidance
 
-- Read the core [AGENTS.md](https://github.com/VOLPAROSSA/volparossa/blob/main/AGENTS.md),
-  full [GOAL.md](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md),
-  [Studio/hosting requirements](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md#studio),
-  [DPS requirements](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md#dps),
-  and [Codex workflow](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/CODEX_WORKFLOW.md).
-  Preserve all original functionality and amendments. Recheck live source/PR/run state.
+Follow the [shared development workflow](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/CODEX_WORKFLOW.md) for Codex, OpenCode and other coding agents.
+Start with the user's task and the relevant part of the [README](README.md).
+Choose available models, reasoning effort, tools and any delegation according
+to the task's complexity, risk and cost. Use targeted checks. Run builds and
+runtime trials on approved disposable hosted runners.
+
+- For scoped changes, read the applicable [Core instructions](https://github.com/VOLPAROSSA/volparossa/blob/main/AGENTS.md)
+  and the relevant [Studio/hosting](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md#studio)
+  or [DPS](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md#dps)
+  requirements. Read the full [goal](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md)
+  when resuming the full project. Preserve original functionality and amendments.
+  Recheck live source, PR and run state when making integration decisions.
 - Use [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) for local evidence
   and the core ledger for shared dependencies. Requirements, source checks, real
   runtime acceptance and the execution plan must stay distinct.
@@ -38,9 +44,8 @@
   VOLPAROSSA code follows core GPL-3.0-only rules; upstream-derived AGPL/GPL components
   retain their terms. Record component licenses, patches, corresponding-source and
   network-service obligations; do not blanket-relabel an integrated Silex tree.
-- Use Astra Ultra for coordination/architecture, Sol High for substantial work/review
-  and Luna Medium for support, at most two children initially. Assign exact source
-  and owned paths; preserve other workers' edits. No recursive publication authority.
+- When delegating, identify the exact source, assign distinct paths and preserve
+  other workers' edits. Delegation grants no publication authority.
 - Scoped ordinary development commits/PRs/permitted merges are authorized under core
   workflow. This does not authorize website/account/DNS changes, paid infrastructure,
   development-host installation/configuration or release-signing bypass.
