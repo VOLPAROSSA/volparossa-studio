@@ -8,6 +8,7 @@ from unittest.mock import patch
 import zipfile
 
 import native_handoff as handoff
+from run import OPERATIONS
 
 
 class NativeHandoffTests(unittest.TestCase):
@@ -28,6 +29,7 @@ class NativeHandoffTests(unittest.TestCase):
                 revision = 'a' * 40
                 calls = []
                 def run(command, temporary, env, label, **_options):
+                    self.assertIn(label, OPERATIONS)
                     calls.append(label)
                     if label == 'native-editor':
                         owned = runner / 'silex-native-hosting-input'

@@ -29,7 +29,8 @@ from signed_site_receipt import read_signed_diagnostic
 FIXTURE = Path(__file__).resolve().parent
 PINS = json.loads((FIXTURE / 'manifest.json').read_text())
 OPERATIONS = frozenset(('install-silex', 'install-driver', 'build-client', 'build-server',
-                        'build-public', 'runtime', 'core-pack', 'core-build', 'viewer-runtime', 'marker-unit', 'core-cli-build'))
+                        'build-public', 'runtime', 'core-pack', 'core-build', 'viewer-runtime',
+                        'marker-unit', 'core-cli-build', 'native-editor', 'native-review'))
 FAILURES = frozenset(('exit_nonzero', 'signal_terminated', 'deadline_exceeded',
                       'output_limit_exceeded', 'spawn_failed', 'cleanup_failed', 'cancelled'))
 DIAGNOSTIC_COUNTS = frozenset(('page_errors', 'console_errors', 'failed_requests',
