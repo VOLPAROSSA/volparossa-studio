@@ -35,6 +35,7 @@ jobs:
           python3 -I -B integration/silex-native-runtime/test_webview.py
           python3 -I -B integration/silex-native-runtime/test_site_export.py
           python3 -I -B integration/silex-native-runtime/test_hosting.py
+          python3 -I -B integration/silex-native-runtime/test_isolation.py IsolationTests.test_native_archive_uses_only_the_private_pipe_and_stays_out_of_failure_reports
           python3 -B integration/silex-export/test_native_handoff.py
           python3 -I -B integration/silex-native-dashboard/test_crud.py CrudTests.test_checked_in_helpers_match_the_crud_pins
       - name: Check viewer units with the existing authenticated Node

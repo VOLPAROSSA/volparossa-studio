@@ -34,6 +34,8 @@ class NativeHandoffTests(unittest.TestCase):
                     if label == 'native-editor':
                         owned = runner / 'silex-native-hosting-input'
                         self.assertEqual((owned / 'native-project.json').read_bytes(), b'{"pages":[]}')
+                        self.assertFalse((owned / 'native.zip').exists())
+                        handoff.private_file(owned / 'native.zip', b'')
                         with zipfile.ZipFile(owned / 'native.zip', 'w') as archive:
                             for path, body in bodies.items():
                                 archive.writestr(path, b'other' if changed and path == 'index.html' else body)

@@ -26,6 +26,7 @@ import time
 SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGALRM)
 BOOT = b'VP-ISOLATION-1\n'
 MAX_JSON = 64 * 1024
+MAX_NATIVE_ARCHIVE = 3 * 1024**2
 MAX_SOURCE = 256 * 1024
 SDK = 'b968a55b95b693dd8b33adc16d84d9fca86d5b43b0aaaf7b45695e3ac4b588c7'
 LIFECYCLE = 'integration/silex-export/lifecycle.py'
@@ -41,6 +42,7 @@ HOST_KEYS = ('GITHUB_ACTIONS', 'RUNNER_ENVIRONMENT', 'RUNNER_OS', 'RUNNER_ARCH',
              'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_WORKSPACE', 'RUNNER_TEMP')
 SITE_EXPORT = os.environ.get('STUDIO_NATIVE_WEBVIEW') == 'export'
 HOSTING = os.environ.get('STUDIO_NATIVE_WEBVIEW') == 'hosting'
+RESULT_LIMIT = MAX_JSON + (MAX_NATIVE_ARCHIVE if HOSTING else 0)
 GUI = SITE_EXPORT or HOSTING or os.environ.get('STUDIO_NATIVE_WEBVIEW') == '1'
 if GUI:
     SOURCES['gui'] = 'integration/silex-native-runtime/webview.py'
@@ -140,6 +142,29 @@ def encoded(value):
     raw = (json.dumps(value, sort_keys=True) + '\n').encode()
     require(len(raw) <= MAX_JSON, 'output_limit')
     return raw
+
+
+def read_result(raw):
+    # The public receipt and the private ZIP travel on one bounded child pipe.
+    # ZIP bytes may contain newlines, and never enter a JSON report or Actions log.
+    if not HOSTING:
+        return parse(raw), b''
+    line, separator, archive = raw.partition(b'\n')
+    require(separator and 0 < len(archive) <= MAX_NATIVE_ARCHIVE, 'protocol')
+    return parse(line), archive
+
+
+def emit_result(report, archive):
+    sys.stdout.buffer.write(encoded(report))
+    if HOSTING and report['status'] == 'passed':
+        require(0 < len(archive) <= MAX_NATIVE_ARCHIVE, 'protocol')
+        sys.stdout.buffer.write(archive)
+    sys.stdout.buffer.flush()
+
+
+def verify_archive(archive, native):
+    require(0 < len(archive) <= MAX_NATIVE_ARCHIVE and len(archive) == native['archive_bytes']
+            and hashlib.sha256(archive).hexdigest() == native['archive_sha256'], 'source')
 
 
 def stable(info):
@@ -855,7 +880,8 @@ def namespace_init():
                   failure_kind=None, actor_failure_predicate=None, actor_failure_site=[])
     primary = None
     dns = None
-    gui_source = core_source = native_output = None
+    gui_source = core_source = None
+    native_archive = b''
     try:
         # Cache every source byte before hiding the original workspace/home/run.
         actor = read(stage / 'isolation_actor.py', MAX_SOURCE, owner=0)
@@ -873,12 +899,6 @@ def namespace_init():
             for filename, maximum in (('native-project.json', 65536), ('native-inventory.json', 8192),
                                       ('studio-topology.png', 3 * 1024**2)):
                 native_inputs[filename] = read(portable / filename, maximum, owner=uid, modes=(0o600,))
-            output = portable / 'native.zip'
-            require(output.resolve(strict=True) == output, 'filesystem')
-            native_output = os.fdopen(os.open(output, os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC), 'wb')
-            st = os.fstat(native_output.fileno())
-            require(stat.S_ISREG(st.st_mode) and st.st_uid == uid and st.st_nlink == 1 and st.st_size == 0
-                    and stat.S_IMODE(st.st_mode) == 0o600, 'filesystem')
         resolver = resolver_target()
         os.chdir('/')
         # unshare already cloned this private mount tree and its child mounts.
@@ -1002,14 +1022,10 @@ def namespace_init():
             if SITE_EXPORT:
                 report['native_webview']['core_binary_sha256'] = core_binary['sha256']
             if HOSTING:
-                # Only an existing runner-owned private file descriptor crosses the private mount.
-                # The app never inherits it. The consumer checks every original asset again.
-                result = gui['native_export']
-                data = read(runtime / 'native-export.zip', 3 * 1024**2, owner=uid, modes=(0o600,))
-                require(len(data) == result['archive_bytes'] and hashlib.sha256(data).hexdigest() == result['archive_sha256'], 'source')
-                native_output.write(data)
-                native_output.flush()
-                os.fsync(native_output.fileno())
+                # Keep the host root read-only throughout the session. Only the
+                # unprivileged controller writes the checked archive on the runner.
+                native_archive = read(runtime / 'native-export.zip', MAX_NATIVE_ARCHIVE, owner=uid, modes=(0o600,))
+                verify_archive(native_archive, gui['native_export'])
         report.update(status='passed', stage='complete')
     except BaseException as error:
         primary = error
@@ -1043,8 +1059,6 @@ def namespace_init():
                 gui_source.close()
             if core_source is not None:
                 core_source.close()
-            if native_output is not None:
-                native_output.close()
             if dns is not None:
                 dns.close()
             # Namespace PID1 is also an orphan reaper. No arbitrary foreign PID.
@@ -1061,7 +1075,7 @@ def namespace_init():
         if owner.started != owner.joined or primary is not None:
             report['status'] = 'failed'
             report['failure_kind'] = report['failure_kind'] or 'cleanup'
-    print(json.dumps(report, sort_keys=True))
+    emit_result(report, native_archive)
     require(primary is None and report['status'] == 'passed', 'cleanup')
 
 
@@ -1079,6 +1093,7 @@ def staged_supervisor():
     lifecycle = load_lifecycle(stage / 'lifecycle.py', meta['sources']['lifecycle'], 0)
     owner = Owner(lifecycle, work, end)
     veth = VethRegistration()
+    native_archive = b''
     primary = None
     report = dict(schema=1, operation='root_isolation_supervisor', status='failed', stage='host_before',
         studio_revision=meta['revision'], source_sha256=meta['sources'], worker=None, namespace_parent_joined=False,
@@ -1097,8 +1112,8 @@ def staged_supervisor():
         env.update(ENV, VP_ISOLATION_WORK_NS=os.environ['VP_ISOLATION_WORK_NS'],
                    VP_ISOLATION_END_NS=os.environ['VP_ISOLATION_END_NS'])
         raw = owner.run(namespace_command(stage), environment=env, payload=BOOT,
-                        keep_stdin=True, cooperative=True, seconds=90, role='namespace')
-        worker = parse(raw)
+                        keep_stdin=True, cooperative=True, seconds=90, role='namespace', maximum=RESULT_LIMIT)
+        worker, native_archive = read_result(raw)
         require(worker.get('operation') == 'namespace_isolation_worker' and worker.get('status') == 'passed'
                 and worker.get('stage') == 'complete' and worker.get('namespace_groups_started', 0) > 0
                 and worker['namespace_groups_started'] == worker.get('namespace_groups_joined')
@@ -1148,7 +1163,7 @@ def staged_supervisor():
             report.update(status='passed', stage='complete')
         else:
             report['failure_kind'] = primary.kind if isinstance(primary, Rejected) else 'cleanup'
-    print(json.dumps(report, sort_keys=True), flush=True)
+    emit_result(report, native_archive)
     ROOT_REPORT_EMITTED = True
     require(primary is None, 'cleanup')
 

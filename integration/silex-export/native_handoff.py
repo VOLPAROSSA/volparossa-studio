@@ -40,7 +40,6 @@ def prepare(core, studio, temporary, env, run):
         private_file(handoff / 'native-project.json', project)
         private_file(handoff / NAME, chart)
         private_file(handoff / 'native-inventory.json', json.dumps(original).encode())
-        private_file(handoff / 'native.zip', b'')
         run([sys.executable, '-I', '-B', studio / 'integration/silex-native-runtime/isolation.py'],
             temporary, dict(os.environ, STUDIO_NATIVE_WEBVIEW='hosting'), 'native-editor', timeout=125, cwd=studio)
         report = strict_json(read_owned(temporary.parent / 'silex-native-webview.json', 65536, private=False))

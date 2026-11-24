@@ -5,7 +5,9 @@ The process controls execute only public Python fixture actors in owned groups;
 actual privileged namespace admission/calibration is a separate workflow step.
 """
 import copy
+import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -60,6 +62,31 @@ def verify(value):
 
 
 class IsolationTests(unittest.TestCase):
+    def test_native_archive_uses_only_the_private_pipe_and_stays_out_of_failure_reports(self):
+        archive = b'PK\x03\x04\n\xffbinary\x00'
+        binding = dict(archive_bytes=len(archive), archive_sha256=hashlib.sha256(archive).hexdigest())
+        with patch.object(S, 'HOSTING', True):
+            def emit(status):
+                stream = io.BytesIO()
+                with patch.object(S.sys, 'stdout', SimpleNamespace(buffer=stream)):
+                    S.emit_result(dict(status=status), archive)
+                return stream.getvalue()
+            header, data = S.read_result(emit('passed'))
+            self.assertEqual(header, {'status': 'passed'})
+            self.assertEqual(data, archive)
+            S.verify_archive(data, binding)
+            for changed in (data[:-1], b'!' + data[1:]):
+                with self.assertRaises(S.Rejected):
+                    S.verify_archive(changed, binding)
+            self.assertEqual(S.parse(emit('failed')), {'status': 'failed'})
+            for bad in (b'{}', b'{}\n', b'{}\n' + b'x' * (S.MAX_NATIVE_ARCHIVE + 1)):
+                with self.assertRaises(S.Rejected):
+                    S.read_result(bad)
+        with patch.object(S, 'HOSTING', False):
+            self.assertEqual(S.read_result(b'{}\n'), ({}, b''))
+            with self.assertRaises(S.Rejected):
+                S.read_result(b'{}\n' + archive)
+
     def test_actual_actor_file_error_retains_only_bounded_own_source_lines(self):
         try:
             A.bounded_read('/not-a-real-studio-private-path', 16)
