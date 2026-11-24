@@ -177,11 +177,15 @@ def desktop_action(atspi, label, app_process, context=None):
     require(await_value(locate, context=context).do_action(0))
 
 
-def has_text(node, expected):
+def has_text(atspi, node, expected):
     if node.get_name() == expected:
         return True
     text = node.get_text_iface()
-    return bool(text and text.get_character_count() == len(expected) and text.get_text(0, len(expected)) == expected)
+    if not text or text.get_character_count() != len(expected):
+        return False
+    # Accessible.get_text() returns an interface. Select Text.get_text(start, end)
+    # explicitly because PyGObject can return the Accessible proxy for both.
+    return atspi.Text.get_text(text, 0, len(expected)) == expected
 
 
 def interface_observation(atspi, pid, error):
@@ -203,7 +207,7 @@ def interface_observation(atspi, pid, error):
                 observed.add('editable_name')
             if project_name_point(node, atspi):
                 observed.add('visible_name')
-            if has_text(node, NAME):
+            if has_text(atspi, node, NAME):
                 observed.add('typed_name')
         return False
     try:
@@ -254,7 +258,7 @@ def visible_canvas_heading(atspi, project_id, heading=None):
         heading = 'Restored canvas ' + project_id
 
     def match(node):
-        if not has_text(node, heading):
+        if not has_text(atspi, node, heading):
             return False
         states = node.get_state_set()
         return states.contains(atspi.StateType.VISIBLE) and states.contains(atspi.StateType.SHOWING)
@@ -473,7 +477,7 @@ def desktop_session(result):
                     timeout=3, check=True)
                 if hosting:
                     stage = 'native_page_select'
-                    await_value(lambda: find_accessible(Atspi, lambda node: has_text(node, 'Publish')
+                    await_value(lambda: find_accessible(Atspi, lambda node: has_text(Atspi, node, 'Publish')
                         or (node.get_name() or '').endswith('| Index')), context=events)
                     if not visible_canvas_heading(Atspi, project_id, hosting.MARKER):
                         subprocess.run(['/usr/bin/xdotool', 'windowfocus', '--sync', str(window), 'key', '--clearmodifiers', 'ctrl+alt+j'],
@@ -502,7 +506,7 @@ def desktop_session(result):
                     subprocess.run(['/usr/bin/xdotool', 'windowfocus', '--sync', str(window), 'key', '--clearmodifiers', 'alt+p'],
                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4, check=True)
                     def publish_control(node):
-                        return has_text(node, 'File system hosting') or (node.get_name() == 'Publish'
+                        return has_text(Atspi, node, 'File system hosting') or (node.get_name() == 'Publish'
                             and node.get_state_set().contains(Atspi.StateType.FOCUSED))
                     await_value(lambda: find_accessible(Atspi, publish_control), context=events)
                     stage = 'native_publish_submit'
