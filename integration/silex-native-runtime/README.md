@@ -217,3 +217,20 @@ demonstrated signing, retention by another peer and a fresh reader fetching
 the site after the original provider went offline.
 [Core hosting commands](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/services/STUDIO_HOSTING.md)
 · [Publisher-offline trial](https://github.com/VOLPAROSSA/volparossa/actions/runs/44384131952)
+
+## Native export and publisher-offline hosting trial
+
+The `native-site-hosting` profile starts with the browser's real Silex page,
+37 px text and uploaded 1024 × 768 chart. It captures the saved project from
+the browser's fresh storage read. The native dashboard creates a project,
+restores that document and its original local image, opens the authored page in
+two desktop processes and publishes it through File system hosting. The five
+native files must match the browser Download connector's original export, down
+to every byte. An isolated runner-owned file carries the native files into the
+existing Core publication trial. The private project and ZIPs expire with the job.
+
+Core first prepares the native files and records the reviewed bundle hash. A
+separate synthetic owner operation selects the ephemeral publisher key, site
+name, revision and lifetime, and explicitly signs those bytes. The protected
+profile passes the resulting original manifest and bundle to the existing
+publisher-offline VM and fresh Firefox reader. The upload contains only reports.

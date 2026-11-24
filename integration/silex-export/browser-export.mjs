@@ -302,6 +302,12 @@ try {
     page.goto(editorUrl),
   ]);
   assert.ok(await containsSavedPage(read, marker, ...(chart ? [imagePath] : [])));
+  if (process.env.STUDIO_CAPTURE_NATIVE_PROJECT === '1') {
+    assert.ok(chart);
+    const saved = await read.body();
+    assert.ok(saved.length > 0 && saved.length <= 65536);
+    await writeFile(`${process.env.STUDIO_FIXTURE_TEMP}/native-project.json`, saved, { flag: 'wx', mode: 0o600 });
+  }
   stage = 'saved_editor_ready';
   await page.locator('.silex-loader').waitFor({ state: 'hidden' });
   await page.locator('#gjs:not(.silex-dialog-hide)').waitFor({ state: 'visible' });

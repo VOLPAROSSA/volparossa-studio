@@ -177,11 +177,15 @@ def desktop_action(atspi, label, app_process, context=None):
     require(await_value(locate, context=context).do_action(0))
 
 
-def has_text(node, expected):
+def has_text(atspi, node, expected):
     if node.get_name() == expected:
         return True
     text = node.get_text_iface()
-    return bool(text and text.get_character_count() == len(expected) and text.get_text(0, len(expected)) == expected)
+    if not text or text.get_character_count() != len(expected):
+        return False
+    # Accessible.get_text() returns an interface. Select Text.get_text(start, end)
+    # explicitly because PyGObject can return the Accessible proxy for both.
+    return atspi.Text.get_text(text, 0, len(expected)) == expected
 
 
 def interface_observation(atspi, pid, error):
@@ -203,7 +207,7 @@ def interface_observation(atspi, pid, error):
                 observed.add('editable_name')
             if project_name_point(node, atspi):
                 observed.add('visible_name')
-            if has_text(node, NAME):
+            if has_text(atspi, node, NAME):
                 observed.add('typed_name')
         return False
     try:
@@ -219,7 +223,7 @@ def interface_observation(atspi, pid, error):
     trace = error.__traceback__
     line = 0
     while trace:
-        if trace.tb_frame.f_code.co_filename == __file__:
+        if trace.tb_frame.f_code.co_filename == __file__ and trace.tb_frame.f_code is not require.__code__:
             line = trace.tb_lineno
         trace = trace.tb_next
     kind = 'timeout' if isinstance(error, TimeoutError) else 'predicate' if isinstance(error, RuntimeError) else 'other'
@@ -249,11 +253,12 @@ def type_project_name(point):
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4, check=True)
 
 
-def visible_canvas_heading(atspi, project_id):
-    heading = 'Restored canvas ' + project_id
+def visible_canvas_heading(atspi, project_id, heading=None):
+    if heading is None:
+        heading = 'Restored canvas ' + project_id
 
     def match(node):
-        if not has_text(node, heading):
+        if not has_text(atspi, node, heading):
             return False
         states = node.get_state_set()
         return states.contains(atspi.StateType.VISIBLE) and states.contains(atspi.StateType.SHOWING)
@@ -408,6 +413,8 @@ def desktop_session(result):
         Atspi.init()
         checkpoint('bus_ready')
         project_id = None
+        hosting = load('hosting') if os.environ.get('STUDIO_NATIVE_WEBVIEW') == 'hosting' else None
+        expected_pages = None
         for phase in ('first', 'second'):
             stage = phase + '_launch'
             with service(life, state, ['/run/fixture/silex-desktop', '--stdio'], observe_error) as app:
@@ -431,7 +438,14 @@ def desktop_session(result):
                     uri = '/api/website?websiteId=' + project_id + '&connectorId=fs-storage'
                     project = remote('GET', uri)
                     require(project['pages'] == [{}])
-                    project['pages'] = [saved_page(project_id)]
+                    if hosting:
+                        stage = 'native_project_import'
+                        project = hosting.capture_project((hosting.FIXTURE / 'native-project.json').read_bytes())
+                        asset_dir = Path(os.environ['XDG_DATA_HOME']) / 'org.silex.desktop' / 'websites' / project_id / 'assets'
+                        hosting.restore_chart(asset_dir)
+                    else:
+                        project['pages'] = [saved_page(project_id)]
+                    expected_pages = project['pages']
                     remote('POST', uri, project)
                 stage = phase + '_list'
                 projects = remote('GET', '/api/website?connectorId=fs-storage')
@@ -440,8 +454,16 @@ def desktop_session(result):
                 stage = phase + '_metadata'
                 meta = remote('GET', '/api/website/meta?websiteId=' + project_id + '&connectorId=fs-storage')
                 require(meta['name'] == NAME)
+                stage = phase + '_storage_read'
+                stored = remote('GET', uri)
                 stage = phase + '_saved_page'
-                require(remote('GET', uri)['pages'] == [saved_page(project_id)])
+                if hosting and phase == 'second':
+                    # GrapesJS autosaves editor state when a page is selected. On
+                    # cold reopen require the original pages and authored content.
+                    # The native publication later verifies all five portable files byte for byte.
+                    require(hosting.project_identity(stored) == hosting.project_identity(project))
+                else:
+                    require(stored['pages'] == expected_pages)
                 stage = phase + '_open'
                 checkpoint(phase + '_saved_page')
                 desktop_action(Atspi, 'Open project: ' + NAME, app, events)
@@ -461,13 +483,20 @@ def desktop_session(result):
                 subprocess.run(['/usr/bin/xdotool', 'windowsize', '--sync', str(window), '1280', '800'],
                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                     timeout=3, check=True)
+                if hosting:
+                    stage = 'native_page_select'
+                    await_value(lambda: find_accessible(Atspi, lambda node: has_text(Atspi, node, 'Publish')
+                        or (node.get_name() or '').endswith('| Index')), context=events)
+                    if not visible_canvas_heading(Atspi, project_id, hosting.MARKER):
+                        subprocess.run(['/usr/bin/xdotool', 'windowfocus', '--sync', str(window), 'key', '--clearmodifiers', 'ctrl+alt+j'],
+                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4, check=True)
                 def read_canvas():
                     nonlocal stage
                     stage = phase + '_canvas_pixels'
-                    if visual_canvas(Gdk, GdkX11, screen, window, project_id):
+                    if not hosting and visual_canvas(Gdk, GdkX11, screen, window, project_id):
                         return 'visible_pixels'
                     stage = phase + '_canvas_accessibility'
-                    if visible_canvas_heading(Atspi, project_id):
+                    if visible_canvas_heading(Atspi, project_id, hosting.MARKER if hosting else None):
                         return 'accessible_text'
                     return None
                 try:
@@ -475,8 +504,7 @@ def desktop_session(result):
                 except TimeoutError:
                     stage = phase + '_canvas_' + editor_observation(Atspi, app.pid, project_id)
                     raise
-                if phase == 'second' and os.environ.get('STUDIO_NATIVE_WEBVIEW') == 'export':
-                    site = load('site_export')
+                if phase == 'second' and (hosting or os.environ.get('STUDIO_NATIVE_WEBVIEW') == 'export'):
                     stage = 'native_publish_dialog'
                     connectors = remote('GET', '/api/connector?type=HOSTING')
                     require(len(connectors) == 1 and connectors[0]['connectorId'] == 'fs-hosting'
@@ -486,7 +514,7 @@ def desktop_session(result):
                     subprocess.run(['/usr/bin/xdotool', 'windowfocus', '--sync', str(window), 'key', '--clearmodifiers', 'alt+p'],
                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4, check=True)
                     def publish_control(node):
-                        return has_text(node, 'File system hosting') or (node.get_name() == 'Publish'
+                        return has_text(Atspi, node, 'File system hosting') or (node.get_name() == 'Publish'
                             and node.get_state_set().contains(Atspi.StateType.FOCUSED))
                     await_value(lambda: find_accessible(Atspi, publish_control), context=events)
                     stage = 'native_publish_submit'
@@ -496,8 +524,17 @@ def desktop_session(result):
                     stage = 'native_publish_files'
                     await_value(lambda: (directory / 'index.html').is_file() and (directory / 'css').is_dir()
                         and any((directory / 'css').iterdir()), context=events)
-                    stage = 'native_site_pack'
-                    state['site_pack_review'] = site.pack(directory, project_id)
+                    if hosting:
+                        stage = 'native_five_assets'
+                        await_value(lambda: (directory / 'studio-export.html').is_file() and (directory / 'assets' / hosting.CHART).is_file(), context=events)
+                        def mark_asset(value):
+                            nonlocal stage
+                            stage = value
+                        state['native_export'] = hosting.archive(directory,
+                            (hosting.FIXTURE / 'native-inventory.json').read_bytes(), Path(os.environ['XDG_RUNTIME_DIR']) / 'native-export.zip', mark_asset)
+                    else:
+                        stage = 'native_site_pack'
+                        state['site_pack_review'] = load('site_export').pack(directory, project_id)
                 stage = phase + '_close_request'
                 checkpoint(phase + '_canvas_read')
                 request_close(window)

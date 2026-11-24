@@ -393,14 +393,19 @@ def main():
                            VP_ISOLATION_WORK_NS=str(work_ns), VP_ISOLATION_END_NS=str(end_ns))
         report['stage'] = 'root_supervisor'
         raw = owner.run(root_command(environment), environment=S.ENV, payload=S.BOOT,
-                        keep_stdin=True, cooperative=True, seconds=90, role='root')
-        value = S.parse(raw)
+                        keep_stdin=True, cooperative=True, seconds=90, role='root', maximum=S.RESULT_LIMIT)
+        value, native_archive = S.read_result(raw)
         verify_root(value, revision, hashes)
         report['root_result'] = value
         if S.GUI:
             report.update(application_executed=True, display_started=True, browser_started=True)
         root_acknowledged = True
         S.require(S.source_payloads(owner, ROOT, revision, uid) == payloads, 'source')
+        if S.HOSTING:
+            S.verify_archive(native_archive, value['worker']['native_webview']['actor']['native_export'])
+            handoff = temporary / 'silex-native-hosting-input'
+            S.directory(handoff, uid, private=True)
+            S.write_new(handoff / 'native.zip', native_archive, mode=0o600, maximum=S.MAX_NATIVE_ARCHIVE)
         report['stage'] = 'complete'
     except BaseException as error:
         primary = error

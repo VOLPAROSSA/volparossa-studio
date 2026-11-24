@@ -26,6 +26,7 @@ import time
 SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGALRM)
 BOOT = b'VP-ISOLATION-1\n'
 MAX_JSON = 64 * 1024
+MAX_NATIVE_ARCHIVE = 3 * 1024**2
 MAX_SOURCE = 256 * 1024
 SDK = 'b968a55b95b693dd8b33adc16d84d9fca86d5b43b0aaaf7b45695e3ac4b588c7'
 LIFECYCLE = 'integration/silex-export/lifecycle.py'
@@ -40,7 +41,9 @@ HOST_KEYS = ('GITHUB_ACTIONS', 'RUNNER_ENVIRONMENT', 'RUNNER_OS', 'RUNNER_ARCH',
              'GITHUB_REPOSITORY', 'GITHUB_SHA', 'GITHUB_WORKFLOW_SHA', 'GITHUB_REF',
              'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_WORKSPACE', 'RUNNER_TEMP')
 SITE_EXPORT = os.environ.get('STUDIO_NATIVE_WEBVIEW') == 'export'
-GUI = SITE_EXPORT or os.environ.get('STUDIO_NATIVE_WEBVIEW') == '1'
+HOSTING = os.environ.get('STUDIO_NATIVE_WEBVIEW') == 'hosting'
+RESULT_LIMIT = MAX_JSON + (MAX_NATIVE_ARCHIVE if HOSTING else 0)
+GUI = SITE_EXPORT or HOSTING or os.environ.get('STUDIO_NATIVE_WEBVIEW') == '1'
 if GUI:
     SOURCES['gui'] = 'integration/silex-native-runtime/webview.py'
     FILENAMES['gui'] = 'webview.py'
@@ -48,14 +51,18 @@ if GUI:
 if SITE_EXPORT:
     SOURCES['site_export'] = 'integration/silex-native-runtime/site_export.py'
     FILENAMES['site_export'] = 'site_export.py'
+if HOSTING:
+    SOURCES['hosting'] = 'integration/silex-native-runtime/hosting.py'
+    FILENAMES['hosting'] = 'hosting.py'
 GUI_STAGES = ('admission', 'display', 'bus', 'first_launch', 'seed_project', 'refresh_dashboard',
               'empty_dashboard', 'project_name', 'create_project', 'desktop_session', 'cookie_cleanup',
-              'native_publish_dialog', 'native_publish_submit', 'native_publish_files', 'native_site_pack',
+              'native_publish_dialog', 'native_publish_submit', 'native_publish_files', 'native_site_pack', 'native_project_import', 'native_page_select', 'native_five_assets',
+              'native_export_layout', 'native_chart', 'native_index_css', 'native_page_css', 'native_index_html', 'native_page_html',
               'first_open', 'first_editor', 'first_close', 'second_launch', 'second_open',
               'second_editor', 'second_close', 'cleanup', 'complete') + tuple(
     phase + '_' + observed for phase in ('first', 'second')
     for observed in ('close_request', 'quit_dialog', 'quit_action', 'exit_status', 'exit', 'server_stop',
-                     'list', 'metadata', 'saved_page', 'window_size', 'canvas_pixels', 'canvas_accessibility',
+                     'list', 'metadata', 'storage_read', 'saved_page', 'window_size', 'canvas_pixels', 'canvas_accessibility',
                      'dirty_title', 'id_title', 'dashboard', 'loading', 'editor_url', 'unknown_page', 'webkit_process', 'canvas', 'canvas_dirty_title', 'canvas_id_title',
                      'canvas_dashboard', 'canvas_loading', 'canvas_editor_url', 'canvas_unknown_page'))
 
@@ -137,6 +144,29 @@ def encoded(value):
     return raw
 
 
+def read_result(raw):
+    # The public receipt and the private ZIP travel on one bounded child pipe.
+    # ZIP bytes may contain newlines, and never enter a JSON report or Actions log.
+    if not HOSTING:
+        return parse(raw), b''
+    line, separator, archive = raw.partition(b'\n')
+    require(separator and 0 < len(archive) <= MAX_NATIVE_ARCHIVE, 'protocol')
+    return parse(line), archive
+
+
+def emit_result(report, archive):
+    sys.stdout.buffer.write(encoded(report))
+    if HOSTING and report['status'] == 'passed':
+        require(0 < len(archive) <= MAX_NATIVE_ARCHIVE, 'protocol')
+        sys.stdout.buffer.write(archive)
+    sys.stdout.buffer.flush()
+
+
+def verify_archive(archive, native):
+    require(0 < len(archive) <= MAX_NATIVE_ARCHIVE and len(archive) == native['archive_bytes']
+            and hashlib.sha256(archive).hexdigest() == native['archive_sha256'], 'source')
+
+
 def stable(info):
     return (info.st_dev, info.st_ino, info.st_uid, info.st_gid, info.st_mode,
             info.st_nlink, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
@@ -204,8 +234,8 @@ def read(path, maximum, *, owner, modes=(0o400, 0o600, 0o644)):
     return bytes(raw)
 
 
-def write_new(path, raw, *, mode=0o400):
-    require(len(raw) <= MAX_SOURCE, 'filesystem')
+def write_new(path, raw, *, mode=0o400, maximum=MAX_SOURCE):
+    require(len(raw) <= maximum, 'filesystem')
     with descriptor(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL) as fd:
         remaining = memoryview(raw)
         while remaining:
@@ -425,7 +455,8 @@ def admission_environment():
     for key, value in {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted',
         'RUNNER_OS': 'Linux', 'RUNNER_ARCH': 'X64', 'GITHUB_REPOSITORY': 'VOLPAROSSA/volparossa-studio'}.items():
         require(os.environ.get(key) == value)
-    require(os.environ.get('GITHUB_REF') == 'refs/heads/main')
+    require(os.environ.get('GITHUB_REF') == 'refs/heads/main' or (HOSTING and
+        os.environ.get('GITHUB_REF') == 'refs/heads/development/studio-native-hosting-20261119'))
     revision = os.environ.get('GITHUB_SHA', '')
     require(re.fullmatch('[0-9a-f]{40}', revision) and os.environ.get('GITHUB_WORKFLOW_SHA') == revision)
     require(not any(key.startswith('LD_') or key in ('PYTHONPATH', 'PYTHONHOME') for key in os.environ))
@@ -803,7 +834,7 @@ def verify_site_review(review):
 
 def verify_gui(value):
     require(type(value) is dict and value.keys() == {'status', 'stage', 'process_groups_started', 'process_groups_joined',
-        'desktop_launches', 'native_window_closes', 'editor_title_states', 'canvas_readbacks', 'close_actions', 'original_project_reopened', 'project_id_sha256'} | ({'site_pack_review'} if SITE_EXPORT else set()) and
+        'desktop_launches', 'native_window_closes', 'editor_title_states', 'canvas_readbacks', 'close_actions', 'original_project_reopened', 'project_id_sha256'} | ({'site_pack_review'} if SITE_EXPORT else {'native_export'} if HOSTING else set()) and
         value['status'] == 'passed' and value['stage'] == 'complete' and
         type(value['process_groups_started']) is int and value['process_groups_started'] == value['process_groups_joined'] == 4
         and type(value['desktop_launches']) is int and value['desktop_launches'] == value['native_window_closes'] == 2
@@ -816,6 +847,12 @@ def verify_gui(value):
         and value['original_project_reopened'] is True and re.fullmatch('[0-9a-f]{64}', value['project_id_sha256']), 'protocol')
     if SITE_EXPORT:
         verify_site_review(value['site_pack_review'])
+    if HOSTING:
+        native = value['native_export']
+        require(type(native) is dict and native.keys() == {'asset_count', 'archive_bytes', 'archive_sha256'}
+                and native['asset_count'] == 5 and type(native['archive_bytes']) is int
+                and 262144 < native['archive_bytes'] <= 3 * 1024**2
+                and re.fullmatch('[0-9a-f]{64}', native['archive_sha256']), 'protocol')
 
 
 def namespace_init():
@@ -844,6 +881,7 @@ def namespace_init():
     primary = None
     dns = None
     gui_source = core_source = None
+    native_archive = b''
     try:
         # Cache every source byte before hiding the original workspace/home/run.
         actor = read(stage / 'isolation_actor.py', MAX_SOURCE, owner=0)
@@ -854,6 +892,13 @@ def namespace_init():
         if SITE_EXPORT:
             core_source, core_binary = core_input(uid, meta['revision'])
             site_helper = read(stage / 'site_export.py', MAX_SOURCE, owner=0)
+        if HOSTING:
+            portable = Path(os.environ['RUNNER_TEMP']) / 'silex-native-hosting-input'
+            directory(portable, uid, private=True)
+            native_inputs = {'hosting.py': read(stage / 'hosting.py', MAX_SOURCE, owner=0)}
+            for filename, maximum in (('native-project.json', 65536), ('native-inventory.json', 8192),
+                                      ('studio-topology.png', 3 * 1024**2)):
+                native_inputs[filename] = read(portable / filename, maximum, owner=uid, modes=(0o600,))
         resolver = resolver_target()
         os.chdir('/')
         # unshare already cloned this private mount tree and its child mounts.
@@ -880,6 +925,10 @@ def namespace_init():
             write_new(Path('/run/fixture/site_export.py'), site_helper, mode=0o444)
             copy_release(core_source, core_binary, Path('/run/fixture/volparossa'), gid)
             core_source.close()
+        if HOSTING:
+            for filename, data in native_inputs.items():
+                write_new(Path('/run/fixture') / filename, data, mode=0o444,
+                          maximum=3 * 1024**2 if filename == 'studio-topology.png' else MAX_SOURCE)
         home = Path('/home/fixture')
         home.mkdir(mode=0o700)
         os.chown(home, uid, gid)
@@ -954,6 +1003,8 @@ def namespace_init():
         if GUI:
             if SITE_EXPORT:
                 environment['STUDIO_NATIVE_WEBVIEW'] = 'export'
+            elif HOSTING:
+                environment['STUDIO_NATIVE_WEBVIEW'] = 'hosting'
             report['stage'] = 'gui_firewall'
             dns.close()
             dns = None
@@ -970,6 +1021,11 @@ def namespace_init():
             report['native_webview'] = dict(actor=gui, binary_sha256=binary['sha256'], counters_before=start, counters_after=stop)
             if SITE_EXPORT:
                 report['native_webview']['core_binary_sha256'] = core_binary['sha256']
+            if HOSTING:
+                # Keep the host root read-only throughout the session. Only the
+                # unprivileged controller writes the checked archive on the runner.
+                native_archive = read(runtime / 'native-export.zip', MAX_NATIVE_ARCHIVE, owner=uid, modes=(0o600,))
+                verify_archive(native_archive, gui['native_export'])
         report.update(status='passed', stage='complete')
     except BaseException as error:
         primary = error
@@ -1019,7 +1075,7 @@ def namespace_init():
         if owner.started != owner.joined or primary is not None:
             report['status'] = 'failed'
             report['failure_kind'] = report['failure_kind'] or 'cleanup'
-    print(json.dumps(report, sort_keys=True))
+    emit_result(report, native_archive)
     require(primary is None and report['status'] == 'passed', 'cleanup')
 
 
@@ -1037,6 +1093,7 @@ def staged_supervisor():
     lifecycle = load_lifecycle(stage / 'lifecycle.py', meta['sources']['lifecycle'], 0)
     owner = Owner(lifecycle, work, end)
     veth = VethRegistration()
+    native_archive = b''
     primary = None
     report = dict(schema=1, operation='root_isolation_supervisor', status='failed', stage='host_before',
         studio_revision=meta['revision'], source_sha256=meta['sources'], worker=None, namespace_parent_joined=False,
@@ -1055,8 +1112,8 @@ def staged_supervisor():
         env.update(ENV, VP_ISOLATION_WORK_NS=os.environ['VP_ISOLATION_WORK_NS'],
                    VP_ISOLATION_END_NS=os.environ['VP_ISOLATION_END_NS'])
         raw = owner.run(namespace_command(stage), environment=env, payload=BOOT,
-                        keep_stdin=True, cooperative=True, seconds=90, role='namespace')
-        worker = parse(raw)
+                        keep_stdin=True, cooperative=True, seconds=90, role='namespace', maximum=RESULT_LIMIT)
+        worker, native_archive = read_result(raw)
         require(worker.get('operation') == 'namespace_isolation_worker' and worker.get('status') == 'passed'
                 and worker.get('stage') == 'complete' and worker.get('namespace_groups_started', 0) > 0
                 and worker['namespace_groups_started'] == worker.get('namespace_groups_joined')
@@ -1106,7 +1163,7 @@ def staged_supervisor():
             report.update(status='passed', stage='complete')
         else:
             report['failure_kind'] = primary.kind if isinstance(primary, Rejected) else 'cleanup'
-    print(json.dumps(report, sort_keys=True), flush=True)
+    emit_result(report, native_archive)
     ROOT_REPORT_EMITTED = True
     require(primary is None, 'cleanup')
 

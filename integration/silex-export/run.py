@@ -20,6 +20,7 @@ from runtime_context import write_context
 from viewer_receipt import (validate_viewer_proof, read_viewer_cleanup, read_viewer_diagnostic,
                             read_viewer_unit_diagnostic)
 from signed_site_profile import SIGNED_MODES, TOPOLOGY_MODE, arguments
+import native_handoff
 import topology_handoff
 from topology_image import write_chart
 from signed_site_controller import execute as execute_signed_site
@@ -28,7 +29,8 @@ from signed_site_receipt import read_signed_diagnostic
 FIXTURE = Path(__file__).resolve().parent
 PINS = json.loads((FIXTURE / 'manifest.json').read_text())
 OPERATIONS = frozenset(('install-silex', 'install-driver', 'build-client', 'build-server',
-                        'build-public', 'runtime', 'core-pack', 'core-build', 'viewer-runtime', 'marker-unit', 'core-cli-build'))
+                        'build-public', 'runtime', 'core-pack', 'core-build', 'viewer-runtime',
+                        'marker-unit', 'core-cli-build', 'native-editor', 'native-review'))
 FAILURES = frozenset(('exit_nonzero', 'signal_terminated', 'deadline_exceeded',
                       'output_limit_exceeded', 'spawn_failed', 'cleanup_failed', 'cancelled'))
 DIAGNOSTIC_COUNTS = frozenset(('page_errors', 'console_errors', 'failed_requests',
@@ -264,6 +266,9 @@ def main():
                    full_studio_acceptance=False, synthetic_only=True)
     if proof_mode in SIGNED_MODES:
         receipt.update(schema=3, proof_mode=proof_mode)
+    native = os.environ.get('STUDIO_NATIVE_SITE_TOPOLOGY') == '1'
+    if native and proof_mode != TOPOLOGY_MODE:
+        raise ValueError('native producer requires the same-run signed topology')
     handoff_files = None
     temporary = Path(tempfile.mkdtemp(prefix='studio-export-', dir=os.environ['RUNNER_TEMP']))
     # Give SIGTERM the same finally/cleanup behavior as normal failure.
@@ -297,6 +302,10 @@ def main():
             'PATH', 'HOME', 'LANG', 'LC_ALL', 'RUNNER_TEMP', 'GITHUB_ACTIONS',
             'RUNNER_ENVIRONMENT', 'RUNNER_OS', 'RUNNER_ARCH', 'CARGO_HOME', 'RUSTUP_HOME')
             if key in os.environ}
+        if native:
+            for key in ('GIT_CONFIG_NOSYSTEM', 'GIT_CONFIG_SYSTEM', 'GIT_CONFIG_GLOBAL', 'GIT_ALLOW_PROTOCOL',
+                        'GIT_TERMINAL_PROMPT', 'GIT_ASKPASS'):
+                env[key] = os.environ[key]
         env.update(PATH=str(node.parent) + os.pathsep + os.environ['PATH'],
                    STUDIO_NODE=str(node), STUDIO_CHROME=chrome,
                    STUDIO_SILEX_SOURCE=str(runtime_source), STUDIO_FIXTURE_TEMP=str(temporary),
@@ -327,6 +336,8 @@ def main():
         # is located from runtime.py itself and read only after privilege drop.
         if proof_mode == TOPOLOGY_MODE:
             env['STUDIO_FIXTURE_IMAGE'] = str(write_chart(temporary))
+        if native:
+            env['STUDIO_CAPTURE_NATIVE_PROJECT'] = '1'
         write_context(temporary / 'runtime-context.json', env)
         run([core / 'scripts/run-isolated-test.sh', '--studio-nonroot-command', '/usr/bin/python3',
              'studio_export', 'VOLPAROSSA_HANDOFF_TEST_PARENT_NETNS', 'loopback', '-B', runtime_fixture / 'runtime.py'],
@@ -338,7 +349,12 @@ def main():
         receipt['stage'] = 'bounded_actual_zip_extraction'
         extract(temporary / 'actual-export.zip', temporary / 'export', temporary / 'inventory.json')
         if proof_mode in SIGNED_MODES:
-            execute_signed_site(core, temporary, runtime_fixture, env, receipt, run, mode=proof_mode)
+            if native:
+                receipt['stage'] = 'reopen_and_export_native_project'
+                receipt['native_export'] = native_handoff.prepare(core, studio, temporary, env, run)
+            review = receipt['native_export']['reviewed_bundle_sha256'] if native else None
+            execute_signed_site(core, temporary, runtime_fixture, env, receipt, run,
+                                mode=proof_mode, native_review_sha256=review)
             if proof_mode == TOPOLOGY_MODE:
                 receipt['stage'] = 'verify_topology_handoff'
                 handoff_files = topology_handoff.prepare(temporary, receipt, os.environ)
@@ -384,6 +400,8 @@ def main():
                 try:
                     with receipt_path.open('x') as output:
                         try:
+                            if native and os.environ['GITHUB_REF'] != 'refs/heads/main':
+                                handoff_files = None  # Only the protected Studio caller can supply the VM.
                             if handoff_files is not None and receipt['status'] == 'passed' and receipt['temporary_outputs_removed']:
                                 binding = topology_handoff.deliver(temporary.parent, handoff_files)
                                 delivered = True

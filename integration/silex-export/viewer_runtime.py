@@ -60,6 +60,8 @@ def main():
                    GITHUB_ACTIONS='true', RUNNER_ENVIRONMENT='github-hosted')
     if context.mode == TOPOLOGY_MODE:
         env['VOLPAROSSA_STUDIO_PUBLIC_TOPOLOGY_HANDOFF'] = '1'
+    if context.native_review_sha256 is not None:
+        env['VOLPAROSSA_STUDIO_NATIVE_REVIEW_SHA256'] = context.native_review_sha256
     def cancel(_signum, _frame):
         raise InterruptedError('cancelled')
     signal.signal(signal.SIGTERM, cancel)

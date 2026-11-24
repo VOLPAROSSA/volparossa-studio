@@ -123,6 +123,21 @@ class WebViewTests(unittest.TestCase):
         save.get_name.return_value = 'Other'
         self.assertIsNone(gui.quit_dialog_action(node, 1001))
 
+    def test_webkit_text_content_reads_the_text_interface_not_the_accessible_getter(self):
+        sdk, node = Mock(), Mock()
+        expected = 'Publish'
+        node.get_name.return_value = ''
+        node.get_text_iface.return_value = node
+        node.get_text.side_effect = TypeError('Accessible.get_text has no offset arguments')
+        node.get_character_count.return_value = len(expected)
+        sdk.Text.get_text.return_value = expected
+        self.assertTrue(gui.has_text(sdk, node, expected))
+        sdk.Text.get_text.assert_called_once_with(node, 0, len(expected))
+        node.get_text.assert_not_called()
+        node.get_character_count.return_value = 65536
+        self.assertFalse(gui.has_text(sdk, node, expected))
+        self.assertEqual(sdk.Text.get_text.call_count, 1)
+
     def test_visible_heading_must_match_the_content_saved_for_this_project(self):
         sdk = Mock()
         project_id = 'c3218641-230e-414f-8a6a-367733abeb23'
