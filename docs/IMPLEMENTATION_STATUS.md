@@ -1,9 +1,27 @@
 # Studio implementation status
 
-Updated 2026-11-19. Requirements are the complete permanent
+Updated 2026-11-24. Requirements are the complete permanent
 [Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md#studio),
 incorporated by the full Core goal. This file records Studio evidence and next
 work, without replacing that scope or the shared Core execution ledger.
+
+## Five native assets signed and recovered on the producer
+
+Two fresh Silex desktop processes reopened a two-page project containing edited
+text and an imported 1024 × 768 chart. File system hosting exported five files
+whose bytes matched the Silex Download export. Core `6924fe8b` packed the
+native files into 2,358,929 bytes across nine chunks. The synthetic owner
+selected the reviewed SHA-256 before signing. An independent local browser
+opened the recovered signed site, checked all five assets and rendered the
+edited text at 37 px. The resulting bundle SHA-256 was
+`4cae1917f2f197d608d4df699d910384506d7f418007473825849da002909e2d`.
+[Producer on Studio `8d6f20f7`](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/45425108548) · [Original producer receipt](evidence/native-webview/45425108548/studio-export-receipt.json)
+
+The [native trial index](evidence/native-webview/runs.json) binds the producer
+and six preceding attempts to their original archive digests. The index links
+the native and editor reports generated before each attempt stopped. The
+[package-index attempt](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/45408283487)
+stopped during the Core CLI build, after the SDK installation.
 
 ## Native editor export to Core — 2026-11-19
 
