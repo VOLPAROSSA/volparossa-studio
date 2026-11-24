@@ -264,7 +264,7 @@ The hosted job acquires exact source and builds the actual Node Silex applicatio
 using its frozen upstream lockfile and the exact app filter. Dependency install
 scripts are disabled; only its reviewed `build:client`, `build:server`, and
 `build:public` tasks are selected. The fixture uses Node 24.19.0 from the Core's
-already recorded runtime, pnpm 10.34.4, and `playwright-core` 1.65.0. Manifest hashes
+already recorded runtime, pnpm 10.34.4, and `playwright-core` 1.65.1. Manifest hashes
 and the frozen package lock bind these inputs. The current `browser_driver`
 records the official archive, bundled Chromium driver, license, notice and four
 upstream source hashes. The 1.56.1 drag review above retains its original sources.
