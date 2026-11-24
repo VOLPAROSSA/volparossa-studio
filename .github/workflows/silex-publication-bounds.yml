@@ -609,10 +609,10 @@ jobs:
           ref: ${{ env.STUDIO_CORE_REVISION }}
           path: core
           persist-credentials: false
-      - name: Prepare signed Ubuntu mirrors for Core's Protobuf compiler
+      - name: Fetch the signed Ubuntu indices for Core's Protobuf compiler
         id: core_archive
         if: inputs.native_followup == 'native-site-export' || inputs.native_followup == 'native-site-hosting'
-        uses: VOLPAROSSA/.github/actions/ubuntu-archive@e3f98bbc538f5df580b78c8a0d8bd932dfe3e381
+        uses: VOLPAROSSA/.github/actions/ubuntu-archive@0b26926c9893b01713aded0d331efb1333ddf0c0
       - name: Build the locked production CLI for private site preparation
         if: inputs.native_followup == 'native-site-export' || inputs.native_followup == 'native-site-hosting'
         timeout-minutes: 20
@@ -625,7 +625,6 @@ jobs:
           test "$(git rev-parse HEAD)" = "$STUDIO_CORE_REVISION"
           test "$(sha256sum Cargo.lock | cut -d' ' -f1)" = ef5df0f0a6a1db08908d368e085d43b93ce29db5812b283475497a1658110b00
           test -z "$(git status --porcelain)"
-          sudo apt-get -c "$CORE_APT_CONFIG" update
           sudo apt-get -c "$CORE_APT_CONFIG" install --yes --no-install-recommends \
             protobuf-compiler=3.21.12-8.2ubuntu0.4 libprotoc32t64=3.21.12-8.2ubuntu0.4 libprotobuf32t64=3.21.12-8.2ubuntu0.4
           test "$(protoc --version)" = 'libprotoc 3.21.12'
