@@ -447,7 +447,8 @@
         "path": "44564154332/studio-export-receipt.json",
         "sha256": "3e346d9573bfbba0fa6376bf1d26e26a5e056b708a15560e5e433b385f74a12f"
       }
-    ]
+    ],
+    "archive": "44564154332/reports.zip"
   },
   {
     "run": 44569190395,
@@ -462,7 +463,8 @@
         "path": "44569190395/studio-export-receipt.json",
         "sha256": "f1c1550688a11890a21e72a3e8639383aba6ac7cbe9d439b2860aca6815ad071"
       }
-    ]
+    ],
+    "archive": "44569190395/reports.zip"
   },
   {
     "run": 45408283487,
@@ -477,7 +479,8 @@
         "path": "45408283487/silex-native-sdk-install.json",
         "sha256": "1ef56a3e77f83f497c30a424e735d8a71ba9cbb3b13021ae3284a176524bbe25"
       }
-    ]
+    ],
+    "archive": "45408283487/reports.zip"
   },
   {
     "run": 45413459586,
@@ -496,7 +499,8 @@
         "path": "45413459586/studio-export-receipt.json",
         "sha256": "d504c3127ec15feb7cfbdc0ec08ea85f60b50fbe8bc4c2c5387871f41ca0f73a"
       }
-    ]
+    ],
+    "archive": "45413459586/reports.zip"
   },
   {
     "run": 45417702207,
@@ -515,7 +519,8 @@
         "path": "45417702207/studio-export-receipt.json",
         "sha256": "3ac50a929dbc4b75bbb68879fcdcf57c552dbfad12bb7d5d78f60ca95b184f9f"
       }
-    ]
+    ],
+    "archive": "45417702207/reports.zip"
   },
   {
     "run": 45420833489,
@@ -534,7 +539,8 @@
         "path": "45420833489/studio-export-receipt.json",
         "sha256": "9ecef3f5e644b18348dd260587d8f72f896d53dfef1bfa754a0050aac567bb29"
       }
-    ]
+    ],
+    "archive": "45420833489/reports.zip"
   },
   {
     "run": 45425108548,
@@ -553,7 +559,8 @@
         "path": "45425108548/studio-export-receipt.json",
         "sha256": "df9ecb99ba394b94fbad267be0b0fca70348b4a2f6f6240986cd0f4d47134b8b"
       }
-    ]
+    ],
+    "archive": "45425108548/reports.zip"
   },
   {
     "run": 45505780043,
@@ -580,6 +587,7 @@
         "path": "45505780043/studio-vm-cleanup.json",
         "sha256": "eedc7192a602b86e96efae2fd81bf6395d192887537b93d39dacb1ba610b0bea"
       }
-    ]
+    ],
+    "archive": "45505780043/reports.zip"
   }
 ]

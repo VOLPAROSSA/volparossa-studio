@@ -23,7 +23,7 @@ manifest and consumer receipt is
 `bc3f67f29820c00d821045640bf4fd100ec80c0ef38b54e347022b634ff7fc06`.
 The original archive SHA-256 is
 `c185f59ef5df674cdf3f9e51b0262475418801cc9c15dfb1a27857db35882b6e`.
-[Independent reader report](evidence/native-webview/45505780043/content-repair-smoke.json) · [VM cleanup](evidence/native-webview/45505780043/studio-vm-cleanup.json)
+[Independent reader report](evidence/native-webview/45505780043/content-repair-smoke.json) · [VM cleanup](evidence/native-webview/45505780043/studio-vm-cleanup.json) · [Complete original report archive](evidence/native-webview/45505780043/reports.zip)
 
 The trial used a synthetic owner and an unexpired release with a reachable
 holder. Desktop publication consent, long-term availability, dynamic state and
@@ -42,8 +42,8 @@ edited text at 37 px. The resulting bundle SHA-256 was
 [Producer on Studio `8d6f20f7`](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/45425108548) · [Original producer receipt](evidence/native-webview/45425108548/studio-export-receipt.json)
 
 The [native trial index](evidence/native-webview/runs.json) binds the producer
-and six preceding attempts to their original archive digests. The index links
-the native and editor reports generated before each attempt stopped. The
+and six preceding attempts to their original archive digests. Each entry links
+the complete original ZIP and the selected reports for that attempt. The
 [package-index attempt](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/45408283487)
 stopped during the Core CLI build, after the SDK installation.
 
