@@ -1,10 +1,6 @@
 # VOLPAROSSA Studio repository guidance
 
-Follow the [shared development workflow](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/CODEX_WORKFLOW.md) for Codex, OpenCode and other coding agents.
-Start with the user's task and the relevant part of the [README](README.md).
-Choose available models, reasoning effort, tools and any delegation according
-to the task's complexity, risk and cost. Use targeted checks. Run builds and
-runtime trials on approved disposable hosted runners.
+Follow the [shared development workflow](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/WORKFLOW.md).
 
 - For scoped changes, read the applicable [Core instructions](https://github.com/VOLPAROSSA/volparossa/blob/main/AGENTS.md)
   and the relevant [Studio/hosting](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md#studio)
@@ -44,8 +40,6 @@ runtime trials on approved disposable hosted runners.
   VOLPAROSSA code follows core GPL-3.0-only rules; upstream-derived AGPL/GPL components
   retain their terms. Record component licenses, patches, corresponding-source and
   network-service obligations; do not blanket-relabel an integrated Silex tree.
-- When delegating, identify the exact source, assign distinct paths and preserve
-  other workers' edits. Delegation grants no publication authority.
 - Scoped ordinary development commits/PRs/permitted merges are authorized under core
   workflow. This does not authorize website/account/DNS changes, paid infrastructure,
   development-host installation/configuration or release-signing bypass.
