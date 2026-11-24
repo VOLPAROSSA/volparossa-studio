@@ -223,7 +223,7 @@ def interface_observation(atspi, pid, error):
     trace = error.__traceback__
     line = 0
     while trace:
-        if trace.tb_frame.f_code.co_filename == __file__:
+        if trace.tb_frame.f_code.co_filename == __file__ and trace.tb_frame.f_code is not require.__code__:
             line = trace.tb_lineno
         trace = trace.tb_next
     kind = 'timeout' if isinstance(error, TimeoutError) else 'predicate' if isinstance(error, RuntimeError) else 'other'
@@ -454,8 +454,16 @@ def desktop_session(result):
                 stage = phase + '_metadata'
                 meta = remote('GET', '/api/website/meta?websiteId=' + project_id + '&connectorId=fs-storage')
                 require(meta['name'] == NAME)
+                stage = phase + '_storage_read'
+                stored = remote('GET', uri)
                 stage = phase + '_saved_page'
-                require(remote('GET', uri)['pages'] == expected_pages)
+                if hosting and phase == 'second':
+                    # GrapesJS autosaves editor state when a page is selected. On
+                    # cold reopen require the original pages and authored content.
+                    # The native publication later verifies all five portable files byte for byte.
+                    require(hosting.project_identity(stored) == hosting.project_identity(project))
+                else:
+                    require(stored['pages'] == expected_pages)
                 stage = phase + '_open'
                 checkpoint(phase + '_saved_page')
                 desktop_action(Atspi, 'Open project: ' + NAME, app, events)

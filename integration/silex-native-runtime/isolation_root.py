@@ -62,7 +62,7 @@ GUI_STAGES = ('admission', 'display', 'bus', 'first_launch', 'seed_project', 're
               'second_editor', 'second_close', 'cleanup', 'complete') + tuple(
     phase + '_' + observed for phase in ('first', 'second')
     for observed in ('close_request', 'quit_dialog', 'quit_action', 'exit_status', 'exit', 'server_stop',
-                     'list', 'metadata', 'saved_page', 'window_size', 'canvas_pixels', 'canvas_accessibility',
+                     'list', 'metadata', 'storage_read', 'saved_page', 'window_size', 'canvas_pixels', 'canvas_accessibility',
                      'dirty_title', 'id_title', 'dashboard', 'loading', 'editor_url', 'unknown_page', 'webkit_process', 'canvas', 'canvas_dirty_title', 'canvas_id_title',
                      'canvas_dashboard', 'canvas_loading', 'canvas_editor_url', 'canvas_unknown_page'))
 

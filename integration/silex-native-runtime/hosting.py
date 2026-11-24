@@ -28,11 +28,18 @@ def sha(data):
 def capture_project(raw):
     require(0 < len(raw) <= 65536)
     saved = json.loads(raw)
+    project_identity(saved)
+    return saved
+
+
+def project_identity(saved):
     pages = saved['pages']
     require(type(pages) is list and len(pages) == 2 and pages[1]['name'] == 'Studio export')
+    require(all(type(page.get('id')) is str and 0 < len(page['id']) <= 128 for page in pages)
+            and pages[0]['id'] != pages[1]['id'])
     frame = json.dumps(pages[1]['frames'])
-    require(MARKER in frame and '37px' in raw.decode() and '/assets/' + CHART in frame)
-    return saved
+    require(MARKER in frame and '37px' in json.dumps(saved) and '/assets/' + CHART in frame)
+    return [(page['id'], page.get('name')) for page in pages]
 
 
 def expected_rows(raw):

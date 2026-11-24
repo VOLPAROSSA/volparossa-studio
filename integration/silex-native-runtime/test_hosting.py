@@ -14,9 +14,15 @@ spec.loader.exec_module(hosting)
 
 class HostingTests(unittest.TestCase):
     def test_saved_marker_chart_and_style_belong_to_the_authored_project(self):
-        project = {'pages': [{'name': 'Index'}, {'name': 'Studio export', 'frames': [
+        project = {'pages': [{'id': 'home', 'name': 'Index'}, {'id': 'page', 'name': 'Studio export', 'frames': [
             {'text': hosting.MARKER, 'image': '/assets/' + hosting.CHART, 'font-size': '37px'}]}]}
         self.assertEqual(hosting.capture_project(json.dumps(project).encode()), project)
+        original = hosting.project_identity(project)
+        reopened = json.loads(json.dumps(project))
+        reopened['pages'][1]['frames'][0]['view'] = {'selected': True}
+        self.assertEqual(hosting.project_identity(reopened), original)
+        reopened['pages'][1]['id'] = 'another-page'
+        self.assertNotEqual(hosting.project_identity(reopened), original)
         for field in ('text', 'image', 'font-size'):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 copy = json.loads(json.dumps(project))
