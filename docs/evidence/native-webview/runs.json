@@ -554,5 +554,32 @@
         "sha256": "df9ecb99ba394b94fbad267be0b0fca70348b4a2f6f6240986cd0f4d47134b8b"
       }
     ]
+  },
+  {
+    "run": 45505780043,
+    "revision": "3ce0713676e9a78700d31f61545c62b3471cc898",
+    "scope": "native_site_hosting",
+    "conclusion": "success",
+    "artifact_id": 14974078911,
+    "artifact_bytes": 85575,
+    "artifact_sha256": "c185f59ef5df674cdf3f9e51b0262475418801cc9c15dfb1a27857db35882b6e",
+    "files": [
+      {
+        "path": "45505780043/silex-native-webview.json",
+        "sha256": "37d89cc24d94b665fe42dc22185cdf4846a4537a4542146dd05c760d3eea340e"
+      },
+      {
+        "path": "45505780043/studio-export-receipt.json",
+        "sha256": "8ad921b7843f3ade5de3d6fc59f88a812a20385dd00b58d58430ce577e046dd9"
+      },
+      {
+        "path": "45505780043/content-repair-smoke.json",
+        "sha256": "6f826008c3718af12a90ebff512c76548f164dc4887c1f83eaa5f4454288558a"
+      },
+      {
+        "path": "45505780043/studio-vm-cleanup.json",
+        "sha256": "eedc7192a602b86e96efae2fd81bf6395d192887537b93d39dacb1ba610b0bea"
+      }
+    ]
   }
 ]

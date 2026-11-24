@@ -212,9 +212,10 @@ volparossa content site open --publisher-key "$PUBLISHER_KEY" --name "$SITE_NAME
   --expected-manifest-id "$REVIEWED_MANIFEST_ID" --cache ./reader-site-cache
 ```
 
-The native export trial ends at the bundle review. A separate five-asset trial
-demonstrated signing, retention by another peer and a fresh reader fetching
-the site after the original provider went offline.
+The `native-site-export` profile ends at bundle review. The
+`native-site-hosting` profile continued from a five-asset native export
+through signing and retention by a second peer. During the publisher outage
+two fresh Firefox profiles rendered that release. [Protected five-asset run](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/45505780043)
 [Core hosting commands](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/services/STUDIO_HOSTING.md)
 · [Publisher-offline trial](https://github.com/VOLPAROSSA/volparossa/actions/runs/44384131952)
 

@@ -8,25 +8,16 @@ A Silex-based visual website editor with shared VOLPAROSSA publishing, hosting
 and AI assistance. The target is to create, preview, explicitly publish, update
 and maintain portable websites using the cooperative DICN infrastructure.
 
-The original Silex desktop created a local project in its native dashboard on
-Ubuntu. Two fresh desktop processes opened its saved canvas, displayed the exact
-restored heading and exited through Silex’s Quit dialog. From the reopened
-editor, File system hosting wrote the page and its stylesheet. Core packaged
-both files and returned their hashes and the bundle digest for owner review.
-[Native export trial](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44558150491)
-· [Prepare a saved site's local output](integration/silex-native-runtime/README.md#prepare-the-native-editors-local-output-for-core)
+The native Silex desktop reopened a two-page project and exported its pages,
+stylesheets and imported chart. A synthetic owner signed the reviewed five
+assets with Core. An independent holder retained all nine chunks. After the
+publisher stopped, a fresh client fetched 2,358,929 bytes from the holder
+and zero bytes from the origin. Two fresh Firefox processes rendered the
+edited text at 37 px and decoded the 1024 × 768 chart. [Protected publisher-offline trial](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/45505780043)
 
-The pinned editor also edited text at 37 px, previewed a page and reopened it
-from filesystem storage in a fresh browser context. The production Core
-`SiteBundle` path decoded the exported ZIP, verified all four assets and
-rejected overwrites. A later trial signed
-a five-asset site, recovered it after a daemon crash and transferred it to a
-second peer. With the original provider offline, a fresh Firefox client fetched
-all 2,358,929 bytes from that peer and rendered the edited text and chart.
-Native publication consent, long-term hosting, shared AI and dynamic execution
-remain open.
-[Publisher-offline trial](https://github.com/VOLPAROSSA/volparossa/actions/runs/44384131952)
-· [Implementation status](docs/IMPLEMENTATION_STATUS.md)
+The owner can prepare a saved site's local output and authorize signing and
+contribution separately with Core. Native desktop publication consent, long-term
+hosting, shared AI and dynamic execution remain open. [Owner workflow](integration/silex-native-runtime/README.md#prepare-the-native-editors-local-output-for-core) · [Implementation status and original reports](docs/IMPLEMENTATION_STATUS.md)
 
 The complete [permanent Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md#studio)
 is part of the [full VOLPAROSSA goal](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md),

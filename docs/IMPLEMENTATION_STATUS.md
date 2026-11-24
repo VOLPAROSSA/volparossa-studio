@@ -1,9 +1,33 @@
 # Studio implementation status
 
-Updated 2026-11-24. Requirements are the complete permanent
+Updated 2026-11-25. Requirements are the complete permanent
 [Studio/hosting amendment](https://github.com/VOLPAROSSA/volparossa/blob/main/docs/development/GOAL.md#studio),
 incorporated by the full Core goal. This file records Studio evidence and next
 work, without replacing that scope or the shared Core execution ledger.
+
+## Two Firefox sessions read the native desktop export during a publisher outage
+
+On Studio `3ce07136`, the reopened native Silex project exported its two pages,
+stylesheets and imported chart. The synthetic owner selected the reviewed hash
+and Core `6924fe8b` signed that exact five-asset bundle. The independent
+holder retained all nine chunks. After the publisher service stopped, a fresh
+client fetched all 2,358,929 bytes from the holder over protected MPTCP, with
+zero origin bytes. The publisher PID, listener and service were absent before
+and after the read. [Protected same-run trial](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/45505780043) · [Producer receipt](evidence/native-webview/45505780043/studio-export-receipt.json)
+
+Two fresh Firefox ESR 140.16.0 processes displayed the edited text at 37 px
+and decoded the 1024 × 768 chart. Each closed and its profile was removed.
+QEMU exited, the private guest state was removed and the guest root network
+matched its initial snapshot. The bundle SHA-256 in the native review, signed
+manifest and consumer receipt is
+`bc3f67f29820c00d821045640bf4fd100ec80c0ef38b54e347022b634ff7fc06`.
+The original archive SHA-256 is
+`c185f59ef5df674cdf3f9e51b0262475418801cc9c15dfb1a27857db35882b6e`.
+[Independent reader report](evidence/native-webview/45505780043/content-repair-smoke.json) · [VM cleanup](evidence/native-webview/45505780043/studio-vm-cleanup.json)
+
+The trial used a synthetic owner and an unexpired release with a reachable
+holder. Desktop publication consent, long-term availability, dynamic state and
+shared AI still require their respective trials.
 
 ## Five native assets signed and recovered on the producer
 
@@ -54,9 +78,9 @@ SHA-256 `f88420d4ae6ff0117ff6547af7aa1311bb1d242057cda9885892be15d40706b5`.
 [Protected native export](https://github.com/VOLPAROSSA/volparossa-studio/actions/runs/44558150491)
 · [Original protected reports](evidence/native-webview/44558150491/)
 
-The independent Firefox hosting trial below used a separate five-asset site.
-Owner authorization, signing and independent retrieval during a publisher
-outage remain to be demonstrated together for this native export.
+This two-asset run ended at local preparation. The later protected five-asset
+run above carried the native export through signing and publisher-offline
+retrieval.
 
 ## Native Silex desktop reopens a saved canvas — 2026-11-19
 

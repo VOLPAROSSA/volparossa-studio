@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "source_revision": "6924fe8b051ad84e09b8f21ca032a1db4c796693",
+  "qemu_started": true,
+  "qemu_joined": true,
+  "private_guest_state_removed": true
+}
