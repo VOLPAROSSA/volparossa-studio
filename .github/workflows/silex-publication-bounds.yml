@@ -473,7 +473,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.native_followup == 'native-site-hosting' && 120 || 45 }}
     env:
-      STUDIO_CORE_REVISION: ${{ inputs.native_followup == 'native-site-hosting' && '0424b9094b7b2e40e64e482707c69f0cd9f413a7' || 'c8689558544eb56f28c4de5df805e4d9bbd5d358' }}
+      STUDIO_CORE_REVISION: ${{ inputs.native_followup == 'native-site-hosting' && '077beb7374c985d618f8bafd64af9208690a87a3' || 'c8689558544eb56f28c4de5df805e4d9bbd5d358' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
