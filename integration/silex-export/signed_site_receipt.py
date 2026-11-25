@@ -112,9 +112,13 @@ def read_signed_proof(path, expected_assets, *, native_review_sha256=None):
         digest(native_review_sha256)
         prefix = 'STUDIO_NATIVE_OWNER_REVIEW '
         acknowledged = [line[len(prefix):] for line in lines if line.startswith(prefix)]
-        if (acknowledged != [native_review_sha256]
-                or proof['bindings']['bundle_sha256'] != native_review_sha256):
+        signed = proof['bindings']
+        if acknowledged != [native_review_sha256] or signed['bundle_sha256'] != native_review_sha256:
             raise ValueError('signed input must match the independently reviewed native bundle')
+        prefix = 'STUDIO_NATIVE_TERMINAL_APPROVAL '
+        authenticated = [line[len(prefix):] for line in lines if line.startswith(prefix)]
+        if authenticated != [f"{signed['manifest_id']} {signed['publication_expires_unix_seconds']}"]:
+            raise ValueError('one terminal approval of the original manifest and absolute expiry required')
     return proof
 
 
