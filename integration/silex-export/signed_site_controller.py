@@ -56,4 +56,5 @@ def execute(core, temporary, runtime_fixture, env, receipt, run, *, mode=MODE, n
         len(inventory['assets']), native_review_sha256=native_review_sha256)
     if native_review_sha256 is not None:
         receipt['native_export']['owner_review_bound_before_signing'] = True
+        receipt['native_export']['owner_terminal_approved_original_manifest'] = True
     receipt['viewer_cleanup'] = read_viewer_cleanup(temporary / 'viewer-cleanup.json')

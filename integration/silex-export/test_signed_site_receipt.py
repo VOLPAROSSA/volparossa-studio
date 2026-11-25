@@ -124,12 +124,17 @@ class SignedReceiptTests(unittest.TestCase):
             selected = 'a' * 64
             other = 'b' * 64
             ack = 'STUDIO_NATIVE_OWNER_REVIEW ' + selected + '\n'
+            approval = 'STUDIO_NATIVE_TERMINAL_APPROVAL ' + 'b' * 64 + ' 2000000000\n'
             body = log_text(proof())
-            private(path, (ack + body).encode())
+            private(path, (ack + approval + body).encode())
             self.assertEqual(receipt.read_signed_proof(path, 4, native_review_sha256=selected), proof())
-            for lines, review in ((body, selected), (ack + ack + body, selected),
-                                  (ack.replace(selected, other) + body, selected),
-                                  (ack.replace(selected, other) + body, other)):
+            for lines, review in (
+                    (approval + body, selected), (ack + ack + approval + body, selected),
+                    (ack.replace(selected, other) + approval + body, selected),
+                    (ack.replace(selected, other) + approval + body, other),
+                    (ack + body, selected), (ack + approval + approval + body, selected),
+                    (ack + approval.replace('b' * 64, 'c' * 64) + body, selected),
+                    (ack + approval.replace('2000000000', '2000000001') + body, selected)):
                 private(path, lines.encode())
                 with self.subTest(review=review, ack=lines.count('OWNER_REVIEW')), self.assertRaises(ValueError):
                     receipt.read_signed_proof(path, 4, native_review_sha256=review)
